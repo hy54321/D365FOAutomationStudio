@@ -20,12 +20,10 @@ body {
 }
 
 .main-panel {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     flex-direction: column;
-    width: 420px;
-    min-width: 420px;
-    max-width: 420px;
+    min-width: 360px;
     height: 100vh;
     overflow: hidden;
 }
@@ -105,6 +103,7 @@ header h1 {
     display: none;
     flex: 1;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 12px;
 }
 
@@ -482,8 +481,7 @@ header h1 {
     flex: 1;
     overflow-y: auto;
     margin-bottom: 8px;
-    min-height: 100px;
-    max-height: 200px;
+    min-height: 120px;
 }
 
 .step-item {
@@ -635,6 +633,28 @@ header h1 {
     color: #888;
 }
 
+.wait-options {
+    display: grid;
+    gap: 6px;
+}
+
+.wait-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #555;
+}
+
+.wait-option input {
+    margin: 0;
+}
+
+.wait-flags {
+    color: #777;
+    font-size: 11px;
+}
+
 .form-control {
     width: 100%;
     padding: 6px 8px;
@@ -703,7 +723,6 @@ header h1 {
 
 .panel-body {
     padding: 10px;
-    max-height: 180px;
     overflow-y: auto;
 }
 
@@ -759,6 +778,29 @@ header h1 {
     background: #f9f9f9;
     padding: 4px 6px;
     border-radius: 3px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.detail-fields {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.field-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 10px;
+    background: #eef2ff;
+    color: #3f51b5;
+    font-size: 10px;
+    font-weight: 600;
+    border: 1px solid #d6dcff;
+    white-space: nowrap;
 }
 
 /* Workflow Actions Bar */
@@ -911,17 +953,17 @@ header h1 {
 
 /* Logs Panel */
 .logs-panel {
-    width: 0;
+    flex: 0 0 0;
     background: #1a1a2e;
     color: #e0e0e0;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transition: width 0.3s ease;
+    transition: flex-basis 0.3s ease;
 }
 
 .logs-panel.open {
-    width: 320px;
+    flex-basis: 320px;
     border-left: 1px solid #333;
 }
 

@@ -64,6 +64,9 @@ class PopupController {
         // Load settings into UI
         this.loadSettingsUI();
 
+        // Restore logs panel open state
+        await this.initLogsPanelState();
+
         // Check if we were waiting for an element pick (do this AFTER DOM setup)
         await this.checkForPickedElement();
     }
@@ -561,8 +564,21 @@ class PopupController {
     toggleLogsPanel() {
         const logsPanel = document.getElementById('logsPanel');
         if (logsPanel) {
-            logsPanel.classList.toggle('open');
+            const nextState = !logsPanel.classList.contains('open');
+            this.setLogsPanelOpen(nextState);
         }
+    }
+
+    async initLogsPanelState() {
+        const { logsPanelOpen } = await chrome.storage.local.get(['logsPanelOpen']);
+        this.setLogsPanelOpen(!!logsPanelOpen);
+    }
+
+    setLogsPanelOpen(isOpen) {
+        const logsPanel = document.getElementById('logsPanel');
+        if (!logsPanel) return;
+        logsPanel.classList.toggle('open', isOpen);
+        chrome.storage.local.set({ logsPanelOpen: isOpen });
     }
     
     addLog(level, message) {
@@ -739,7 +755,7 @@ class PopupController {
         
         // Open logs panel if requested
         if (runOptions.showLogs) {
-            document.getElementById('logsPanel')?.classList.add('open');
+            this.setLogsPanelOpen(true);
         }
         
         this.hideRunOptionsModal();
@@ -1038,7 +1054,7 @@ class PopupController {
             if (runOptions.dryRun) {
                 this.logs = [];
                 this.addLog('warning', '🔬 DRY RUN MODE - No actual changes will be made');
-                document.getElementById('logsPanel')?.classList.add('open');
+                this.setLogsPanelOpen(true);
             }
             
             this.addLog('info', `Starting workflow: ${workflow.name}`);
@@ -1165,11 +1181,45 @@ class PopupController {
         document.getElementById('stepsPanel').style.display = 'block';
     }
 
+    isUIActionStep(stepType) {
+        return ['click', 'input', 'select', 'lookupSelect', 'checkbox'].includes(stepType);
+    }
+
+    renderWaitOptions() {
+        const waitVisible = this.currentStep?.waitUntilVisible ? 'checked' : '';
+        const waitHidden = this.currentStep?.waitUntilHidden ? 'checked' : '';
+
+        return `
+            <div class="form-group">
+                <label>Wait Options</label>
+                <div class="wait-options">
+                    <label class="wait-option">
+                        <input type="checkbox" id="stepWaitVisible" ${waitVisible}>
+                        Wait until visible (before action)
+                    </label>
+                    <label class="wait-option">
+                        <input type="checkbox" id="stepWaitHidden" ${waitHidden}>
+                        Wait until hidden (after action)
+                    </label>
+                </div>
+                <small style="color: #666; font-size: 11px;">Uses the same control name as this step</small>
+            </div>
+        `;
+    }
+
+    getWaitOptionsFromUI() {
+        return {
+            waitUntilVisible: document.getElementById('stepWaitVisible')?.checked || false,
+            waitUntilHidden: document.getElementById('stepWaitHidden')?.checked || false
+        };
+    }
+
     updateStepFields(stepType) {
         const container = document.getElementById('stepTypeFields');
         container.innerHTML = '';
 
         if (stepType === 'click') {
+            const waitOptions = this.renderWaitOptions();
             container.innerHTML = `
                 <div class="form-group">
                     <label>Button Control Name</label>
@@ -1186,9 +1236,11 @@ class PopupController {
                            value="${this.currentStep?.displayText || ''}" 
                            placeholder="e.g., New">
                 </div>
+                ${waitOptions}
             `;
         } else if (stepType === 'input' || stepType === 'select' || stepType === 'lookupSelect') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
+            const waitOptions = this.renderWaitOptions();
             container.innerHTML = `
                 <div class="form-group">
                     <label>Field Control Name</label>
@@ -1216,6 +1268,7 @@ class PopupController {
                     <label>Data Field</label>
                     ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
                 </div>
+                ${waitOptions}
             `;
 
             // Add event listener for value source change
@@ -1227,6 +1280,7 @@ class PopupController {
                 });
             }, 0);
         } else if (stepType === 'checkbox') {
+            const waitOptions = this.renderWaitOptions();
             container.innerHTML = `
                 <div class="form-group">
                     <label>Checkbox Control Name</label>
@@ -1250,6 +1304,7 @@ class PopupController {
                         <option value="false" ${this.currentStep?.value === 'false' ? 'selected' : ''}>Uncheck (Disable)</option>
                     </select>
                 </div>
+                ${waitOptions}
             `;
         } else if (stepType === 'wait') {
             container.innerHTML = `
@@ -1637,6 +1692,15 @@ class PopupController {
             this.currentStep.timeout = parseInt(document.getElementById('stepTimeout')?.value) || 10000;
         }
 
+        if (this.isUIActionStep(this.currentStep.type)) {
+            const waitOptions = this.getWaitOptionsFromUI();
+            this.currentStep.waitUntilVisible = waitOptions.waitUntilVisible;
+            this.currentStep.waitUntilHidden = waitOptions.waitUntilHidden;
+        } else {
+            delete this.currentStep.waitUntilVisible;
+            delete this.currentStep.waitUntilHidden;
+        }
+
         // Add or update step in workflow
         if (!this.currentWorkflow) {
             this.createNewWorkflow();
@@ -1713,23 +1777,24 @@ class PopupController {
             
             let stepDesc = '';
             let stepIcon = '';
+            const waitFlags = this.formatWaitFlags(step);
             
             if (step.type === 'click') {
                 stepIcon = '🖱️';
-                stepDesc = `Click "${step.displayText || step.controlName}"`;
+                stepDesc = `Click "${step.displayText || step.controlName}"${waitFlags}`;
             } else if (step.type === 'input') {
                 stepIcon = '⌨️';
-                stepDesc = `Enter "${step.value || '{' + step.fieldMapping + '}'}" into ${step.displayText || step.controlName}`;
+                stepDesc = `Enter "${step.value || '{' + step.fieldMapping + '}'}" into ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'select') {
                 stepIcon = '📋';
-                stepDesc = `Select "${step.value || '{' + step.fieldMapping + '}'}" in ${step.displayText || step.controlName}`;
+                stepDesc = `Select "${step.value || '{' + step.fieldMapping + '}'}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'lookupSelect') {
                 stepIcon = '🔍';
-                stepDesc = `Lookup "${step.value || '{' + step.fieldMapping + '}'}" in ${step.displayText || step.controlName}`;
+                stepDesc = `Lookup "${step.value || '{' + step.fieldMapping + '}'}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'checkbox') {
                 stepIcon = '☑️';
                 const action = step.value === 'true' ? 'Check' : 'Uncheck';
-                stepDesc = `${action} "${step.displayText || step.controlName}"`;
+                stepDesc = `${action} "${step.displayText || step.controlName}"${waitFlags}`;
             } else if (step.type === 'wait') {
                 stepIcon = '⏱️';
                 stepDesc = `Wait ${step.duration}ms`;
@@ -1824,6 +1889,14 @@ class PopupController {
 
             container.appendChild(item);
         });
+    }
+
+    formatWaitFlags(step) {
+        const flags = [];
+        if (step.waitUntilVisible) flags.push('wait visible');
+        if (step.waitUntilHidden) flags.push('wait hidden');
+        if (flags.length === 0) return '';
+        return ` <span class="wait-flags">(${flags.join(', ')})</span>`;
     }
 
     clearStepStatuses() {

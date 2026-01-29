@@ -839,6 +839,14 @@ async function executeSingleStep(step, stepIndex, dataRow, detailSources, settin
     await sleep(settings?.delayBetweenSteps || 200);
 }
 
+function getWaitSuffix(step) {
+    const flags = [];
+    if (step.waitUntilVisible) flags.push('wait visible');
+    if (step.waitUntilHidden) flags.push('wait hidden');
+    if (flags.length === 0) return '';
+    return ` (${flags.join(', ')})`;
+}
+
 // Describe a step for dry run logging
 function describeStep(step, dataRow) {
     const { type, controlName, value, fieldMapping, displayText } = step;
@@ -857,14 +865,14 @@ function describeStep(step, dataRow) {
     
     switch (type) {
         case 'click':
-            return `Click "${name}"`;
+            return `Click "${name}"${getWaitSuffix(step)}`;
         case 'input':
         case 'select':
-            return `Set "${name}" to "${resolvedValue}"`;
+            return `Set "${name}" to "${resolvedValue}"${getWaitSuffix(step)}`;
         case 'lookupSelect':
-            return `Lookup "${resolvedValue}" in "${name}"`;
+            return `Lookup "${resolvedValue}" in "${name}"${getWaitSuffix(step)}`;
         case 'checkbox':
-            return `${resolvedValue === 'true' ? 'Check' : 'Uncheck'} "${name}"`;
+            return `${coerceBoolean(resolvedValue) ? 'Check' : 'Uncheck'} "${name}"${getWaitSuffix(step)}`;
         case 'wait':
             return `Wait ${step.duration}ms`;
         case 'filter':
@@ -898,6 +906,12 @@ async function executeStep(step, dataRow, detailSources = {}) {
         }
     }
 
+    const supportsWaitFlags = ['click', 'input', 'select', 'lookupSelect', 'checkbox'].includes(type);
+    const waitTimeout = step.waitTimeout || 10000;
+
+    if (supportsWaitFlags && step.waitUntilVisible && controlName) {
+        await waitUntilCondition(controlName, 'visible', null, waitTimeout);
+    }
 
     switch (type) {
         case 'click':
@@ -924,6 +938,10 @@ async function executeStep(step, dataRow, detailSources = {}) {
         case 'wait-until':
             await waitUntilCondition(controlName, step.waitCondition || 'visible', step.waitValue, step.timeout || 10000);
             break;
+    }
+
+    if (supportsWaitFlags && step.waitUntilHidden && controlName) {
+        await waitUntilCondition(controlName, 'hidden', null, waitTimeout);
     }
 }
 
@@ -1747,7 +1765,7 @@ async function setCheckboxValue(controlName, value) {
     
     if (!checkbox) throw new Error(`Checkbox not found in: ${controlName}. Element HTML: ${element.outerHTML.substring(0, 200)}`);
 
-    const shouldCheck = value === true || value === 'true' || value === '1' || value === 'yes';
+    const shouldCheck = coerceBoolean(value);
     
     // Determine current state
     let isCurrentlyChecked;
@@ -2091,6 +2109,19 @@ function collectComboOptions(listbox) {
 
 function normalizeText(value) {
     return String(value ?? '').trim().replace(/\\s+/g, ' ').toLowerCase();
+}
+
+function coerceBoolean(value) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0 && !Number.isNaN(value);
+
+    const text = normalizeText(value);
+    if (text === '') return false;
+
+    if (['true', '1', 'yes', 'y', 'on', 'checked'].includes(text)) return true;
+    if (['false', '0', 'no', 'n', 'off', 'unchecked'].includes(text)) return false;
+
+    return false;
 }
 
 function getComboInputMethod() {

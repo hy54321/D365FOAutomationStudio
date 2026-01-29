@@ -2,10 +2,37 @@
 
 let studioWindowId = null;
 let linkedTabId = null;
+let boundsSaveTimer = null;
+
+async function cleanupOrphanStudioWindow() {
+    const { studioWindowId: storedWindowId } = await chrome.storage.local.get(['studioWindowId']);
+    if (!storedWindowId) return;
+
+    try {
+        const win = await chrome.windows.get(storedWindowId, { populate: true });
+        const tabs = win.tabs || [];
+        const onlyNewTab = tabs.length === 1 && (tabs[0].url || '').startsWith('chrome://newtab');
+        if (win.type === 'popup' || onlyNewTab) {
+            await chrome.windows.remove(storedWindowId);
+        }
+    } catch (e) {
+        // Window doesn't exist anymore.
+    } finally {
+        await chrome.storage.local.remove(['studioWindowId']);
+    }
+}
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log('D365FO Automation Extension installed');
+    cleanupOrphanStudioWindow().catch(() => {});
 });
+
+chrome.runtime.onStartup.addListener(() => {
+    cleanupOrphanStudioWindow().catch(() => {});
+});
+
+// Best effort cleanup when service worker starts (e.g., after extension reload)
+cleanupOrphanStudioWindow().catch(() => {});
 
 // Handle extension icon click - open as standalone window
 chrome.action.onClicked.addListener(async (tab) => {
@@ -28,24 +55,53 @@ chrome.action.onClicked.addListener(async (tab) => {
         }
     }
     
+    const { studioWindowBounds } = await chrome.storage.local.get(['studioWindowBounds']);
+    const fallbackBounds = { width: 450, height: 700, top: 100, left: 100 };
+    const bounds = { ...fallbackBounds, ...(studioWindowBounds || {}) };
+
     // Create new popup window
     const window = await chrome.windows.create({
         url: 'popup.html',
         type: 'popup',
-        width: 450,
-        height: 700,
-        top: 100,
-        left: 100
+        width: bounds.width,
+        height: bounds.height,
+        top: bounds.top,
+        left: bounds.left
     });
     
     studioWindowId = window.id;
+    await chrome.storage.local.set({ studioWindowId });
 });
 
 // Track when the studio window is closed
 chrome.windows.onRemoved.addListener((windowId) => {
     if (windowId === studioWindowId) {
         studioWindowId = null;
+        chrome.storage.local.remove(['studioWindowId']).catch(() => {});
     }
+});
+
+chrome.windows.onBoundsChanged.addListener((window) => {
+    if (window.id !== studioWindowId) return;
+    if (boundsSaveTimer) {
+        clearTimeout(boundsSaveTimer);
+    }
+
+    boundsSaveTimer = setTimeout(async () => {
+        try {
+            const current = await chrome.windows.get(studioWindowId);
+            await chrome.storage.local.set({
+                studioWindowBounds: {
+                    width: current.width,
+                    height: current.height,
+                    top: current.top,
+                    left: current.left
+                }
+            });
+        } catch (e) {
+            // Window may have closed; ignore.
+        }
+    }, 250);
 });
 
 // Listen for messages from content scripts
