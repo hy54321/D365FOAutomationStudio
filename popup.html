@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D365FO Automation Studio</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Main Panel -->
+        <div class="main-panel">
+            <header>
+                <h1>🤖 D365FO Automation</h1>
+                <div class="header-right">
+                    <button id="toggleLogs" class="btn-icon-sm" title="Toggle Logs Panel">📋</button>
+                    <div class="status" id="status">
+                        <span class="status-indicator"></span>
+                        <span class="status-text">Not connected</span>
+                    </div>
+                </div>
+            </header>
+
+            <nav class="tabs">
+                <button class="tab active" data-tab="workflows">Workflows</button>
+                <button class="tab" data-tab="builder">Builder</button>
+                <button class="tab" data-tab="inspector">Inspector</button>
+                <button class="tab" data-tab="settings">Settings</button>
+            </nav>
+
+            <!-- Execution Status Bar (shown when running) -->
+            <div class="execution-bar" id="executionBar" style="display: none;">
+                <div class="execution-info">
+                    <div class="execution-status">
+                        <span class="running-indicator" id="runningIndicator"></span>
+                        <span id="executionStatus">Running...</span>
+                    </div>
+                    <div class="execution-details">
+                        <span id="executionStep">Step 1/10</span>
+                        <span class="separator">•</span>
+                        <span id="executionRow">Row 1/100</span>
+                    </div>
+                </div>
+                <div class="execution-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="execution-controls">
+                    <button id="pauseBtn" class="btn btn-sm btn-warning" title="Pause">⏸️ Pause</button>
+                    <button id="resumeBtn" class="btn btn-sm btn-success" title="Resume" style="display: none;">▶️ Resume</button>
+                    <button id="stopBtn" class="btn btn-sm btn-danger" title="Stop">⏹️ Stop</button>
+                </div>
+            </div>
+
+            <!-- Workflows Tab -->
+            <div class="tab-content active" id="workflows-tab">
+                <div class="toolbar">
+                    <button id="newWorkflow" class="btn btn-primary">
+                        <span>➕</span> New Workflow
+                    </button>
+                    <button id="importWorkflow" class="btn btn-secondary">
+                        <span>📥</span> Import
+                    </button>
+                </div>
+                
+                <div id="workflowsList" class="workflows-list">
+                    <!-- Workflows will be listed here -->
+                </div>
+            </div>
+
+            <!-- Builder Tab -->
+            <div class="tab-content" id="builder-tab">
+                <div class="builder-header">
+                    <input type="text" id="workflowName" placeholder="Workflow Name" class="workflow-name-input">
+                    <div class="linked-tab-info" id="linkedTabInfo">
+                        <span class="linked-icon">🔗</span>
+                        <span id="linkedTabName">No tab linked</span>
+                    </div>
+                </div>
+
+                <!-- Main Builder Area -->
+                <div class="builder-main">
+                    <!-- Steps Panel -->
+                    <div class="steps-panel" id="stepsPanel">
+                        <h3>Workflow Steps</h3>
+                        <div id="stepsList" class="steps-list">
+                            <!-- Steps will be added here -->
+                        </div>
+                        <button id="addStep" class="btn btn-primary btn-block">
+                            ➕ Add Step
+                        </button>
+                    </div>
+
+                    <!-- Step Editor -->
+                    <div class="step-editor-overlay" id="stepEditorOverlay" style="display: none;">
+                        <div class="step-editor-header">
+                            <h3 id="stepEditorTitle">Edit Step</h3>
+                            <button id="closeEditor" class="btn-close">✕</button>
+                        </div>
+                        <div class="step-editor-body">
+                            <div class="form-group">
+                                <label>Step Type</label>
+                                <select id="stepType" class="form-control">
+                                    <option value="click">Click Button</option>
+                                    <option value="input">Enter Text</option>
+                                    <option value="select">Select from Dropdown</option>
+                                    <option value="lookupSelect">Lookup Select (open picker)</option>
+                                    <option value="checkbox">Toggle Checkbox</option>
+                                    <option value="wait">Wait/Delay</option>
+                                    <option value="filter">🔍 Filter Grid Column</option>
+                                    <option value="wait-until">⏳ Wait Until Visible</option>
+                                    <option value="loop-start">🔄 Loop Start</option>
+                                    <option value="loop-end">🔄 Loop End</option>
+                                </select>
+                            </div>
+
+                            <div id="stepTypeFields">
+                                <!-- Dynamic fields based on step type -->
+                            </div>
+
+                            <div class="form-actions">
+                                <button id="deleteStep" class="btn btn-danger" style="display: none;">🗑️ Delete Step</button>
+                                <button id="cancelStep" class="btn btn-secondary">Done</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Sources Panel (collapsible) -->
+                <div class="data-sources-panel">
+                    <div class="panel-header" id="dataSourcesHeader">
+                        <h3>📊 Data Sources</h3>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="panel-body" id="dataSourcesBody">
+                        <!-- Primary/Header Data Source -->
+                        <div class="data-source-section">
+                            <div class="data-source-header">
+                                <h4>Primary Data Source (Header)</h4>
+                                <select id="primaryDataSourceType" class="form-control form-control-sm">
+                                    <option value="none">No Data</option>
+                                    <option value="json">JSON</option>
+                                    <option value="csv">CSV</option>
+                                    <option value="excel">Excel (paste TSV)</option>
+                                </select>
+                            </div>
+                            <div id="primaryDataSourceInput" class="data-source-input" style="display: none;">
+                                <textarea id="primaryDataInput" class="form-control" placeholder="Paste your primary/header data here..." rows="3"></textarea>
+                                <div class="data-source-actions">
+                                    <button id="validatePrimaryData" class="btn btn-secondary btn-sm">Validate</button>
+                                    <span id="primaryDataStatus" class="data-status"></span>
+                                </div>
+                            </div>
+                            <div id="primaryDataFields" class="data-fields-preview"></div>
+                        </div>
+
+                        <!-- Detail/Child Data Sources -->
+                        <div class="data-source-section">
+                            <div class="data-source-header">
+                                <h4>Detail Data Sources</h4>
+                                <button id="addDetailDataSource" class="btn btn-secondary btn-sm">➕ Add</button>
+                            </div>
+                            <div id="detailDataSources" class="detail-data-sources">
+                                <!-- Detail data sources will be added here -->
+                            </div>
+                        </div>
+
+                        <!-- Data Relationships -->
+                        <div class="data-source-section" id="relationshipsSection" style="display: none;">
+                            <div class="data-source-header">
+                                <h4>🔗 Relationships</h4>
+                            </div>
+                            <div id="dataRelationships" class="data-relationships">
+                                <!-- Relationships will be configured here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Workflow Actions -->
+                <div class="workflow-actions-bar">
+                    <button id="cancelWorkflow" class="btn btn-secondary">Cancel Changes</button>
+                    <button id="saveWorkflow" class="btn btn-success">💾 Save Workflow</button>
+                </div>
+            </div>
+
+            <!-- Inspector Tab -->
+            <div class="tab-content" id="inspector-tab">
+                <div class="inspector-toolbar">
+                    <button id="startInspector" class="btn btn-primary">
+                        🔍 Start Inspector
+                    </button>
+                    <button id="refreshElements" class="btn btn-secondary">
+                        🔄 Refresh
+                    </button>
+                </div>
+
+                <div class="inspector-info">
+                    <p>Click "Start Inspector" to discover elements on the page.</p>
+                    <div class="form-group" style="margin-top: 8px;">
+                        <label style="display: flex; align-items: center; gap: 8px; font-size: 12px;">
+                            <input type="checkbox" id="activeFormOnly">
+                            Show only active form elements
+                        </label>
+                    </div>
+                    <div id="activeFormInfo" style="font-size: 11px; color: #666; margin-top: 4px; display: none;">
+                        Active form: <strong id="activeFormName">-</strong>
+                    </div>
+                </div>
+
+                <div class="elements-filter">
+                    <input type="text" id="elementFilter" class="form-control" placeholder="Filter elements...">
+                    <select id="elementTypeFilter" class="form-control">
+                        <option value="all">All Types</option>
+                        <option value="button">Buttons</option>
+                        <option value="input">Inputs</option>
+                        <option value="checkbox">Checkboxes</option>
+                        <option value="grid">Grids</option>
+                    </select>
+                </div>
+                
+                <div class="elements-filter" style="margin-top: 4px;">
+                    <select id="formFilter" class="form-control">
+                        <option value="all">All Forms</option>
+                    </select>
+                </div>
+
+                <div id="elementsList" class="elements-list">
+                    <!-- Discovered elements will be listed here -->
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div class="tab-content" id="settings-tab">
+                <div class="settings-scroll">
+                    <h3>Timing Settings</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Delay After Click (ms)</label>
+                            <input type="number" id="delayAfterClick" class="form-control" value="800">
+                        </div>
+                        <div class="form-group">
+                            <label>Delay After Input (ms)</label>
+                            <input type="number" id="delayAfterInput" class="form-control" value="400">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Delay After Save (ms)</label>
+                            <input type="number" id="delayAfterSave" class="form-control" value="1000">
+                        </div>
+                        <div class="form-group">
+                            <label>Maximum Retries</label>
+                            <input type="number" id="maxRetries" class="form-control" value="3">
+                        </div>
+                    </div>
+
+                    <h3>Advanced Settings</h3>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="logVerbose"> Enable Verbose Logging</label>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="pauseOnError"> Pause on Error</label>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="suppressLookupWarnings"> Suppress Lookup Warnings</label>
+                    </div>
+                    <div class="form-group">
+                        <label>ComboBox Input Method</label>
+                        <select id="comboSelectMode" class="form-control">
+                            <option value="method1">Method 1: Basic setValue</option>
+                            <option value="method2">Method 2: Paste simulation</option>
+                            <option value="method3" selected>Method 3: Char-by-char (recommended)</option>
+                            <option value="method4">Method 4: With keypress</option>
+                            <option value="method5">Method 5: execCommand</option>
+                            <option value="method6">Method 6: Paste + Backspace</option>
+                            <option value="method7">Method 7: D365 internal trigger</option>
+                            <option value="method8">Method 8: Composition events</option>
+                        </select>
+                    </div>
+
+                    <div class="btn-group-vertical">
+                        <button id="saveSettings" class="btn btn-success">Save Settings</button>
+                        <button id="resetSettings" class="btn btn-secondary">Reset to Defaults</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Panel (Collapsible Side Panel) -->
+        <div class="logs-panel" id="logsPanel">
+            <div class="logs-header">
+                <h3>📋 Execution Logs</h3>
+                <div class="logs-controls">
+                    <button id="clearLogs" class="btn-icon-sm" title="Clear Logs">🗑️</button>
+                    <button id="exportLogs" class="btn-icon-sm" title="Export Logs">📥</button>
+                    <button id="closeLogs" class="btn-icon-sm" title="Close">✕</button>
+                </div>
+            </div>
+            <div class="logs-filter">
+                <select id="logLevelFilter" class="form-control form-control-sm">
+                    <option value="all">All Levels</option>
+                    <option value="info">Info</option>
+                    <option value="success">Success</option>
+                    <option value="warning">Warning</option>
+                    <option value="error">Error</option>
+                </select>
+            </div>
+            <div class="logs-content" id="logsContent">
+                <!-- Logs will be added here -->
+                <div class="log-empty">No logs yet. Run a workflow to see execution logs.</div>
+            </div>
+        </div>
+
+        <!-- Run Options Modal -->
+        <div class="modal-overlay" id="runOptionsModal" style="display: none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>▶️ Run Options</h3>
+                    <button class="btn-close" id="closeRunOptions">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Skip first N rows</label>
+                        <input type="number" id="runSkipRows" class="form-control" value="0" min="0">
+                        <small>Start processing from row N+1 (useful for resuming)</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Limit to N rows</label>
+                        <input type="number" id="runLimitRows" class="form-control" value="0" min="0">
+                        <small>0 = process all rows (useful for testing)</small>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="runWithLogs" checked> Show execution logs</label>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="runDryMode"> 🔬 Dry run (preview only, no actions)</label>
+                        <small>See what would happen without making changes</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancelRun" class="btn btn-secondary">Cancel</button>
+                    <button id="confirmRun" class="btn btn-success">▶️ Start</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+        <!-- Resume Modal -->
+        <div class="modal-overlay resume-modal" id="resumeModal" style="display: none;">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Resume Workflow</h3>
+                    <button class="btn-close" id="closeResumeModal">!</button>
+                </div>
+                <div class="modal-body">
+                    <div class="resume-message" id="resumeMessage">
+                        The workflow stopped at row 1.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <div class="resume-actions">
+                        <button id="resumeCancel" class="btn btn-secondary">Cancel</button>
+                        <button id="resumeThisRecord" class="btn btn-primary">Resume from this record</button>
+                        <button id="resumeNextRecord" class="btn btn-success">Resume from next record</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
