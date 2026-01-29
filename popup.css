@@ -911,6 +911,7 @@ header h1 {
 .element-type.input { background: #e8f5e9; color: #2e7d32; }
 .element-type.checkbox { background: #fff3e0; color: #ef6c00; }
 .element-type.grid { background: #f3e5f5; color: #7b1fa2; }
+.element-type.grid-column { background: #fce4ec; color: #c2185b; }
 
 .element-form {
     display: inline-block;

@@ -11,13 +11,20 @@ async function cleanupOrphanStudioWindow() {
     try {
         const win = await chrome.windows.get(storedWindowId, { populate: true });
         const tabs = win.tabs || [];
+        const studioUrl = chrome.runtime.getURL('popup.html');
+        const hasStudioTab = tabs.some(tab => (tab.url || '') === studioUrl);
         const onlyNewTab = tabs.length === 1 && (tabs[0].url || '').startsWith('chrome://newtab');
-        if (win.type === 'popup' || onlyNewTab) {
+
+        if (!hasStudioTab || onlyNewTab) {
             await chrome.windows.remove(storedWindowId);
+            await chrome.storage.local.remove(['studioWindowId']);
+            return;
         }
+
+        // Restore in-memory state if the studio window is still valid.
+        studioWindowId = storedWindowId;
     } catch (e) {
         // Window doesn't exist anymore.
-    } finally {
         await chrome.storage.local.remove(['studioWindowId']);
     }
 }

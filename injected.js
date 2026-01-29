@@ -187,7 +187,7 @@ class D365Inspector {
             });
         });
 
-        // Find all grids/tables
+        // Find all traditional D365 grids/tables
         document.querySelectorAll('[data-dyn-role="Grid"]').forEach(el => {
             const controlName = el.getAttribute('data-dyn-controlname');
             if (!controlName) return;
@@ -206,6 +206,30 @@ class D365Inspector {
                 formName: formName,
                 element: el
             });
+
+            // Discover grid columns for input
+            this.discoverGridColumns(el, controlName, formName, elements);
+        });
+
+        // Find React FixedDataTable grids (.reactGrid)
+        document.querySelectorAll('.reactGrid').forEach(el => {
+            const formName = this.getElementFormName(el);
+            
+            // Filter by active form if requested
+            if (activeFormOnly && activeForm && formName !== activeForm) return;
+
+            elements.push({
+                type: 'grid',
+                controlName: 'reactGrid',
+                displayText: 'React Grid',
+                visible: this.isElementVisible(el),
+                selector: '.reactGrid',
+                formName: formName,
+                element: el
+            });
+
+            // Discover React grid columns for input
+            this.discoverReactGridColumns(el, formName, elements);
         });
 
         return elements;
@@ -250,6 +274,236 @@ class D365Inspector {
 
         // Fallback to control name
         return element.getAttribute('data-dyn-controlname') || 'Unknown';
+    }
+
+    // Discover grid columns for input/editing
+    discoverGridColumns(gridElement, gridName, formName, elements) {
+        const addedColumns = new Set();
+        
+        // Method 1: Find column headers
+        const headers = gridElement.querySelectorAll('[data-dyn-role="ColumnHeader"], [role="columnheader"], .dyn-headerCell');
+        headers.forEach(header => {
+            const colName = header.getAttribute('data-dyn-controlname');
+            if (!colName || addedColumns.has(colName)) return;
+            addedColumns.add(colName);
+            
+            const displayText = header.textContent?.trim() || header.getAttribute('aria-label') || colName;
+            elements.push({
+                type: 'grid-column',
+                controlName: colName,
+                displayText: `${displayText}`,
+                gridName: gridName,
+                visible: this.isElementVisible(header),
+                selector: `[data-dyn-controlname="${colName}"]`,
+                formName: formName,
+                isHeader: true,
+                element: header
+            });
+        });
+        
+        // Method 2: Find cells with inputs in the active/selected row
+        const activeRow = gridElement.querySelector('[data-dyn-selected="true"], [aria-selected="true"], .dyn-selectedRow') ||
+                         gridElement.querySelector('[data-dyn-role="Row"]:first-of-type, [role="row"]:not([role="columnheader"]):first-of-type');
+        
+        if (activeRow) {
+            // Find all input fields in the row
+            const cells = activeRow.querySelectorAll('[data-dyn-controlname]');
+            cells.forEach(cell => {
+                const colName = cell.getAttribute('data-dyn-controlname');
+                if (!colName || addedColumns.has(colName)) return;
+                
+                const role = cell.getAttribute('data-dyn-role');
+                const hasInput = cell.querySelector('input, select, textarea') !== null || 
+                                ['Input', 'ComboBox', 'Lookup', 'ReferenceGroup', 'SegmentedEntry'].includes(role);
+                
+                if (hasInput || role) {
+                    addedColumns.add(colName);
+                    const displayText = this.getGridColumnLabel(gridElement, colName) || colName;
+                    const fieldType = this.detectFieldType(cell);
+                    
+                    elements.push({
+                        type: 'grid-column',
+                        controlName: colName,
+                        displayText: displayText,
+                        gridName: gridName,
+                        visible: this.isElementVisible(cell),
+                        selector: `[data-dyn-controlname="${colName}"]`,
+                        formName: formName,
+                        isEditable: hasInput,
+                        fieldType: fieldType,
+                        role: role,
+                        element: cell
+                    });
+                }
+            });
+        }
+        
+        // Method 3: Find any editable inputs inside the grid body
+        const gridInputs = gridElement.querySelectorAll('[data-dyn-role="Input"], [data-dyn-role="ComboBox"], [data-dyn-role="Lookup"], [data-dyn-role="ReferenceGroup"]');
+        gridInputs.forEach(input => {
+            const colName = input.getAttribute('data-dyn-controlname');
+            if (!colName || addedColumns.has(colName)) return;
+            addedColumns.add(colName);
+            
+            const displayText = this.getGridColumnLabel(gridElement, colName) || this.getElementLabel(input) || colName;
+            const fieldType = this.detectFieldType(input);
+            
+            elements.push({
+                type: 'grid-column',
+                controlName: colName,
+                displayText: displayText,
+                gridName: gridName,
+                visible: this.isElementVisible(input),
+                selector: `[data-dyn-controlname="${colName}"]`,
+                formName: formName,
+                isEditable: true,
+                fieldType: fieldType,
+                role: input.getAttribute('data-dyn-role'),
+                element: input
+            });
+        });
+    }
+    
+    // Get label for a grid column by looking at the header
+    getGridColumnLabel(gridElement, columnControlName) {
+        // Try to find the header cell for this column
+        const header = gridElement.querySelector(`[data-dyn-role="ColumnHeader"][data-dyn-controlname="${columnControlName}"], [role="columnheader"][data-dyn-controlname="${columnControlName}"]`);
+        if (header) {
+            const text = header.textContent?.trim();
+            if (text) return text;
+        }
+        
+        // Try to find header by partial match (column name might be different in header vs cell)
+        const allHeaders = gridElement.querySelectorAll('[data-dyn-role="ColumnHeader"], [role="columnheader"]');
+        for (const h of allHeaders) {
+            const headerName = h.getAttribute('data-dyn-controlname');
+            if (headerName && (columnControlName.includes(headerName) || headerName.includes(columnControlName))) {
+                const text = h.textContent?.trim();
+                if (text) return text;
+            }
+        }
+        
+        return null;
+    }
+
+    // Discover columns in React FixedDataTable grids
+    discoverReactGridColumns(gridElement, formName, elements) {
+        const addedColumns = new Set();
+        
+        // Get column headers from .dyn-headerCell elements
+        const headerCells = gridElement.querySelectorAll('.fixedDataTableLayout_header .dyn-headerCell');
+        headerCells.forEach((header, colIndex) => {
+            const controlName = header.getAttribute('data-dyn-controlname');
+            if (!controlName || addedColumns.has(controlName)) return;
+            addedColumns.add(controlName);
+            
+            const label = header.querySelector('.dyn-headerCellLabel');
+            const displayText = label?.textContent?.trim() || header.textContent?.trim() || controlName;
+            
+            elements.push({
+                type: 'grid-column',
+                controlName: controlName,
+                displayText: displayText,
+                gridName: 'reactGrid',
+                gridType: 'react',
+                columnIndex: colIndex,
+                visible: this.isElementVisible(header),
+                selector: `.dyn-headerCell[data-dyn-controlname="${controlName}"]`,
+                formName: formName,
+                isHeader: true,
+                element: header
+            });
+        });
+        
+        // Also look for editable inputs inside the body rows
+        const bodyContainer = gridElement.querySelector('.fixedDataTableLayout_body, .fixedDataTableLayout_rowsContainer');
+        if (bodyContainer) {
+            // Find active/selected row first, or fallback to first row
+            const activeRow = bodyContainer.querySelector('.fixedDataTableRowLayout_main[aria-selected="true"], .fixedDataTableRowLayout_main[data-dyn-row-active="true"]') ||
+                             bodyContainer.querySelector('.fixedDataTableRowLayout_main.public_fixedDataTableRow_main');
+            
+            if (activeRow) {
+                // Find all cells with data-dyn-controlname
+                const cells = activeRow.querySelectorAll('[data-dyn-controlname]');
+                cells.forEach(cell => {
+                    const colName = cell.getAttribute('data-dyn-controlname');
+                    if (!colName || addedColumns.has(colName)) return;
+                    
+                    const role = cell.getAttribute('data-dyn-role');
+                    const hasInput = cell.querySelector('input, select, textarea') !== null || 
+                                    ['Input', 'ComboBox', 'Lookup', 'ReferenceGroup', 'SegmentedEntry'].includes(role);
+                    
+                    addedColumns.add(colName);
+                    const displayText = this.getReactGridColumnLabel(gridElement, colName) || colName;
+                    const fieldType = this.detectFieldType(cell);
+                    
+                    elements.push({
+                        type: 'grid-column',
+                        controlName: colName,
+                        displayText: displayText,
+                        gridName: 'reactGrid',
+                        gridType: 'react',
+                        visible: this.isElementVisible(cell),
+                        selector: `[data-dyn-controlname="${colName}"]`,
+                        formName: formName,
+                        isEditable: hasInput,
+                        fieldType: fieldType,
+                        role: role,
+                        element: cell
+                    });
+                });
+            }
+        }
+        
+        // Find any editable inputs in the grid body
+        const gridInputs = gridElement.querySelectorAll('.fixedDataTableLayout_body [data-dyn-role="Input"], .fixedDataTableLayout_body [data-dyn-role="ComboBox"], .fixedDataTableLayout_body [data-dyn-role="Lookup"], .fixedDataTableLayout_body [data-dyn-role="ReferenceGroup"]');
+        gridInputs.forEach(input => {
+            const colName = input.getAttribute('data-dyn-controlname');
+            if (!colName || addedColumns.has(colName)) return;
+            addedColumns.add(colName);
+            
+            const displayText = this.getReactGridColumnLabel(gridElement, colName) || this.getElementLabel(input) || colName;
+            const fieldType = this.detectFieldType(input);
+            
+            elements.push({
+                type: 'grid-column',
+                controlName: colName,
+                displayText: displayText,
+                gridName: 'reactGrid',
+                gridType: 'react',
+                visible: this.isElementVisible(input),
+                selector: `[data-dyn-controlname="${colName}"]`,
+                formName: formName,
+                isEditable: true,
+                fieldType: fieldType,
+                role: input.getAttribute('data-dyn-role'),
+                element: input
+            });
+        });
+    }
+    
+    // Get label for a React grid column by looking at the header
+    getReactGridColumnLabel(gridElement, columnControlName) {
+        // Try to find the header cell with matching controlname
+        const header = gridElement.querySelector(`.dyn-headerCell[data-dyn-controlname="${columnControlName}"]`);
+        if (header) {
+            const label = header.querySelector('.dyn-headerCellLabel');
+            const text = label?.textContent?.trim() || header.textContent?.trim();
+            if (text) return text;
+        }
+        
+        // Partial match
+        const allHeaders = gridElement.querySelectorAll('.dyn-headerCell[data-dyn-controlname]');
+        for (const h of allHeaders) {
+            const headerName = h.getAttribute('data-dyn-controlname');
+            if (headerName && (columnControlName.includes(headerName) || headerName.includes(columnControlName))) {
+                const label = h.querySelector('.dyn-headerCellLabel');
+                const text = label?.textContent?.trim() || h.textContent?.trim();
+                if (text) return text;
+            }
+        }
+        
+        return null;
     }
 
     // Detect field type (enum, lookup, freetext, etc.)
@@ -869,6 +1123,8 @@ function describeStep(step, dataRow) {
         case 'input':
         case 'select':
             return `Set "${name}" to "${resolvedValue}"${getWaitSuffix(step)}`;
+        case 'grid-input':
+            return `Set grid cell "${name}" to "${resolvedValue}"${getWaitSuffix(step)}`;
         case 'lookupSelect':
             return `Lookup "${resolvedValue}" in "${name}"${getWaitSuffix(step)}`;
         case 'checkbox':
@@ -906,7 +1162,7 @@ async function executeStep(step, dataRow, detailSources = {}) {
         }
     }
 
-    const supportsWaitFlags = ['click', 'input', 'select', 'lookupSelect', 'checkbox'].includes(type);
+    const supportsWaitFlags = ['click', 'input', 'select', 'lookupSelect', 'checkbox', 'grid-input'].includes(type);
     const waitTimeout = step.waitTimeout || 10000;
 
     if (supportsWaitFlags && step.waitUntilVisible && controlName) {
@@ -922,6 +1178,9 @@ async function executeStep(step, dataRow, detailSources = {}) {
             break;
         case 'select':
             await setInputValue(controlName, resolvedValue, step.fieldType);
+            break;
+        case 'grid-input':
+            await setGridCellValue(controlName, resolvedValue, step.fieldType);
             break;
         case 'lookupSelect':
             await setLookupSelectValue(controlName, resolvedValue);
@@ -1399,6 +1658,253 @@ async function setInputValue(controlName, value, fieldType) {
     input.dispatchEvent(new Event('change', { bubbles: true }));
     input.dispatchEvent(new Event('blur', { bubbles: true }));
     await sleep(400);
+}
+
+// ====== Grid Cell Input Function ======
+// Sets value in a grid cell (for creating/editing records in grids like Sales order lines)
+async function setGridCellValue(controlName, value, fieldType) {
+    console.log(`Setting grid cell value: ${controlName} = "${value}"`);
+    
+    // Find the cell element - prefer the one in an active/selected row
+    let element = findGridCellElement(controlName);
+    
+    if (!element) {
+        // Try clicking on the grid row first to activate it
+        await activateGridRow(controlName);
+        await sleep(300);
+        element = findGridCellElement(controlName);
+    }
+    
+    if (!element) {
+        throw new Error(`Grid cell element not found: ${controlName}`);
+    }
+    
+    // For React FixedDataTable grids, we need to click on the cell to enter edit mode
+    // Find the actual cell container (fixedDataTableCellLayout_main)
+    const reactCell = element.closest('.fixedDataTableCellLayout_main') || element;
+    const isReactGrid = !!element.closest('.reactGrid');
+    
+    // Click on the cell to activate it for editing
+    console.log(`  Clicking cell to activate: isReactGrid=${isReactGrid}`);
+    reactCell.click();
+    await sleep(300);
+    
+    // For React grids, D365 renders input fields dynamically after clicking
+    // We need to re-find the element after clicking as D365 may have replaced the DOM
+    if (isReactGrid) {
+        await sleep(200); // Extra wait for React to render input
+        element = findGridCellElement(controlName);
+        if (!element) {
+            throw new Error(`Grid cell element not found after click: ${controlName}`);
+        }
+    }
+    
+    // The click should activate the cell - now find the input
+    let input = element.querySelector('input:not([type="hidden"]), textarea, select');
+    
+    // If no input found directly, look in the cell container
+    if (!input && isReactGrid) {
+        const cellContainer = element.closest('.fixedDataTableCellLayout_main');
+        if (cellContainer) {
+            input = cellContainer.querySelector('input:not([type="hidden"]), textarea, select');
+        }
+    }
+    
+    // If no input found directly, try getting it after click activation with retry
+    if (!input) {
+        for (let attempt = 0; attempt < 5; attempt++) {
+            await sleep(200);
+            input = element.querySelector('input:not([type="hidden"]), textarea, select');
+            if (input && input.offsetParent !== null) break;
+            
+            // Also check if a new input appeared in the cell
+            const cellContainer = element.closest('.fixedDataTableCellLayout_main');
+            if (cellContainer) {
+                input = cellContainer.querySelector('input:not([type="hidden"]), textarea, select');
+                if (input && input.offsetParent !== null) break;
+            }
+        }
+    }
+    
+    // Still no input? Check if the element itself is an input
+    if (!input && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT')) {
+        input = element;
+    }
+    
+    // Try to find input in the parent row
+    if (!input) {
+        const row = element.closest('.fixedDataTableRowLayout_main, [data-dyn-role="Row"], [role="row"], tr');
+        if (row) {
+            const possibleInputs = row.querySelectorAll(`[data-dyn-controlname="${controlName}"] input:not([type="hidden"]), [data-dyn-controlname="${controlName}"] textarea`);
+            for (const inp of possibleInputs) {
+                if (inp.offsetParent !== null) {
+                    input = inp;
+                    break;
+                }
+            }
+        }
+    }
+    
+    // Last resort: find any visible input in the active cell area
+    if (!input && isReactGrid) {
+        const activeCell = document.querySelector('.dyn-activeRowCell, .fixedDataTableCellLayout_main:focus-within');
+        if (activeCell) {
+            input = activeCell.querySelector('input:not([type="hidden"]), textarea, select');
+        }
+    }
+    
+    if (!input) {
+        // Log available elements for debugging
+        const gridContainer = element.closest('.reactGrid, [data-dyn-role="Grid"]');
+        const allInputs = gridContainer?.querySelectorAll('input:not([type="hidden"])');
+        console.log('Available inputs in grid:', Array.from(allInputs || []).map(i => ({
+            name: i.closest('[data-dyn-controlname]')?.getAttribute('data-dyn-controlname'),
+            visible: i.offsetParent !== null
+        })));
+        throw new Error(`Input not found in grid cell: ${controlName}. The cell may need to be clicked to become editable.`);
+    }
+    
+    // Determine field type and use appropriate setter
+    const role = element.getAttribute('data-dyn-role');
+    
+    if (fieldType?.type === 'segmented-lookup' || role === 'SegmentedEntry' || isSegmentedEntry(element)) {
+        await setSegmentedEntryValue(element, value);
+        return;
+    }
+    
+    if (fieldType?.inputType === 'enum' || role === 'ComboBox') {
+        await setComboBoxValue(element, value);
+        return;
+    }
+    
+    // Check for lookup fields
+    if (role === 'Lookup' || role === 'ReferenceGroup' || hasLookupButton(element)) {
+        await setLookupSelectValue(controlName, value);
+        return;
+    }
+    
+    // Standard input - focus and set value
+    input.focus();
+    await sleep(100);
+    
+    // Clear existing value
+    input.select?.();
+    await sleep(50);
+    
+    // Use the standard input method
+    await comboInputWithSelectedMethod(input, value);
+    
+    // Dispatch events
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    
+    // Tab out to commit the value (important for D365 grids)
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
+    await sleep(300);
+    
+    console.log(`  Grid cell value set: ${controlName} = "${value}"`);
+}
+
+// Find a grid cell element, preferring the one in the active/selected row
+function findGridCellElement(controlName) {
+    // First, try to find in an active/selected row (traditional D365 grids)
+    const selectedRows = document.querySelectorAll('[data-dyn-selected="true"], [aria-selected="true"], .dyn-selectedRow');
+    for (const row of selectedRows) {
+        const cell = row.querySelector(`[data-dyn-controlname="${controlName}"]`);
+        if (cell && cell.offsetParent !== null) {
+            return cell;
+        }
+    }
+    
+    // Try React FixedDataTable grids - find active row
+    const reactGrids = document.querySelectorAll('.reactGrid');
+    for (const grid of reactGrids) {
+        // Look for active/selected row
+        const activeRow = grid.querySelector('.fixedDataTableRowLayout_main[aria-selected="true"], .fixedDataTableRowLayout_main[data-dyn-row-active="true"]');
+        if (activeRow) {
+            const cell = activeRow.querySelector(`[data-dyn-controlname="${controlName}"]`);
+            if (cell && cell.offsetParent !== null) {
+                return cell;
+            }
+        }
+        
+        // Try finding in body rows
+        const bodyContainer = grid.querySelector('.fixedDataTableLayout_body, .fixedDataTableLayout_rowsContainer');
+        if (bodyContainer) {
+            const cells = bodyContainer.querySelectorAll(`[data-dyn-controlname="${controlName}"]`);
+            for (const cell of cells) {
+                // Skip if in header
+                const isInHeader = cell.closest('.fixedDataTableLayout_header, .dyn-headerCell');
+                if (!isInHeader && cell.offsetParent !== null) {
+                    return cell;
+                }
+            }
+        }
+    }
+    
+    // Try to find in traditional D365 grid context
+    const grids = document.querySelectorAll('[data-dyn-role="Grid"]');
+    for (const grid of grids) {
+        // Find all matching cells and prefer visible/editable ones
+        const cells = grid.querySelectorAll(`[data-dyn-controlname="${controlName}"]`);
+        for (const cell of cells) {
+            // Check if it's in a data row (not header)
+            const isInHeader = cell.closest('[data-dyn-role="ColumnHeader"], [role="columnheader"], thead');
+            if (!isInHeader && cell.offsetParent !== null) {
+                return cell;
+            }
+        }
+    }
+    
+    // Fallback to standard element finding
+    return findElementInActiveContext(controlName);
+}
+
+// Try to activate a grid row for editing
+async function activateGridRow(controlName) {
+    // Try React FixedDataTable grids first
+    const reactGrids = document.querySelectorAll('.reactGrid');
+    for (const grid of reactGrids) {
+        const bodyContainer = grid.querySelector('.fixedDataTableLayout_body, .fixedDataTableLayout_rowsContainer');
+        if (bodyContainer) {
+            const cell = bodyContainer.querySelector(`[data-dyn-controlname="${controlName}"]`);
+            if (cell) {
+                // Find the row containing this cell
+                const row = cell.closest('.fixedDataTableRowLayout_main');
+                if (row) {
+                    // Click on the row to select it
+                    row.click();
+                    await sleep(200);
+                    return true;
+                }
+            }
+        }
+    }
+    
+    // Try traditional D365 grids
+    const grids = document.querySelectorAll('[data-dyn-role="Grid"]');
+    for (const grid of grids) {
+        // Find the cell
+        const cell = grid.querySelector(`[data-dyn-controlname="${controlName}"]`);
+        if (cell) {
+            // Find the row containing this cell
+            const row = cell.closest('[data-dyn-role="Row"], [role="row"], tr');
+            if (row) {
+                // Click on the row to select it
+                row.click();
+                await sleep(200);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// Check if element has a lookup button
+function hasLookupButton(element) {
+    return element.classList.contains('field-hasLookupButton') ||
+           element.querySelector('.lookup-button, [data-dyn-role="LookupButton"]') !== null ||
+           element.nextElementSibling?.classList.contains('lookup-button');
 }
 
 async function setSegmentedEntryValue(element, value) {
