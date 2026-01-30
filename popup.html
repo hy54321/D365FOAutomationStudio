@@ -29,7 +29,7 @@
             </nav>
 
             <!-- Execution Status Bar (shown when running) -->
-            <div class="execution-bar" id="executionBar" style="display: none;">
+            <div class="execution-bar is-hidden" id="executionBar">
                 <div class="execution-info">
                     <div class="execution-status">
                         <span class="running-indicator" id="runningIndicator"></span>
@@ -48,7 +48,7 @@
                 </div>
                 <div class="execution-controls">
                     <button id="pauseBtn" class="btn btn-sm btn-warning" title="Pause">⏸️ Pause</button>
-                    <button id="resumeBtn" class="btn btn-sm btn-success" title="Resume" style="display: none;">▶️ Resume</button>
+                    <button id="resumeBtn" class="btn btn-sm btn-success is-hidden" title="Resume">▶️ Resume</button>
                     <button id="stopBtn" class="btn btn-sm btn-danger" title="Stop">⏹️ Stop</button>
                 </div>
             </div>
@@ -84,6 +84,16 @@
                     <!-- Steps Panel -->
                     <div class="steps-panel" id="stepsPanel">
                         <h3>Workflow Steps</h3>
+                        <div class="steps-toolbar">
+                            <label class="steps-select-all">
+                                <input type="checkbox" id="stepsSelectAll">
+                                Select all
+                            </label>
+                            <div class="steps-copy-controls">
+                                <select id="copyStepsTarget" class="form-control form-control-sm"></select>
+                                <button id="copyStepsButton" class="btn btn-secondary btn-sm" disabled>Copy selected</button>
+                            </div>
+                        </div>
                         <div id="stepsList" class="steps-list">
                             <!-- Steps will be added here -->
                         </div>
@@ -93,7 +103,7 @@
                     </div>
 
                     <!-- Step Editor -->
-                    <div class="step-editor-overlay" id="stepEditorOverlay" style="display: none;">
+                    <div class="step-editor-overlay is-hidden" id="stepEditorOverlay">
                         <div class="step-editor-header">
                             <h3 id="stepEditorTitle">Edit Step</h3>
                             <button id="closeEditor" class="btn-close">✕</button>
@@ -121,7 +131,7 @@
                             </div>
 
                             <div class="form-actions">
-                                <button id="deleteStep" class="btn btn-danger" style="display: none;">🗑️ Delete Step</button>
+                                <button id="deleteStep" class="btn btn-danger is-hidden">🗑️ Delete Step</button>
                                 <button id="cancelStep" class="btn btn-secondary">Done</button>
                             </div>
                         </div>
@@ -146,7 +156,7 @@
                                     <option value="excel">Excel (paste TSV)</option>
                                 </select>
                             </div>
-                            <div id="primaryDataSourceInput" class="data-source-input" style="display: none;">
+                            <div id="primaryDataSourceInput" class="data-source-input is-hidden">
                                 <textarea id="primaryDataInput" class="form-control" placeholder="Paste your primary/header data here..." rows="3"></textarea>
                                 <div class="data-source-actions">
                                     <button id="validatePrimaryData" class="btn btn-secondary btn-sm">Validate</button>
@@ -168,7 +178,7 @@
                         </div>
 
                         <!-- Data Relationships -->
-                        <div class="data-source-section" id="relationshipsSection" style="display: none;">
+                        <div class="data-source-section is-hidden" id="relationshipsSection">
                             <div class="data-source-header">
                                 <h4>🔗 Relationships</h4>
                             </div>
@@ -205,7 +215,7 @@
                             Show only active form elements
                         </label>
                     </div>
-                    <div id="activeFormInfo" style="font-size: 11px; color: #666; margin-top: 4px; display: none;">
+                    <div id="activeFormInfo" class="is-hidden" style="font-size: 11px; color: #666; margin-top: 4px;">
                         Active form: <strong id="activeFormName">-</strong>
                     </div>
                 </div>
@@ -316,7 +326,7 @@
         </div>
 
         <!-- Run Options Modal -->
-        <div class="modal-overlay" id="runOptionsModal" style="display: none;">
+        <div class="modal-overlay is-hidden" id="runOptionsModal">
             <div class="modal">
                 <div class="modal-header">
                     <h3>▶️ Run Options</h3>
@@ -351,7 +361,7 @@
 
 
         <!-- Resume Modal -->
-        <div class="modal-overlay resume-modal" id="resumeModal" style="display: none;">
+        <div class="modal-overlay resume-modal is-hidden" id="resumeModal">
             <div class="modal">
                 <div class="modal-header">
                     <h3>Resume Workflow</h3>

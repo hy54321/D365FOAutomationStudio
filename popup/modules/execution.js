@@ -95,19 +95,19 @@ export const executionMethods = {
         if (!executionBar) return;
 
         if (this.executionState.isRunning) {
-            executionBar.style.display = 'block';
-            if (statusIndicator) statusIndicator.style.display = 'block';
+            executionBar.classList.remove('is-hidden');
+            if (statusIndicator) statusIndicator.classList.remove('is-hidden');
 
             if (this.executionState.isPaused) {
                 statusText.textContent = 'Paused';
                 if (statusIndicator) statusIndicator.classList.add('paused');
-                if (pauseBtn) pauseBtn.style.display = 'none';
-                if (resumeBtn) resumeBtn.style.display = 'inline-flex';
+                if (pauseBtn) pauseBtn.classList.add('is-hidden');
+                if (resumeBtn) resumeBtn.classList.remove('is-hidden');
             } else {
                 statusText.textContent = 'Running';
                 if (statusIndicator) statusIndicator.classList.remove('paused');
-                if (pauseBtn) pauseBtn.style.display = 'inline-flex';
-                if (resumeBtn) resumeBtn.style.display = 'none';
+                if (pauseBtn) pauseBtn.classList.remove('is-hidden');
+                if (resumeBtn) resumeBtn.classList.add('is-hidden');
             }
 
             // Progress calculation
@@ -123,13 +123,13 @@ export const executionMethods = {
             if (rowInfo) {
                 if (this.executionState.totalRows > 0) {
                     rowInfo.textContent = `Row ${this.executionState.currentRow + 1}/${this.executionState.totalRows}`;
-                    rowInfo.style.display = 'inline';
+                    rowInfo.classList.remove('is-hidden');
                 } else {
-                    rowInfo.style.display = 'none';
+                    rowInfo.classList.add('is-hidden');
                 }
             }
         } else {
-            executionBar.style.display = 'none';
+            executionBar.classList.add('is-hidden');
         }
     },
 

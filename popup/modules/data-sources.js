@@ -4,11 +4,11 @@ export const dataSourceMethods = {
         const fieldsPreview = document.getElementById('primaryDataFields');
 
         if (type === 'none') {
-            inputContainer.style.display = 'none';
+            inputContainer.classList.add('is-hidden');
             fieldsPreview.innerHTML = '';
             this.dataSources.primary = { type: 'none', data: null, fields: [] };
         } else {
-            inputContainer.style.display = 'block';
+            inputContainer.classList.remove('is-hidden');
 
             const placeholder = type === 'json' ? 
                 '[{"chargeCode": "AUF-DE", "language": "de", "text": "Aufwandspauschale"}]' :
@@ -102,7 +102,7 @@ export const dataSourceMethods = {
                     </select>
                     <button class="btn-remove" title="Remove">Remove</button>
                 </div>
-                <div class="detail-input" ${detail.type === 'none' ? 'style="display: none;"' : ''}>
+                <div class="detail-input ${detail.type === 'none' ? 'is-hidden' : ''}">
                     <textarea class="form-control detail-data" rows="3" placeholder="Paste data here...">${detail.data ? (detail.type === 'json' ? JSON.stringify(detail.data, null, 2) : this.dataToCSV(detail.data)) : ''}</textarea>
                     <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
                         <button class="btn btn-secondary btn-sm validate-detail">Validate</button>
@@ -124,7 +124,12 @@ export const dataSourceMethods = {
 
             item.querySelector('.detail-type').addEventListener('change', (e) => {
                 detail.type = e.target.value;
-                item.querySelector('.detail-input').style.display = e.target.value === 'none' ? 'none' : 'block';
+                const inputEl = item.querySelector('.detail-input');
+                if (e.target.value === 'none') {
+                    inputEl.classList.add('is-hidden');
+                } else {
+                    inputEl.classList.remove('is-hidden');
+                }
             });
 
             item.querySelector('.btn-remove').addEventListener('click', () => {
@@ -181,11 +186,11 @@ export const dataSourceMethods = {
         const hasData = this.dataSources.primary.fields.length > 0 && this.dataSources.details.some(d => d.fields.length > 0);
 
         if (!hasData) {
-            section.style.display = 'none';
+            section.classList.add('is-hidden');
             return;
         }
 
-        section.style.display = 'block';
+        section.classList.remove('is-hidden');
         this.renderRelationships();
     },
 

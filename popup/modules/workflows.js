@@ -48,11 +48,11 @@ export const workflowMethods = {
 
         // Reset data source UI
         document.getElementById('primaryDataSourceType').value = 'none';
-        document.getElementById('primaryDataSourceInput').style.display = 'none';
+        document.getElementById('primaryDataSourceInput').classList.add('is-hidden');
         document.getElementById('primaryDataInput').value = '';
         document.getElementById('primaryDataFields').innerHTML = '';
         document.getElementById('detailDataSources').innerHTML = '';
-        document.getElementById('relationshipsSection').style.display = 'none';
+        document.getElementById('relationshipsSection').classList.add('is-hidden');
 
         // Switch to builder tab
         document.querySelector('[data-tab="builder"]').click();
@@ -197,7 +197,7 @@ export const workflowMethods = {
         document.getElementById('primaryDataSourceType').value = this.dataSources.primary.type;
 
         if (this.dataSources.primary.type !== 'none') {
-            document.getElementById('primaryDataSourceInput').style.display = 'block';
+            document.getElementById('primaryDataSourceInput').classList.remove('is-hidden');
 
             // Reconstruct the raw input if we have data
             if (this.dataSources.primary.data) {
@@ -215,7 +215,7 @@ export const workflowMethods = {
 
             this.displayPrimaryDataFields();
         } else {
-            document.getElementById('primaryDataSourceInput').style.display = 'none';
+            document.getElementById('primaryDataSourceInput').classList.add('is-hidden');
         }
 
         // Detail data sources

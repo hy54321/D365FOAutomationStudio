@@ -897,15 +897,15 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
     
     // Find loop structures
     const loopPairs = findLoopPairs(steps);
-    
+
     // If no loops, execute all steps for each primary data row (legacy behavior)
     if (loopPairs.length === 0) {
         for (let rowIndex = 0; rowIndex < primaryData.length; rowIndex++) {
             await checkExecutionControl(); // Check for pause/stop
-            
+
             const row = primaryData[rowIndex];
             const displayRowNumber = startRowNumber + rowIndex; // Actual row number in original data
-            
+
             window.postMessage({
                 type: 'D365_WORKFLOW_PROGRESS',
                 progress: { 
@@ -917,7 +917,7 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                     step: 'Processing row' 
                 }
             }, '*');
-            
+
             for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
                 await checkExecutionControl(); // Check for pause/stop
                 await executeSingleStep(steps[stepIndex], stepIndex, row, {}, settings, dryRun);
@@ -925,107 +925,103 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
         }
         return;
     }
-    
-    // Execute steps with loop awareness
-    let stepIndex = 0;
-    let currentDataRow = primaryData[0] || {};
-    
-    while (stepIndex < steps.length) {
-        await checkExecutionControl(); // Check for pause/stop
-        const step = steps[stepIndex];
-        
-        if (step.type === 'loop-start') {
-            // Find the matching loop-end
-            const loopPair = loopPairs.find(p => p.startIndex === stepIndex);
-            if (!loopPair) {
-                throw new Error(`Loop start at index ${stepIndex} has no matching end`);
+
+    const loopPairMap = new Map(loopPairs.map(pair => [pair.startIndex, pair.endIndex]));
+    const initialDataRow = primaryData[0] || {};
+
+    const resolveLoopData = (loopDataSource, currentDataRow) => {
+        let loopData = primaryData;
+
+        if (loopDataSource !== 'primary' && detailSources[loopDataSource]) {
+            const detailSource = detailSources[loopDataSource];
+
+            // If there's a relationship, filter detail data by the current primary row
+            const rel = relationships.find(r => r.detailId === loopDataSource);
+            if (rel && currentDataRow[rel.primaryField] !== undefined) {
+                loopData = detailSource.data.filter(d => 
+                    String(d[rel.detailField]) === String(currentDataRow[rel.primaryField])
+                );
+            } else {
+                loopData = detailSource.data;
             }
-            
-            // Determine data source for this loop
-            let loopData = primaryData;
-            const loopDataSource = step.loopDataSource || 'primary';
-            
-            if (loopDataSource !== 'primary' && detailSources[loopDataSource]) {
-                const detailSource = detailSources[loopDataSource];
-                
-                // If there's a relationship, filter detail data by the current primary row
-                const rel = relationships.find(r => r.detailId === loopDataSource);
-                if (rel && currentDataRow[rel.primaryField] !== undefined) {
-                    loopData = detailSource.data.filter(d => 
-                        String(d[rel.detailField]) === String(currentDataRow[rel.primaryField])
-                    );
-                } else {
-                    loopData = detailSource.data;
-                }
-            }
-            
-            // Apply iteration limit
-            const iterationLimit = step.iterationLimit || 0;
-            if (iterationLimit > 0 && loopData.length > iterationLimit) {
-                loopData = loopData.slice(0, iterationLimit);
-            }
-            
-            // Execute the loop
-            const loopSteps = steps.slice(loopPair.startIndex + 1, loopPair.endIndex);
-            
-            for (let iterIndex = 0; iterIndex < loopData.length; iterIndex++) {
-                await checkExecutionControl(); // Check for pause/stop
-                
-                const iterRow = { ...currentDataRow, ...loopData[iterIndex] };
-                const isPrimaryLoop = loopDataSource === 'primary';
-                const totalRowsForLoop = isPrimaryLoop ? originalTotalRows : loopData.length;
-                const totalToProcessForLoop = loopData.length;
-                const displayRowNumber = isPrimaryLoop ? startRowNumber + iterIndex : iterIndex;
-                
-                window.postMessage({
-                    type: 'D365_WORKFLOW_PROGRESS',
-                    progress: {
-                        phase: 'rowStart',
-                        row: displayRowNumber,
-                        totalRows: totalRowsForLoop,
-                        processedRows: iterIndex + 1,
-                        totalToProcess: totalToProcessForLoop,
-                        step: 'Processing row'
-                    }
-                }, '*');
-                
-                window.postMessage({
-                    type: 'D365_WORKFLOW_PROGRESS',
-                    progress: {
-                        phase: 'loopIteration',
-                        iteration: iterIndex + 1,
-                        total: loopData.length,
-                        step: `Loop "${step.loopName || 'Loop'}": iteration ${iterIndex + 1}/${loopData.length}`
-                    }
-                }, '*');
-                
-                // Execute steps inside the loop
-                for (let innerIdx = 0; innerIdx < loopSteps.length; innerIdx++) {
-                    await checkExecutionControl(); // Check for pause/stop
-                    
-                    const innerStep = loopSteps[innerIdx];
-                    const globalStepIndex = loopPair.startIndex + 1 + innerIdx;
-                    
-                    // Skip nested loops for now (handle recursively if needed)
-                    if (innerStep.type === 'loop-start' || innerStep.type === 'loop-end') {
-                        continue;
-                    }
-                    
-                    await executeSingleStep(innerStep, globalStepIndex, iterRow, detailSources, settings, executionControl.runOptions.dryRun);
-                }
-            }
-            
-            // Jump past the loop-end
-            stepIndex = loopPair.endIndex + 1;
-        } else if (step.type === 'loop-end') {
-            // Should not reach here if properly paired, but just skip
-            stepIndex++;
-        } else {
-            // Regular step
-            await executeSingleStep(step, stepIndex, currentDataRow, detailSources, settings, executionControl.runOptions.dryRun);
-            stepIndex++;
         }
-    }
+
+        return loopData;
+    };
+
+    const executeRange = async (startIdx, endIdx, currentDataRow) => {
+        let idx = startIdx;
+
+        while (idx < endIdx) {
+            await checkExecutionControl(); // Check for pause/stop
+
+            const step = steps[idx];
+
+            if (step.type === 'loop-start') {
+                const loopEndIdx = loopPairMap.get(idx);
+                if (loopEndIdx === undefined || loopEndIdx <= idx) {
+                    throw new Error(`Loop start at index ${idx} has no matching end`);
+                }
+
+                const loopDataSource = step.loopDataSource || 'primary';
+                let loopData = resolveLoopData(loopDataSource, currentDataRow);
+
+                // Apply iteration limit
+                const iterationLimit = step.iterationLimit || 0;
+                if (iterationLimit > 0 && loopData.length > iterationLimit) {
+                    loopData = loopData.slice(0, iterationLimit);
+                }
+
+                for (let iterIndex = 0; iterIndex < loopData.length; iterIndex++) {
+                    await checkExecutionControl(); // Check for pause/stop
+
+                    const iterRow = { ...currentDataRow, ...loopData[iterIndex] };
+                    const isPrimaryLoop = loopDataSource === 'primary';
+                    const totalRowsForLoop = isPrimaryLoop ? originalTotalRows : loopData.length;
+                    const totalToProcessForLoop = loopData.length;
+                    const displayRowNumber = isPrimaryLoop ? startRowNumber + iterIndex : iterIndex;
+
+                    window.postMessage({
+                        type: 'D365_WORKFLOW_PROGRESS',
+                        progress: {
+                            phase: 'rowStart',
+                            row: displayRowNumber,
+                            totalRows: totalRowsForLoop,
+                            processedRows: iterIndex + 1,
+                            totalToProcess: totalToProcessForLoop,
+                            step: 'Processing row'
+                        }
+                    }, '*');
+
+                    window.postMessage({
+                        type: 'D365_WORKFLOW_PROGRESS',
+                        progress: {
+                            phase: 'loopIteration',
+                            iteration: iterIndex + 1,
+                            total: loopData.length,
+                            step: `Loop "${step.loopName || 'Loop'}": iteration ${iterIndex + 1}/${loopData.length}`
+                        }
+                    }, '*');
+
+                    // Execute steps inside the loop (supports nested loops)
+                    await executeRange(idx + 1, loopEndIdx, iterRow);
+                }
+
+                idx = loopEndIdx + 1;
+                continue;
+            }
+
+            if (step.type === 'loop-end') {
+                idx++;
+                continue;
+            }
+
+            await executeSingleStep(step, idx, currentDataRow, detailSources, settings, executionControl.runOptions.dryRun);
+            idx++;
+        }
+    };
+
+    await executeRange(0, steps.length, initialDataRow);
 }
 
 // Helper to send logs
@@ -1180,7 +1176,7 @@ async function executeStep(step, dataRow, detailSources = {}) {
             await setInputValue(controlName, resolvedValue, step.fieldType);
             break;
         case 'grid-input':
-            await setGridCellValue(controlName, resolvedValue, step.fieldType);
+            await setGridCellValue(controlName, resolvedValue, step.fieldType, step.waitForValidation);
             break;
         case 'lookupSelect':
             await setLookupSelectValue(controlName, resolvedValue);
@@ -1662,8 +1658,8 @@ async function setInputValue(controlName, value, fieldType) {
 
 // ====== Grid Cell Input Function ======
 // Sets value in a grid cell (for creating/editing records in grids like Sales order lines)
-async function setGridCellValue(controlName, value, fieldType) {
-    console.log(`Setting grid cell value: ${controlName} = "${value}"`);
+async function setGridCellValue(controlName, value, fieldType, waitForValidation = false) {
+    console.log(`Setting grid cell value: ${controlName} = "${value}" (waitForValidation=${waitForValidation})`);
     
     // Find the cell element - prefer the one in an active/selected row
     let element = findGridCellElement(controlName);
@@ -1797,12 +1793,127 @@ async function setGridCellValue(controlName, value, fieldType) {
     // Dispatch events
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
+    await sleep(200);
     
-    // Tab out to commit the value (important for D365 grids)
-    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
+    // For grid cells, we need to properly commit the value
+    // D365 React grids require the cell to lose focus for validation to occur
+    
+    // Method 1: Press Enter to confirm the value (important for lookup fields like ItemId)
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     await sleep(300);
     
+    // Method 2: Tab out to move to next cell (triggers blur and validation)
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
+    await sleep(200);
+    
+    // Method 3: Dispatch blur event explicitly
+    input.dispatchEvent(new FocusEvent('blur', { bubbles: true, relatedTarget: null }));
+    await sleep(200);
+    
+    // Method 4: Click outside the cell to ensure focus is lost
+    // Find another cell or the row container to click
+    const row = input.closest('.fixedDataTableRowLayout_main, [data-dyn-role="Row"]');
+    if (row) {
+        const otherCell = row.querySelector('.fixedDataTableCellLayout_main:not(:focus-within)');
+        if (otherCell && otherCell !== input.closest('.fixedDataTableCellLayout_main')) {
+            otherCell.click();
+            await sleep(200);
+        }
+    }
+    
+    // Wait for D365 to process/validate the value (server-side lookup for ItemId, etc.)
+    await sleep(500);
+    
+    // If waitForValidation is enabled, wait for D365 to complete the lookup validation
+    // This is important for fields like ItemId that trigger server-side validation
+    if (waitForValidation) {
+        console.log(`  Waiting for D365 validation of ${controlName}...`);
+        
+        // Wait for any loading indicators to appear and disappear
+        // D365 shows a loading spinner during server-side lookups
+        await waitForD365Validation(controlName, 5000);
+    }
+    
     console.log(`  Grid cell value set: ${controlName} = "${value}"`);
+}
+
+// Wait for D365 to complete server-side validation after entering a value
+// This is needed for lookup fields like ItemId that trigger async validation
+async function waitForD365Validation(controlName, timeout = 5000) {
+    const startTime = Date.now();
+    let lastLoadingState = false;
+    let seenLoading = false;
+    
+    while (Date.now() - startTime < timeout) {
+        // Check for D365 loading indicators
+        const isLoading = isD365Loading();
+        
+        if (isLoading && !lastLoadingState) {
+            console.log('    D365 validation started (loading indicator appeared)');
+            seenLoading = true;
+        } else if (!isLoading && lastLoadingState && seenLoading) {
+            console.log('    D365 validation completed (loading indicator gone)');
+            await sleep(300); // Extra buffer after loading completes
+            return true;
+        }
+        
+        lastLoadingState = isLoading;
+        
+        // Also check if the cell now shows validated content (e.g., product name appeared)
+        // For ItemId, D365 shows the item number and name after validation
+        const cell = findGridCellElement(controlName);
+        if (cell) {
+            const cellText = cell.textContent || '';
+            const hasMultipleValues = cellText.split(/\s{2,}|\n/).filter(t => t.trim()).length > 1;
+            if (hasMultipleValues) {
+                console.log('    D365 validation completed (cell content updated)');
+                await sleep(200);
+                return true;
+            }
+        }
+        
+        await sleep(100);
+    }
+    
+    // If we saw loading at some point, wait a bit more after timeout
+    if (seenLoading) {
+        console.log('    Validation timeout reached, but saw loading - waiting extra time');
+        await sleep(500);
+    }
+    
+    console.log('    Validation wait completed (timeout or no loading detected)');
+    return false;
+}
+
+// Check if D365 is currently loading/processing
+function isD365Loading() {
+    // Check for common D365 loading indicators
+    const loadingSelectors = [
+        '.dyn-loading-overlay:not([style*="display: none"])',
+        '.dyn-loading-indicator:not([style*="display: none"])',
+        '.dyn-spinner:not([style*="display: none"])',
+        '.loading-indicator:not([style*="display: none"])',
+        '.dyn-messageBusy:not([style*="display: none"])',
+        '[data-dyn-loading="true"]',
+        '.busy-indicator',
+        '.dyn-loadingStub:not([style*="display: none"])'
+    ];
+    
+    for (const selector of loadingSelectors) {
+        const el = document.querySelector(selector);
+        if (el && el.offsetParent !== null) {
+            return true;
+        }
+    }
+    
+    // Check for AJAX requests in progress (D365 specific)
+    if (window.$dyn && window.$dyn.isProcessing) {
+        return window.$dyn.isProcessing();
+    }
+    
+    return false;
 }
 
 // Find a grid cell element, preferring the one in the active/selected row

@@ -1,4 +1,178 @@
 export const stepMethods = {
+    initStepCopyUI() {
+        const selectAll = document.getElementById('stepsSelectAll');
+        const targetSelect = document.getElementById('copyStepsTarget');
+        const copyButton = document.getElementById('copyStepsButton');
+
+        if (!selectAll || !targetSelect || !copyButton) return;
+
+        selectAll.addEventListener('change', (e) => {
+            this.toggleSelectAllSteps(e.target.checked);
+        });
+
+        targetSelect.addEventListener('change', () => {
+            this.updateCopyButtonState();
+        });
+
+        copyButton.addEventListener('click', () => {
+            this.copySelectedSteps();
+        });
+    },
+
+    ensureStepSelectionState() {
+        if (!this.selectedStepIds) {
+            this.selectedStepIds = new Set();
+        }
+    },
+
+    populateCopyTargets() {
+        const select = document.getElementById('copyStepsTarget');
+        if (!select) return;
+
+        const currentId = this.currentWorkflow?.id;
+        const targets = (this.workflows || []).filter(w => w.id !== currentId);
+
+        select.innerHTML = '';
+
+        if (targets.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No other workflows';
+            select.appendChild(option);
+            select.disabled = true;
+            this.updateCopyButtonState();
+            return;
+        }
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select target workflow';
+        select.appendChild(placeholder);
+
+        targets.forEach(workflow => {
+            const option = document.createElement('option');
+            option.value = workflow.id;
+            option.textContent = workflow.name || 'Untitled Workflow';
+            select.appendChild(option);
+        });
+
+        select.disabled = false;
+        this.updateCopyButtonState();
+    },
+
+    updateSelectAllState() {
+        const selectAll = document.getElementById('stepsSelectAll');
+        if (!selectAll || !this.currentWorkflow) return;
+
+        const total = this.currentWorkflow.steps.length;
+        const selected = this.selectedStepIds?.size || 0;
+
+        selectAll.indeterminate = selected > 0 && selected < total;
+        selectAll.checked = total > 0 && selected === total;
+    },
+
+    updateCopyButtonState() {
+        const copyButton = document.getElementById('copyStepsButton');
+        const targetSelect = document.getElementById('copyStepsTarget');
+        if (!copyButton || !targetSelect) return;
+
+        const hasSelection = (this.selectedStepIds?.size || 0) > 0;
+        const hasTarget = !!targetSelect.value;
+        copyButton.disabled = !(hasSelection && hasTarget);
+    },
+
+    toggleSelectAllSteps(isChecked) {
+        if (!this.currentWorkflow) return;
+        this.ensureStepSelectionState();
+
+        if (isChecked) {
+            this.currentWorkflow.steps.forEach(step => this.selectedStepIds.add(step.id));
+        } else {
+            this.selectedStepIds.clear();
+        }
+
+        this.displaySteps();
+    },
+
+    async copySelectedSteps() {
+        if (!this.currentWorkflow) return;
+        this.ensureStepSelectionState();
+
+        const targetSelect = document.getElementById('copyStepsTarget');
+        const targetId = targetSelect?.value;
+        if (!targetId) {
+            this.showNotification('Select a target workflow first', 'error');
+            return;
+        }
+
+        const targetWorkflow = (this.workflows || []).find(w => w.id === targetId);
+        if (!targetWorkflow) {
+            this.showNotification('Target workflow not found', 'error');
+            return;
+        }
+
+        const selectedIds = new Set(this.selectedStepIds);
+        const sourceSteps = this.currentWorkflow.steps;
+        let autoAdded = 0;
+
+        // Ensure loop pairs are complete
+        sourceSteps.forEach(step => {
+            if (step.type === 'loop-end' && selectedIds.has(step.id)) {
+                const refId = step.loopRef;
+                if (refId && !selectedIds.has(refId)) {
+                    selectedIds.add(refId);
+                    autoAdded++;
+                }
+            }
+        });
+
+        sourceSteps.forEach(step => {
+            if (step.type === 'loop-start' && selectedIds.has(step.id)) {
+                const matchingEnd = sourceSteps.find(s => s.type === 'loop-end' && s.loopRef === step.id);
+                if (matchingEnd && !selectedIds.has(matchingEnd.id)) {
+                    selectedIds.add(matchingEnd.id);
+                    autoAdded++;
+                }
+            }
+        });
+
+        const orderedSteps = sourceSteps.filter(step => selectedIds.has(step.id));
+        if (orderedSteps.length === 0) {
+            this.showNotification('No steps selected', 'error');
+            return;
+        }
+
+        const loopStartIdMap = new Map();
+        const copiedSteps = orderedSteps.map((step, index) => {
+            const clone = JSON.parse(JSON.stringify(step));
+            const newId = `${Date.now()}_${index}_${Math.random().toString(16).slice(2, 6)}`;
+            if (step.type === 'loop-start') {
+                loopStartIdMap.set(step.id, newId);
+            }
+            clone.id = newId;
+            return clone;
+        });
+
+        copiedSteps.forEach((clone, index) => {
+            if (clone.type !== 'loop-end') return;
+            const originalRef = orderedSteps[index]?.loopRef;
+            if (originalRef && loopStartIdMap.has(originalRef)) {
+                clone.loopRef = loopStartIdMap.get(originalRef);
+            }
+        });
+
+        targetWorkflow.steps = [...(targetWorkflow.steps || []), ...copiedSteps];
+
+        await chrome.storage.local.set({ workflows: this.workflows });
+        this.displayWorkflows();
+
+        this.selectedStepIds.clear();
+        this.displaySteps();
+
+        const extraInfo = autoAdded > 0 ? ` (auto-added ${autoAdded} loop step${autoAdded > 1 ? 's' : ''})` : '';
+        this.showNotification(`Copied ${copiedSteps.length} step${copiedSteps.length > 1 ? 's' : ''}${extraInfo}`, 'success');
+    },
+
     addStep() {
         if (!this.currentWorkflow) {
             this.createNewWorkflow();
@@ -16,21 +190,28 @@ export const stepMethods = {
     },
 
     showStepEditor() {
-        document.getElementById('stepsPanel').style.display = 'none';
-        document.getElementById('stepEditorOverlay').style.display = 'flex';
+        document.getElementById('stepsPanel').classList.add('is-hidden');
+        document.getElementById('stepEditorOverlay').classList.remove('is-hidden');
         document.getElementById('stepType').value = this.currentStep.type;
 
         // Show delete button only for existing steps (not new ones)
         const isExistingStep = this.currentWorkflow?.steps?.some(s => s.id === this.currentStep.id);
-        document.getElementById('deleteStep').style.display = isExistingStep ? 'inline-flex' : 'none';
+        const deleteButton = document.getElementById('deleteStep');
+        if (deleteButton) {
+            if (isExistingStep) {
+                deleteButton.classList.remove('is-hidden');
+            } else {
+                deleteButton.classList.add('is-hidden');
+            }
+        }
         document.getElementById('stepEditorTitle').textContent = isExistingStep ? 'Edit Step' : 'New Step';
 
         this.updateStepFields(this.currentStep.type);
     },
 
     hideStepEditor() {
-        document.getElementById('stepEditorOverlay').style.display = 'none';
-        document.getElementById('stepsPanel').style.display = 'block';
+        document.getElementById('stepEditorOverlay').classList.add('is-hidden');
+        document.getElementById('stepsPanel').classList.remove('is-hidden');
     },
 
     isUIActionStep(stepType) {
@@ -110,13 +291,13 @@ export const stepMethods = {
                         <option value="data" ${hasFieldMapping ? 'selected' : ''}>From Data Field</option>
                     </select>
                 </div>
-                <div class="form-group" id="staticValueGroup" ${hasFieldMapping ? 'style="display: none;"' : ''}>
+                <div class="form-group ${hasFieldMapping ? 'is-hidden' : ''}" id="staticValueGroup">
                     <label>Value</label>
                     <input type="text" id="stepValue" class="form-control" 
                            value="${this.currentStep?.value || ''}" 
                            placeholder="Enter value">
                 </div>
-                <div class="form-group" id="dataFieldGroup" ${!hasFieldMapping ? 'style="display: none;"' : ''}>
+                <div class="form-group ${!hasFieldMapping ? 'is-hidden' : ''}" id="dataFieldGroup">
                     <label>Data Field</label>
                     ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
                 </div>
@@ -127,8 +308,8 @@ export const stepMethods = {
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
                     const isData = e.target.value === 'data';
-                    document.getElementById('staticValueGroup').style.display = isData ? 'none' : 'block';
-                    document.getElementById('dataFieldGroup').style.display = isData ? 'block' : 'none';
+                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', isData);
+                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', !isData);
                 });
             }, 0);
         } else if (stepType === 'checkbox') {
@@ -242,13 +423,13 @@ export const stepMethods = {
                         <option value="data" ${hasFieldMapping ? 'selected' : ''}>From Data Field</option>
                     </select>
                 </div>
-                <div class="form-group" id="staticValueGroup" ${hasFieldMapping ? 'style="display: none;"' : ''}>
+                <div class="form-group ${hasFieldMapping ? 'is-hidden' : ''}" id="staticValueGroup">
                     <label>Filter Value</label>
                     <input type="text" id="stepValue" class="form-control" 
                            value="${this.currentStep?.value || ''}" 
                            placeholder="Value to filter by">
                 </div>
-                <div class="form-group" id="dataFieldGroup" ${!hasFieldMapping ? 'style="display: none;"' : ''}>
+                <div class="form-group ${!hasFieldMapping ? 'is-hidden' : ''}" id="dataFieldGroup">
                     <label>Data Field</label>
                     ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
                 </div>
@@ -264,8 +445,8 @@ export const stepMethods = {
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
                     const isData = e.target.value === 'data';
-                    document.getElementById('staticValueGroup').style.display = isData ? 'none' : 'block';
-                    document.getElementById('dataFieldGroup').style.display = isData ? 'block' : 'none';
+                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', isData);
+                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', !isData);
                 });
             }, 0);
         } else if (stepType === 'wait-until') {
@@ -291,7 +472,7 @@ export const stepMethods = {
                         <option value="has-value" ${this.currentStep?.waitCondition === 'has-value' ? 'selected' : ''}>Element has specific value</option>
                     </select>
                 </div>
-                <div class="form-group" id="waitValueGroup" style="${this.currentStep?.waitCondition === 'has-value' ? '' : 'display: none;'}">
+                <div class="form-group ${this.currentStep?.waitCondition === 'has-value' ? '' : 'is-hidden'}" id="waitValueGroup">
                     <label>Expected Value</label>
                     <input type="text" id="stepWaitValue" class="form-control" 
                            value="${this.currentStep?.waitValue || ''}" 
@@ -317,13 +498,14 @@ export const stepMethods = {
             setTimeout(() => {
                 document.getElementById('stepWaitCondition')?.addEventListener('change', (e) => {
                     const showValue = e.target.value === 'has-value';
-                    document.getElementById('waitValueGroup').style.display = showValue ? 'block' : 'none';
+                    document.getElementById('waitValueGroup').classList.toggle('is-hidden', !showValue);
                     this.autoSaveStep();
                 });
             }, 0);
         } else if (stepType === 'grid-input') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
             const waitOptions = this.renderWaitOptions();
+            const waitForValidation = this.currentStep?.waitForValidation ? 'checked' : '';
             container.innerHTML = `
                 <div class="form-group">
                     <label>Grid Column Control Name</label>
@@ -342,13 +524,13 @@ export const stepMethods = {
                         <option value="data" ${hasFieldMapping ? 'selected' : ''}>From Data Field</option>
                     </select>
                 </div>
-                <div class="form-group" id="staticValueGroup" ${hasFieldMapping ? 'style="display: none;"' : ''}>
+                <div class="form-group ${hasFieldMapping ? 'is-hidden' : ''}" id="staticValueGroup">
                     <label>Value</label>
                     <input type="text" id="stepValue" class="form-control" 
                            value="${this.currentStep?.value || ''}" 
                            placeholder="Enter value (e.g., item number, quantity)">
                 </div>
-                <div class="form-group" id="dataFieldGroup" ${!hasFieldMapping ? 'style="display: none;"' : ''}>
+                <div class="form-group ${!hasFieldMapping ? 'is-hidden' : ''}" id="dataFieldGroup">
                     <label>Data Field</label>
                     ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
                 </div>
@@ -358,6 +540,16 @@ export const stepMethods = {
                            value="${this.currentStep?.displayText || ''}" 
                            placeholder="e.g., Item number">
                 </div>
+                <div class="form-group">
+                    <label>Validation Options</label>
+                    <div class="wait-options">
+                        <label class="wait-option">
+                            <input type="checkbox" id="stepWaitForValidation" ${waitForValidation}>
+                            Wait for D365 to validate (recommended for Item number)
+                        </label>
+                    </div>
+                    <small style="color: #666; font-size: 11px;">Waits up to 5 seconds for D365 to process lookup fields like Item number</small>
+                </div>
                 ${waitOptions}
             `;
 
@@ -365,8 +557,8 @@ export const stepMethods = {
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
                     const isData = e.target.value === 'data';
-                    document.getElementById('staticValueGroup').style.display = isData ? 'none' : 'block';
-                    document.getElementById('dataFieldGroup').style.display = isData ? 'block' : 'none';
+                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', isData);
+                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', !isData);
                 });
             }, 0);
         }
@@ -399,8 +591,8 @@ export const stepMethods = {
                     const isData = select.value === 'data';
                     const staticGroup = document.getElementById('staticValueGroup');
                     const dataGroup = document.getElementById('dataFieldGroup');
-                    if (staticGroup) staticGroup.style.display = isData ? 'none' : 'block';
-                    if (dataGroup) dataGroup.style.display = isData ? 'block' : 'none';
+                    if (staticGroup) staticGroup.classList.toggle('is-hidden', isData);
+                    if (dataGroup) dataGroup.classList.toggle('is-hidden', !isData);
                 }
                 this.autoSaveStep();
             });
@@ -588,6 +780,19 @@ export const stepMethods = {
             this.currentStep.waitCondition = document.getElementById('stepWaitCondition')?.value || 'visible';
             this.currentStep.waitValue = document.getElementById('stepWaitValue')?.value || '';
             this.currentStep.timeout = parseInt(document.getElementById('stepTimeout')?.value) || 10000;
+        } else if (this.currentStep.type === 'grid-input') {
+            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+            this.currentStep.waitForValidation = document.getElementById('stepWaitForValidation')?.checked || false;
+
+            const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+            if (valueSource === 'static') {
+                this.currentStep.value = document.getElementById('stepValue')?.value || '';
+                this.currentStep.fieldMapping = '';
+            } else {
+                this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
+                this.currentStep.value = '';
+            }
         }
 
         if (this.isUIActionStep(this.currentStep.type)) {
@@ -645,8 +850,19 @@ export const stepMethods = {
 
         if (!this.currentWorkflow || this.currentWorkflow.steps.length === 0) {
             container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No steps yet. Click "Add Step" to begin.</p>';
+            this.ensureStepSelectionState();
+            this.selectedStepIds.clear();
+            this.updateSelectAllState();
+            this.populateCopyTargets();
+            this.updateCopyButtonState();
             return;
         }
+
+        this.ensureStepSelectionState();
+        const stepIdSet = new Set(this.currentWorkflow.steps.map(step => step.id));
+        Array.from(this.selectedStepIds).forEach(id => {
+            if (!stepIdSet.has(id)) this.selectedStepIds.delete(id);
+        });
 
         // Track which steps are inside loops
         let loopDepth = 0;
@@ -718,8 +934,10 @@ export const stepMethods = {
                 stepDesc = `Wait until "${step.displayText || step.controlName}" ${condition}`;
             }
 
+            const isSelected = this.selectedStepIds.has(step.id);
             item.innerHTML = `
                 <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                    <input type="checkbox" class="step-select" data-step-id="${step.id}" ${isSelected ? 'checked' : ''}>
                     <span style="cursor: move; color: #999;">::</span>
                     <span>${stepIcon}</span>
                     <div style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
@@ -727,8 +945,8 @@ export const stepMethods = {
                     </div>
                 </div>
                 <div style="display: flex; gap: 4px;">
-                    <button class="btn-edit" title="Edit" aria-label="Edit">✏️</button>
-                    <button class="btn-delete" title="Delete" aria-label="Delete">🗑️</button>
+                    <button class="btn-edit btn-icon" title="Edit" aria-label="Edit">✏️</button>
+                    <button class="btn-delete btn-icon" title="Delete" aria-label="Delete">🗑️</button>
                 </div>
             `;
 
@@ -788,8 +1006,23 @@ export const stepMethods = {
                 this.displaySteps();
             });
 
+            item.querySelector('.step-select').addEventListener('change', (e) => {
+                e.stopPropagation();
+                if (e.target.checked) {
+                    this.selectedStepIds.add(step.id);
+                } else {
+                    this.selectedStepIds.delete(step.id);
+                }
+                this.updateSelectAllState();
+                this.updateCopyButtonState();
+            });
+
             container.appendChild(item);
         });
+
+        this.updateSelectAllState();
+        this.populateCopyTargets();
+        this.updateCopyButtonState();
     },
 
     formatWaitFlags(step) {

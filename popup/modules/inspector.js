@@ -28,10 +28,10 @@ export const inspectorMethods = {
         const activeFormInfo = document.getElementById('activeFormInfo');
         const activeFormName = document.getElementById('activeFormName');
         if (activeForm && activeFormInfo && activeFormName) {
-            activeFormInfo.style.display = 'block';
+            activeFormInfo.classList.remove('is-hidden');
             activeFormName.textContent = activeForm;
         } else if (activeFormInfo) {
-            activeFormInfo.style.display = 'none';
+            activeFormInfo.classList.add('is-hidden');
         }
 
         // Build form filter options

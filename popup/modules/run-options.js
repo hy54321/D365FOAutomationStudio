@@ -12,11 +12,11 @@ export const runOptionsMethods = {
         const totalRows = workflow.dataSources?.primary?.data?.length || 0;
 
         // Show modal
-        document.getElementById('runOptionsModal').style.display = 'flex';
+        document.getElementById('runOptionsModal').classList.remove('is-hidden');
     },
 
     hideRunOptionsModal() {
-        document.getElementById('runOptionsModal').style.display = 'none';
+        document.getElementById('runOptionsModal').classList.add('is-hidden');
         this.pendingWorkflow = null;
     },
 
@@ -36,15 +36,19 @@ export const runOptionsMethods = {
         const resumeNextBtn = document.getElementById('resumeNextRecord');
         if (resumeNextBtn) {
             const isLastRow = totalRows > 0 && rowNumber >= totalRows;
-            resumeNextBtn.style.display = isLastRow ? 'none' : 'inline-flex';
+            if (isLastRow) {
+                resumeNextBtn.classList.add('is-hidden');
+            } else {
+                resumeNextBtn.classList.remove('is-hidden');
+            }
         }
 
-        document.getElementById('resumeModal').style.display = 'flex';
+        document.getElementById('resumeModal').classList.remove('is-hidden');
     },
 
     hideResumeModal() {
         const modal = document.getElementById('resumeModal');
-        if (modal) modal.style.display = 'none';
+        if (modal) modal.classList.add('is-hidden');
     },
 
     resumeFromFailure(mode) {

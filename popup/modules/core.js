@@ -215,6 +215,7 @@ export const coreMethods = {
         document.getElementById('addStep').addEventListener('click', () => this.addStep());
         document.getElementById('saveWorkflow').addEventListener('click', () => this.saveWorkflow());
         document.getElementById('cancelWorkflow').addEventListener('click', () => this.cancelWorkflowChanges());
+        this.initStepCopyUI();
         document.getElementById('stepType').addEventListener('change', (e) => {
             this.updateStepFields(e.target.value);
             this.autoSaveStep();
