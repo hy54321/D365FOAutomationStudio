@@ -1,0 +1,7 @@
+# Ignore the helper files folder (contains local XML/JSON test artifacts)
+helper files/
+
+# Optional common ignores
+node_modules/
+.DS_Store
+*.log

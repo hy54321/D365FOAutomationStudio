@@ -123,5 +123,51 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
 
+    // Resolve D365 labels via OData API
+    if (request.action === 'resolveD365Labels') {
+        const { labelIds, language = 'en-us' } = request;
+        const results = {};
+        
+        console.log('[D365 Extension] Resolving labels:', labelIds);
+        
+        // Process labels in parallel
+        Promise.all(
+            labelIds.map(async (labelId) => {
+                if (!labelId || !labelId.startsWith('@')) return;
+                
+                try {
+                    // Don't encode the @ symbol - D365 expects it literally in the URL
+                    const url = `/metadata/Labels(Id='${labelId}',Language='${language}')`;
+                    console.log('[D365 Extension] Fetching label:', url);
+                    
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('[D365 Extension] Label resolved:', labelId, '->', data.Value);
+                        if (data.Value) {
+                            results[labelId] = data.Value;
+                        }
+                    } else {
+                        console.warn('[D365 Extension] Label fetch failed:', labelId, response.status);
+                    }
+                } catch (error) {
+                    console.warn(`[D365 Extension] Failed to resolve label ${labelId}:`, error);
+                }
+            })
+        ).then(() => {
+            console.log('[D365 Extension] All labels resolved:', results);
+            sendResponse({ success: true, labels: results });
+        }).catch(error => {
+            console.error('[D365 Extension] Label resolution error:', error);
+            sendResponse({ success: false, error: error.message });
+        });
+        
+        return true; // Async response
+    }
+
     return false;
 });

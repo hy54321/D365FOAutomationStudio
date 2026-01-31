@@ -207,8 +207,6 @@ export const workflowMethods = {
                     rawData = JSON.stringify(this.dataSources.primary.data, null, 2);
                 } else if (type === 'csv') {
                     rawData = this.dataToCSV(this.dataSources.primary.data);
-                } else if (type === 'excel') {
-                    rawData = this.dataToTSV(this.dataSources.primary.data);
                 }
                 document.getElementById('primaryDataInput').value = rawData;
             }
@@ -349,7 +347,42 @@ export const workflowMethods = {
         this.showNotification('Workflow exported', 'success');
     },
 
-    async importWorkflow() {
+    initImportDropdown() {
+        const importBtn = document.getElementById('importWorkflow');
+        const dropdown = document.getElementById('importDropdownMenu');
+        
+        if (!importBtn || !dropdown) return;
+
+        // Toggle dropdown on button click
+        importBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dropdown.classList.toggle('show');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.import-dropdown')) {
+                dropdown.classList.remove('show');
+            }
+        });
+
+        // Handle import options
+        dropdown.querySelectorAll('.import-option').forEach(option => {
+            option.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdown.classList.remove('show');
+                
+                const importType = option.dataset.importType;
+                if (importType === 'json') {
+                    this.importJSONWorkflow();
+                } else if (importType === 'xml') {
+                    this.importTaskRecorderXML();
+                }
+            });
+        });
+    },
+
+    async importJSONWorkflow() {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.json';
@@ -383,6 +416,24 @@ export const workflowMethods = {
             reader.readAsText(file);
         };
         input.click();
+    },
+
+    async importTaskRecorderXML() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.xml';
+
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            try {
+                await this.handleXMLFileImport(file);
+            } catch (error) {
+                console.error('XML import error:', error);
+                this.showNotification('Failed to import Task Recording: ' + error.message, 'error');
+            }
+        };
+        input.click();
     }
 };
-

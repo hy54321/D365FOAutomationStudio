@@ -10,7 +10,7 @@ export const dataSourceMethods = {
         } else {
             inputContainer.classList.remove('is-hidden');
 
-            const placeholder = type === 'json' ? 
+            const placeholder = type === 'json' ?
                 '[{"chargeCode": "AUF-DE", "language": "de", "text": "Aufwandspauschale"}]' :
                 'chargeCode,language,text\nAUF-DE,de,Aufwandspauschale';
 
@@ -30,8 +30,6 @@ export const dataSourceMethods = {
                 data = JSON.parse(input);
             } else if (type === 'csv') {
                 data = this.parseCSV(input);
-            } else if (type === 'excel') {
-                data = this.parseTSV(input);
             }
 
             if (!Array.isArray(data) || data.length === 0) {
@@ -97,8 +95,7 @@ export const dataSourceMethods = {
                     <select class="form-control form-control-sm detail-type" style="width: 100px;">
                         <option value="none" ${detail.type === 'none' ? 'selected' : ''}>No Data</option>
                         <option value="json" ${detail.type === 'json' ? 'selected' : ''}>JSON</option>
-                        <option value="csv" ${detail.type === 'csv' ? 'selected' : ''}>CSV</option>
-                        <option value="excel" ${detail.type === 'excel' ? 'selected' : ''}>TSV</option>
+                        <option value="csv" ${detail.type === 'csv' ? 'selected' : ''}>CSV / TSV</option>
                     </select>
                     <button class="btn-remove" title="Remove">Remove</button>
                 </div>
@@ -159,8 +156,6 @@ export const dataSourceMethods = {
                 data = JSON.parse(input);
             } else if (detail.type === 'csv') {
                 data = this.parseCSV(input);
-            } else if (detail.type === 'excel') {
-                data = this.parseTSV(input);
             }
 
             detail.data = data;
@@ -265,25 +260,23 @@ export const dataSourceMethods = {
     },
 
     parseCSV(text) {
-        const lines = text.trim().split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+        // Auto-detect delimiter: prefer tab if tabs are present and more frequent than commas
+        const raw = text.trim();
+        if (!raw) return [];
+        const lines = raw.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+        // Determine delimiter by inspecting the header line
+        const headerLine = lines[0];
+        const tabCount = (headerLine.match(/\t/g) || []).length;
+        const commaCount = (headerLine.match(/,/g) || []).length;
+        const delimiter = (tabCount > commaCount && tabCount > 0) ? '\t' : ',';
+
+        const splitAndClean = (s) => s.split(delimiter).map(v => v.trim().replace(/^['\"]|['\"]$/g, ''));
+
+        const headers = splitAndClean(headerLine);
 
         return lines.slice(1).map(line => {
-            const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''));
-            const obj = {};
-            headers.forEach((header, i) => {
-                obj[header] = values[i] || '';
-            });
-            return obj;
-        });
-    },
-
-    parseTSV(text) {
-        const lines = text.trim().split('\n');
-        const headers = lines[0].split('\t').map(h => h.trim());
-
-        return lines.slice(1).map(line => {
-            const values = line.split('\t').map(v => v.trim());
+            const values = splitAndClean(line);
             const obj = {};
             headers.forEach((header, i) => {
                 obj[header] = values[i] || '';
@@ -301,14 +294,9 @@ export const dataSourceMethods = {
         });
         return lines.join('\n');
     },
-
+    
     dataToTSV(data) {
-        if (!data || data.length === 0) return '';
-        const headers = Object.keys(data[0]);
-        const lines = [headers.join('\t')];
-        data.forEach(row => {
-            lines.push(headers.map(h => row[h] || '').join('\t'));
-        });
-        return lines.join('\n');
+        // Keep for compatibility (not used) - convert to CSV output instead
+        return this.dataToCSV(data);
     }
 };

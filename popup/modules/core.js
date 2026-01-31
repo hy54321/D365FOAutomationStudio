@@ -209,7 +209,8 @@ export const coreMethods = {
     setupEventListeners() {
         // Workflows tab
         document.getElementById('newWorkflow').addEventListener('click', () => this.createNewWorkflow());
-        document.getElementById('importWorkflow').addEventListener('click', () => this.importWorkflow());
+        // Import dropdown is initialized separately to handle dropdown menu
+        this.initImportDropdown();
 
         // Builder tab
         document.getElementById('addStep').addEventListener('click', () => this.addStep());

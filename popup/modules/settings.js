@@ -8,7 +8,8 @@ export const settingsMethods = {
             logVerbose: false,
             pauseOnError: false,
             comboSelectMode: 'method3',
-            suppressLookupWarnings: false
+            suppressLookupWarnings: false,
+            labelLanguage: 'en-us'
         };
 
         const stored = localStorage.getItem('d365-settings');
@@ -24,6 +25,7 @@ export const settingsMethods = {
         document.getElementById('pauseOnError').checked = this.settings.pauseOnError;
         document.getElementById('comboSelectMode').value = this.settings.comboSelectMode || 'method3';
         document.getElementById('suppressLookupWarnings').checked = !!this.settings.suppressLookupWarnings;
+        document.getElementById('labelLanguage').value = this.settings.labelLanguage || 'en-us';
     },
 
     saveSettings() {
@@ -37,6 +39,10 @@ export const settingsMethods = {
             comboSelectMode: document.getElementById('comboSelectMode').value,
             suppressLookupWarnings: document.getElementById('suppressLookupWarnings').checked
         };
+
+        // Read optional label language field
+        const labelLangEl = document.getElementById('labelLanguage');
+        this.settings.labelLanguage = labelLangEl ? (labelLangEl.value || 'en-us') : 'en-us';
 
         localStorage.setItem('d365-settings', JSON.stringify(this.settings));
         this.showNotification('Settings saved!', 'success');

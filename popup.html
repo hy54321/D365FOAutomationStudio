@@ -59,9 +59,19 @@
                     <button id="newWorkflow" class="btn btn-primary">
                         <span>➕</span> New Workflow
                     </button>
-                    <button id="importWorkflow" class="btn btn-secondary">
-                        <span>📥</span> Import
-                    </button>
+                    <div class="import-dropdown">
+                        <button id="importWorkflow" class="btn btn-secondary">
+                            <span>📥</span> Import ▾
+                        </button>
+                        <div class="import-dropdown-menu" id="importDropdownMenu">
+                            <button class="import-option" data-import-type="json">
+                                <span>📄</span> Import JSON Workflow
+                            </button>
+                            <button class="import-option" data-import-type="xml">
+                                <span>🎬</span> Import Task Recording (XML)
+                            </button>
+                        </div>
+                    </div>
                 </div>
                 
                 <div id="workflowsList" class="workflows-list">
@@ -152,8 +162,7 @@
                                 <select id="primaryDataSourceType" class="form-control form-control-sm">
                                     <option value="none">No Data</option>
                                     <option value="json">JSON</option>
-                                    <option value="csv">CSV</option>
-                                    <option value="excel">Excel (paste TSV)</option>
+                                    <option value="csv">CSV / TSV</option>
                                 </select>
                             </div>
                             <div id="primaryDataSourceInput" class="data-source-input is-hidden">
@@ -290,6 +299,12 @@
                             <option value="method7">Method 7: D365 internal trigger</option>
                             <option value="method8">Method 8: Composition events</option>
                         </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Label language for enum resolution</label>
+                        <input type="text" id="labelLanguage" class="form-control" value="en-us" placeholder="e.g. en-us">
+                        <small style="display:block;margin-top:6px;color:#666;">Used when resolving D365 label keys (e.g. @SYS123) via OData.</small>
                     </div>
 
                     <div class="btn-group-vertical">

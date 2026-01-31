@@ -7,6 +7,7 @@ import { stepMethods } from './modules/steps.js';
 import { dataSourceMethods } from './modules/data-sources.js';
 import { inspectorMethods } from './modules/inspector.js';
 import { settingsMethods } from './modules/settings.js';
+import { xmlImportMethods } from './modules/xml-import.js';
 
 class PopupController {
     constructor() {
@@ -63,7 +64,8 @@ Object.assign(
     stepMethods,
     dataSourceMethods,
     inspectorMethods,
-    settingsMethods
+    settingsMethods,
+    xmlImportMethods
 );
 
 export { PopupController };
