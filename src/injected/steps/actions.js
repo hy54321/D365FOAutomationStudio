@@ -834,9 +834,14 @@ export async function navigateToForm(step) {
     try {
         const url = new URL(targetUrl);
         const targetMenuItemName = url.searchParams.get('mi') || '';
+        
+        // IMPORTANT: Use the ORIGINAL full workflow, not the current (possibly sliced) one
+        // This prevents double-slicing on subsequent navigation resumes
+        const originalWorkflow = window.d365OriginalWorkflow || window.d365CurrentWorkflow || null;
+        
         const pendingState = {
-            workflow: window.d365CurrentWorkflow || null,
-            workflowId: window.d365CurrentWorkflow?.id || '',
+            workflow: originalWorkflow,
+            workflowId: originalWorkflow?.id || '',
             nextStepIndex: (window.d365ExecutionControl?.currentStepIndex ?? 0) + 1,
             currentRowIndex: window.d365ExecutionControl?.currentRowIndex || 0,
             totalRows: window.d365ExecutionControl?.totalRows || 0,
@@ -846,7 +851,7 @@ export async function navigateToForm(step) {
             savedAt: Date.now()
         };
         sessionStorage.setItem('d365_pending_workflow', JSON.stringify(pendingState));
-        logStep('Saved workflow state for navigation');
+        logStep(`Saved workflow state for navigation (nextStepIndex: ${pendingState.nextStepIndex})`);
     } catch (e) {
         console.warn('[D365] Failed to save workflow state in sessionStorage:', e);
     }

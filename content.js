@@ -191,14 +191,89 @@ function checkAndResumeWorkflow() {
                         console.log('[D365 Extension] D365 forms detected, waiting for stabilization...');
                         await new Promise(resolve => setTimeout(resolve, 1500));
                         
-                        console.log('[D365 Extension] D365 ready, sending resumeAfterNavigation message');
-                        // Signal to background/popup to resume
+                        console.log('[D365 Extension] D365 ready, resuming workflow in page context');
+
+                        // Resume directly in the page so it works even when the popup is closed.
+                        try {
+                            const workflow = pending.workflow;
+                            const nextStepIndex = pending.nextStepIndex || 0;
+
+                            if (!workflow || !Array.isArray(workflow.steps)) {
+                                console.error('[D365 Extension] Pending workflow is missing steps; cannot resume');
+                            } else {
+                                let remainingSteps = workflow.steps.slice(nextStepIndex);
+
+                                // If the first remaining step is a navigate to the same menu item
+                                // we're already on, skip it to avoid reloading the page again.
+                                try {
+                                    const currentMiLocal = new URLSearchParams(window.location.search).get('mi') || '';
+                                    if (remainingSteps.length > 0 && (remainingSteps[0].type || '').toLowerCase() === 'navigate') {
+                                        const navStep = remainingSteps[0];
+                                        // Derive target mi for this navigate step
+                                        const base = window.location.origin + window.location.pathname;
+                                        let targetMi = '';
+                                        if (navStep.navigateMethod === 'url' && navStep.navigateUrl) {
+                                            try {
+                                                const u = new URL(navStep.navigateUrl.startsWith('http') ? navStep.navigateUrl : base + navStep.navigateUrl);
+                                                targetMi = u.searchParams.get('mi') || '';
+                                            } catch (e) {}
+                                        } else if (navStep.menuItemName) {
+                                            targetMi = navStep.menuItemName || '';
+                                        }
+
+                                        if (currentMiLocal && targetMi && currentMiLocal.toLowerCase() === targetMi.toLowerCase()) {
+                                            // Skip this navigate - we are already on the target page
+                                            remainingSteps.shift();
+                                            // Advance the nextStepIndex so logging and popup state remain accurate
+                                            nextStepIndex = (nextStepIndex || 0) + 1;
+                                            console.log('[D365 Extension] Skipping redundant navigate step on resume (already on target page)');
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.warn('[D365 Extension] Error checking redundant navigate step:', e);
+                                }
+
+                                const remainingMapped = remainingSteps.map((step, idx) => ({ ...step, _absoluteIndex: nextStepIndex + idx }));
+                                const continueWorkflow = {
+                                    ...workflow,
+                                    steps: remainingMapped,
+                                    _isResume: true,
+                                    _originalStartIndex: nextStepIndex,
+                                    _originalWorkflow: workflow
+                                };
+
+                                let dataToProcess = [];
+                                if (pending.data) {
+                                    dataToProcess = Array.isArray(pending.data) ? pending.data : [pending.data];
+                                } else if (workflow.dataSources?.primary?.data) {
+                                    dataToProcess = workflow.dataSources.primary.data;
+                                } else if (workflow.dataSource?.data) {
+                                    dataToProcess = workflow.dataSource.data;
+                                }
+
+                                if (!Array.isArray(dataToProcess) || dataToProcess.length === 0) {
+                                    dataToProcess = [{}];
+                                }
+
+                                window.postMessage({
+                                    type: 'D365_EXECUTE_WORKFLOW',
+                                    workflow: continueWorkflow,
+                                    data: dataToProcess
+                                }, '*');
+                            }
+                        } catch (e) {
+                            console.error('[D365 Extension] Failed to resume workflow in page:', e);
+                        }
+
+                        console.log('[D365 Extension] Sending resumeAfterNavigation status to popup');
+                        // Notify popup (if open) to update execution state without re-executing
                         chrome.runtime.sendMessage({
                             action: 'resumeAfterNavigation',
                             workflow: pending.workflow,
                             nextStepIndex: pending.nextStepIndex,
                             currentRowIndex: pending.currentRowIndex,
-                            data: pending.data
+                            data: pending.data,
+                            resumeHandled: true
                         });
                         console.log('[D365 Extension] resumeAfterNavigation message sent');
                     } else {

@@ -276,7 +276,7 @@ export const executionMethods = {
      * This is called when the content script detects a pending workflow after page load
      */
     async handleResumeAfterNavigation(data) {
-        const { workflow, nextStepIndex, currentRowIndex, data: rowData } = data;
+        const { workflow, nextStepIndex, currentRowIndex, data: rowData, resumeHandled } = data;
         
         // Prevent duplicate resume handling (message may arrive from multiple sources)
         const resumeKey = `${workflow?.id || 'unknown'}_${nextStepIndex}_${Date.now()}`;
@@ -322,15 +322,21 @@ export const executionMethods = {
             dataToProcess = this.dataSources.primary.data;
         }
         
+        if (resumeHandled) {
+            return;
+        }
+
         // Continue execution with remaining steps
-        const remainingSteps = workflow.steps.slice(nextStepIndex);
+        const remainingSteps = workflow.steps
+            .slice(nextStepIndex)
+            .map((step, idx) => ({ ...step, _absoluteIndex: nextStepIndex + idx }));
         const continueWorkflow = {
             ...workflow,
             steps: remainingSteps,
             _isResume: true,
             _originalStartIndex: nextStepIndex
         };
-        
+
         try {
             await chrome.tabs.sendMessage(tab.id, {
                 action: 'executeWorkflow',

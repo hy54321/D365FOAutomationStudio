@@ -235,7 +235,7 @@ export const stepMethods = {
                         Wait until hidden (after action)
                     </label>
                 </div>
-                <small style="color: #666; font-size: 11px;">Uses the same control name as this step</small>
+                <small style="color: #666; font-size: 11px;">Uses this step's control name (if empty, the wait is skipped)</small>
             </div>
         `;
     },
@@ -252,7 +252,6 @@ export const stepMethods = {
         container.innerHTML = '';
 
         if (stepType === 'click') {
-            const waitOptions = this.renderWaitOptions();
             container.innerHTML = `
                 <div class="form-group">
                     <label>Button Control Name</label>
@@ -269,12 +268,10 @@ export const stepMethods = {
                            value="${this.currentStep?.displayText || ''}" 
                            placeholder="e.g., New">
                 </div>
-                ${waitOptions}
             `;
         } else if (stepType === 'input' || stepType === 'select' || stepType === 'lookupSelect') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
             const valueSource = this.currentStep?.valueSource || (hasFieldMapping ? 'data' : 'static');
-            const waitOptions = this.renderWaitOptions();
             container.innerHTML = `
                 <div class="form-group">
                     <label>Field Control Name</label>
@@ -307,7 +304,6 @@ export const stepMethods = {
                     <label>Clipboard</label>
                     <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
-                ${waitOptions}
             `;
 
             // Add event listener for value source change
@@ -320,7 +316,6 @@ export const stepMethods = {
                 });
             }, 0);
         } else if (stepType === 'checkbox') {
-            const waitOptions = this.renderWaitOptions();
             container.innerHTML = `
                 <div class="form-group">
                     <label>Checkbox Control Name</label>
@@ -344,7 +339,6 @@ export const stepMethods = {
                         <option value="false" ${this.currentStep?.value === 'false' ? 'selected' : ''}>Uncheck (Disable)</option>
                     </select>
                 </div>
-                ${waitOptions}
             `;
         } else if (stepType === 'wait') {
             container.innerHTML = `
@@ -850,7 +844,6 @@ export const stepMethods = {
         } else if (stepType === 'grid-input') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
             const valueSource = this.currentStep?.valueSource || (hasFieldMapping ? 'data' : 'static');
-            const waitOptions = this.renderWaitOptions();
             const waitForValidation = this.currentStep?.waitForValidation ? 'checked' : '';
             container.innerHTML = `
                 <div class="form-group">
@@ -901,7 +894,6 @@ export const stepMethods = {
                     </div>
                     <small style="color: #666; font-size: 11px;">Waits up to 5 seconds for D365 to process lookup fields like Item number</small>
                 </div>
-                ${waitOptions}
             `;
 
             // Add event listener for value source change
@@ -914,6 +906,9 @@ export const stepMethods = {
                 });
             }, 0);
         }
+
+        const waitOptions = this.renderWaitOptions();
+        container.insertAdjacentHTML('beforeend', waitOptions);
 
         // Add pick element listener
         setTimeout(() => {
@@ -1218,8 +1213,8 @@ export const stepMethods = {
             }
         }
 
-        if (this.isUIActionStep(this.currentStep.type)) {
-            const waitOptions = this.getWaitOptionsFromUI();
+        const waitOptions = this.getWaitOptionsFromUI();
+        if (waitOptions.waitUntilVisible || waitOptions.waitUntilHidden) {
             this.currentStep.waitUntilVisible = waitOptions.waitUntilVisible;
             this.currentStep.waitUntilHidden = waitOptions.waitUntilHidden;
         } else {

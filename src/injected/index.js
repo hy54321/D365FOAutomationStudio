@@ -216,7 +216,20 @@ async function executeWorkflow(workflow, data) {
         executionControl.isPaused = false;
         executionControl.isStopped = false;
         executionControl.runOptions = workflow.runOptions || { skipRows: 0, limitRows: 0, dryRun: false };
+        executionControl.stepIndexOffset = workflow?._originalStartIndex || 0;
+        executionControl.currentStepIndex = executionControl.stepIndexOffset;
         currentWorkflow = workflow;
+        
+        // Preserve the original full workflow for navigation resume
+        // If this is a resumed workflow, it may have _originalWorkflow attached
+        // Otherwise, this IS the original workflow (first run)
+        if (workflow._originalWorkflow) {
+            window.d365OriginalWorkflow = workflow._originalWorkflow;
+        } else if (!workflow._isResume) {
+            // This is a fresh run, store the full workflow as the original
+            window.d365OriginalWorkflow = workflow;
+        }
+        // If _isResume but no _originalWorkflow, keep existing d365OriginalWorkflow
         
         currentWorkflowSettings = workflow?.settings || {};
         window.d365CurrentWorkflowSettings = currentWorkflowSettings;
@@ -309,22 +322,27 @@ async function resolveStepValue(step, currentRow) {
 
 // Execute a single step (maps step.type to action functions)
 async function executeSingleStep(step, stepIndex, currentRow, detailSources, settings, dryRun) {
+    executionControl.currentStepIndex = typeof step._absoluteIndex === 'number'
+        ? step._absoluteIndex
+        : (executionControl.stepIndexOffset || 0) + stepIndex;
     const stepLabel = step.displayText || step.controlName || step.type || `step ${stepIndex}`;
+    // Compute absolute step index (already stored on executionControl)
+    const absoluteStepIndex = executionControl.currentStepIndex;
     window.postMessage({
         type: 'D365_WORKFLOW_PROGRESS',
-        progress: { phase: 'stepStart', stepName: stepLabel, stepIndex: stepIndex }
+        progress: { phase: 'stepStart', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
     }, '*');
     try {
         // Normalize step type (allow both camelCase and dash-separated types)
         const stepType = (step.type || '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
-        logStep(`Step ${stepIndex + 1}: ${stepType} -> ${stepLabel}`);
+        logStep(`Step ${absoluteStepIndex + 1}: ${stepType} -> ${stepLabel}`);
 
         // Respect dry run mode
         if (dryRun) {
             sendLog('info', `Dry run - skipping action: ${step.type} ${step.controlName || ''}`);
             window.postMessage({
                 type: 'D365_WORKFLOW_PROGRESS',
-                progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: stepIndex }
+                progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
             }, '*');
             return;
         }
@@ -334,20 +352,29 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
             resolvedValue = await resolveStepValue(step, currentRow);
         }
 
+        const waitTarget = step.waitTargetControlName || step.controlName || '';
+        const shouldWaitBefore = !!step.waitUntilVisible;
+        const shouldWaitAfter = !!step.waitUntilHidden;
+
+        if ((shouldWaitBefore || shouldWaitAfter) && !waitTarget) {
+            sendLog('warning', `Wait option set but no control name on step ${absoluteStepIndex + 1}`);
+        }
+
+        if (shouldWaitBefore && waitTarget) {
+            await waitUntilCondition(waitTarget, 'visible', null, 5000);
+        }
+
         switch (stepType) {
             case 'click':
-                if (step.waitUntilVisible) await waitUntilCondition(step.controlName, 'visible', null, 5000);
                 await clickElement(step.controlName);
                 break;
 
             case 'input':
             case 'select':
-                if (step.waitUntilVisible) await waitUntilCondition(step.controlName, 'visible', null, 5000);
                 await setInputValue(step.controlName, resolvedValue, step.fieldType);
                 break;
 
             case 'lookupSelect':
-                if (step.waitUntilVisible) await waitUntilCondition(step.controlName, 'visible', null, 5000);
                 await setLookupSelectValue(step.controlName, resolvedValue);
                 break;
 
@@ -409,14 +436,18 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
                 throw new Error(`Unsupported step type: ${step.type}`);
         }
 
+        if (shouldWaitAfter && waitTarget) {
+            await waitUntilCondition(waitTarget, 'hidden', null, 5000);
+        }
+
         window.postMessage({
             type: 'D365_WORKFLOW_PROGRESS',
-            progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: stepIndex }
+            progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
         }, '*');
     } catch (err) {
         // Re-throw navigation interrupts for upstream handling
         if (err && err.isNavigationInterrupt) throw err;
-        sendLog('error', `Error executing step ${stepIndex + 1}: ${err?.message || String(err)}`);
+        sendLog('error', `Error executing step ${absoluteStepIndex + 1}: ${err?.message || String(err)}`);
         throw err;
     }
 }
