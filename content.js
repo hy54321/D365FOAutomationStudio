@@ -9,6 +9,10 @@ if (!window.d365ContentScriptLoaded) {
     script.src = chrome.runtime.getURL('injected.js');
     script.onload = function() {
         this.remove();
+        
+        // Check for pending workflow to resume after page load
+        checkAndResumeWorkflow();
+        initNavButtonsBridge();
     };
     (document.head || document.documentElement).appendChild(script);
     
@@ -61,9 +65,204 @@ if (!window.d365ContentScriptLoaded) {
                     log: event.data.log
                 });
             }
+            
+            // Handle navigation event - save workflow state before page reload
+            if (event.data.type === 'D365_WORKFLOW_NAVIGATING') {
+                chrome.runtime.sendMessage({
+                    action: 'workflowNavigating',
+                    targetUrl: event.data.targetUrl,
+                    waitForLoad: event.data.waitForLoad
+                });
+            }
         } catch (e) {
             // Extension context invalidated, ignore
         }
+    });
+}
+
+let navButtonsBridgeInitialized = false;
+let lastNavButtonsMenuItem = '';
+
+function initNavButtonsBridge() {
+    if (navButtonsBridgeInitialized) return;
+    navButtonsBridgeInitialized = true;
+
+    // Initial load and send
+    sendNavButtonsUpdate();
+
+    // Refresh when storage changes (buttons or workflows)
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        if (changes.navButtons || changes.workflows) {
+            sendNavButtonsUpdate();
+        }
+    });
+
+    // Poll for menu item (mi) changes in SPA navigation
+    setInterval(() => {
+        const currentMi = new URLSearchParams(window.location.search).get('mi') || '';
+        if (currentMi !== lastNavButtonsMenuItem) {
+            sendNavButtonsUpdate();
+        }
+    }, 1000);
+}
+
+async function sendNavButtonsUpdate() {
+    try {
+        const result = await chrome.storage.local.get(['navButtons', 'workflows']);
+        const navButtons = result.navButtons || [];
+        const workflows = result.workflows || [];
+
+        const workflowMap = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+
+        const menuItem = new URLSearchParams(window.location.search).get('mi') || '';
+        lastNavButtonsMenuItem = menuItem;
+
+        const payload = {
+            menuItem,
+            buttons: navButtons.map((button) => ({
+                ...button,
+                workflow: workflowMap.get(button.workflowId) || null
+            }))
+        };
+
+        window.postMessage({ type: 'D365_NAV_BUTTONS_UPDATE', payload }, '*');
+    } catch (e) {
+        // Ignore storage errors
+    }
+}
+
+/**
+ * Check for pending workflow to resume after navigation
+ */
+function checkAndResumeWorkflow() {
+    console.log('[D365 Extension] checkAndResumeWorkflow called');
+    
+    try {
+        const pendingData = sessionStorage.getItem('d365_pending_workflow');
+        console.log('[D365 Extension] Pending workflow data:', pendingData ? 'found' : 'not found');
+        
+        if (!pendingData) {
+            console.log('[D365 Extension] No pending workflow in sessionStorage');
+            return;
+        }
+        
+        const pending = JSON.parse(pendingData);
+        console.log('[D365 Extension] Parsed pending workflow:', {
+            targetMenuItemName: pending.targetMenuItemName,
+            nextStepIndex: pending.nextStepIndex,
+            workflowName: pending.workflow?.name
+        });
+
+        // If a different workflow is now active, ignore stale pending data
+        const activeWorkflowId = sessionStorage.getItem('d365_active_workflow_id');
+        if (activeWorkflowId && pending.workflowId && pending.workflowId !== activeWorkflowId) {
+            console.log('[D365 Extension] Pending workflow does not match active workflow, clearing');
+            sessionStorage.removeItem('d365_pending_workflow');
+            return;
+        }
+        
+        // Check if this is the target URL (or close enough)
+        const currentMi = new URLSearchParams(window.location.search).get('mi');
+        const targetMi = pending.targetMenuItemName;
+        
+        console.log('[D365 Extension] URL check: current mi =', currentMi, ', target mi =', targetMi);
+        
+        if (currentMi && targetMi && currentMi.toLowerCase() === targetMi.toLowerCase()) {
+            console.log('[D365 Extension] Found pending workflow to resume');
+            
+            // Clear the pending state immediately to prevent duplicate resumes
+            sessionStorage.removeItem('d365_pending_workflow');
+            
+            // Wait for D365 to fully load with multiple checks
+            // First wait for initial page load (minimum 2 seconds)
+            const initialWait = Math.max(pending.waitForLoad || 3000, 2000);
+            
+            console.log(`[D365 Extension] Waiting ${initialWait}ms for initial page load...`);
+            
+            setTimeout(async () => {
+                try {
+                    // Now wait for D365 forms to be ready
+                    console.log('[D365 Extension] Checking if D365 is ready...');
+                    const isReady = await waitForD365Ready(30000);
+                    
+                    if (isReady) {
+                        // Additional wait for D365 to stabilize (controls to initialize)
+                        console.log('[D365 Extension] D365 forms detected, waiting for stabilization...');
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        
+                        console.log('[D365 Extension] D365 ready, sending resumeAfterNavigation message');
+                        // Signal to background/popup to resume
+                        chrome.runtime.sendMessage({
+                            action: 'resumeAfterNavigation',
+                            workflow: pending.workflow,
+                            nextStepIndex: pending.nextStepIndex,
+                            currentRowIndex: pending.currentRowIndex,
+                            data: pending.data
+                        });
+                        console.log('[D365 Extension] resumeAfterNavigation message sent');
+                    } else {
+                        console.error('[D365 Extension] D365 did not become ready in time');
+                    }
+                } catch (e) {
+                    console.error('[D365 Extension] Error during resume:', e);
+                }
+            }, initialWait);
+        } else {
+            // URL doesn't match, clear stale data
+            console.log('[D365 Extension] URL mismatch, clearing pending workflow. Current:', currentMi, 'Target:', targetMi);
+            sessionStorage.removeItem('d365_pending_workflow');
+        }
+    } catch (e) {
+        console.error('[D365 Extension] Error checking pending workflow:', e);
+        sessionStorage.removeItem('d365_pending_workflow');
+    }
+}
+
+/**
+ * Wait for D365 to be ready (forms loaded and interactive)
+ * Checks for multiple indicators that D365 has finished loading
+ */
+function waitForD365Ready(maxWait = 30000) {
+    return new Promise((resolve) => {
+        const startTime = Date.now();
+        let formFoundAt = null;
+        
+        const check = () => {
+            const elapsed = Date.now() - startTime;
+            
+            // Check for form elements
+            const hasForm = document.querySelector('[data-dyn-role="Form"], [data-dyn-form-name]');
+            const hasControls = document.querySelector('[data-dyn-controlname]');
+            
+            // Check if there's a loading indicator still active
+            const isLoading = document.querySelector('.loading-container:not(.hidden), .appshell-busy, [data-dyn-role="BusyIndicator"]:not([style*="display: none"])');
+            
+            if (hasForm && hasControls) {
+                if (!formFoundAt) {
+                    formFoundAt = Date.now();
+                    console.log('[D365 Extension] Forms detected, waiting for controls to stabilize...');
+                }
+                
+                // Wait at least 1 second after form is found to ensure controls are ready
+                // and check that loading indicators are gone
+                if (!isLoading && (Date.now() - formFoundAt) >= 1000) {
+                    console.log(`[D365 Extension] D365 ready after ${elapsed}ms`);
+                    resolve(true);
+                    return;
+                }
+            }
+            
+            if (elapsed > maxWait) {
+                console.warn(`[D365 Extension] D365 did not become ready within ${maxWait}ms`);
+                // Still return true if we have forms, even if loading indicator is present
+                resolve(hasForm && hasControls);
+                return;
+            }
+            
+            setTimeout(check, 300);
+        };
+        check();
     });
 }
 

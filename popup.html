@@ -24,6 +24,7 @@
             <nav class="tabs">
                 <button class="tab active" data-tab="workflows">Workflows</button>
                 <button class="tab" data-tab="builder">Builder</button>
+                <button class="tab" data-tab="nav-buttons">Nav Buttons</button>
                 <button class="tab" data-tab="inspector">Inspector</button>
                 <button class="tab" data-tab="settings">Settings</button>
             </nav>
@@ -122,17 +123,34 @@
                             <div class="form-group">
                                 <label>Step Type</label>
                                 <select id="stepType" class="form-control">
-                                    <option value="click">Click Button</option>
-                                    <option value="input">Enter Text</option>
-                                    <option value="select">Select from Dropdown</option>
-                                    <option value="lookupSelect">Lookup Select (open picker)</option>
-                                    <option value="checkbox">Toggle Checkbox</option>
-                                    <option value="wait">Wait/Delay</option>
-                                    <option value="filter">🔍 Filter Grid Column</option>
-                                    <option value="grid-input">📝 Grid Cell Input</option>
-                                    <option value="wait-until">⏳ Wait Until Visible</option>
-                                    <option value="loop-start">🔄 Loop Start</option>
-                                    <option value="loop-end">🔄 Loop End</option>
+                                    <optgroup label="Basic Actions">
+                                        <option value="click">Click Button</option>
+                                        <option value="input">Enter Text</option>
+                                        <option value="select">Select from Dropdown</option>
+                                        <option value="lookupSelect">Lookup Select (open picker)</option>
+                                        <option value="checkbox">Toggle Checkbox</option>
+                                    </optgroup>
+                                    <optgroup label="Navigation">
+                                        <option value="navigate">🧭 Navigate to Form</option>
+                                        <option value="tab-navigate">📑 Switch Tab</option>
+                                        <option value="expand-section">📂 Expand/Collapse Section</option>
+                                    </optgroup>
+                                    <optgroup label="Grid & Filtering">
+                                        <option value="filter">🔍 Filter Grid Column</option>
+                                        <option value="grid-input">📝 Grid Cell Input</option>
+                                        <option value="query-filter">🔎 Query Filter (Records to include)</option>
+                                    </optgroup>
+                                    <optgroup label="Batch Job Configuration">
+                                        <option value="batch-processing">⚙️ Toggle Batch Processing</option>
+                                        <option value="recurrence">🔁 Configure Recurrence</option>
+                                    </optgroup>
+                                    <optgroup label="Dialog & Timing">
+                                        <option value="close-dialog">✓ Close Dialog (OK/Cancel)</option>
+                                        <option value="wait">Wait/Delay</option>
+                                        <option value="wait-until">⏳ Wait Until Visible</option>
+                                        <option value="loop-start">🔄 Loop Start</option>
+                                        <option value="loop-end">🔄 Loop End</option>
+                                    </optgroup>
                                 </select>
                             </div>
 
@@ -252,6 +270,69 @@
                 </div>
             </div>
 
+            <!-- Nav Buttons Tab -->
+            <div class="tab-content" id="nav-buttons-tab">
+                <div class="nav-buttons-header">
+                    <div class="current-menu-item">
+                        <span>Current menu item:</span>
+                        <strong id="navButtonCurrentMenu">None detected</strong>
+                    </div>
+                    <button id="navButtonRefreshContext" class="btn btn-secondary btn-sm">Refresh</button>
+                </div>
+
+                <div class="toolbar">
+                    <button id="newNavButton" class="btn btn-primary">
+                        New Button
+                    </button>
+                    <div class="nav-search">
+                        <input type="text" id="navButtonSearch" class="form-control" placeholder="Search by name, menu item, workflow">
+                    </div>
+                </div>
+
+                <div class="nav-buttons-filters">
+                    <div class="form-group">
+                        <label>Menu item filter</label>
+                        <input type="text" id="navButtonMenuFilter" class="form-control form-control-sm" placeholder="e.g., CustTable">
+                    </div>
+                    <div class="form-group">
+                        <label>Workflow filter</label>
+                        <select id="navButtonWorkflowFilter" class="form-control form-control-sm"></select>
+                    </div>
+                </div>
+
+                <div class="nav-button-editor is-hidden" id="navButtonEditor">
+                    <div class="nav-button-editor-header">
+                        <h3 id="navButtonEditorTitle">New Nav Button</h3>
+                        <button id="navButtonClose" class="btn-close">x</button>
+                    </div>
+                    <div class="nav-button-editor-body">
+                        <div class="form-group">
+                            <label>Button name</label>
+                            <input type="text" id="navButtonName" class="form-control" placeholder="e.g., Open approvals">
+                        </div>
+                        <div class="form-group">
+                            <label>Workflow</label>
+                            <select id="navButtonWorkflowId" class="form-control"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Menu items (comma-separated)</label>
+                            <input type="text" id="navButtonMenuItems" class="form-control" placeholder="e.g., CustTable, SalesTable">
+                            <small>Leave empty to make this button global.</small>
+                            <div class="nav-button-inline-actions">
+                                <button id="navButtonUseCurrentMenu" class="btn btn-secondary btn-sm">Use current menu item</button>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button id="navButtonDelete" class="btn btn-danger is-hidden">Delete</button>
+                            <button id="navButtonCancel" class="btn btn-secondary">Cancel</button>
+                            <button id="navButtonSave" class="btn btn-success">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="navButtonsList" class="nav-buttons-list"></div>
+            </div>
+
             <!-- Settings Tab -->
             <div class="tab-content" id="settings-tab">
                 <div class="settings-scroll">
@@ -305,6 +386,16 @@
                         <label>Label language for enum resolution</label>
                         <input type="text" id="labelLanguage" class="form-control" value="en-us" placeholder="e.g. en-us">
                         <small style="display:block;margin-top:6px;color:#666;">Used when resolving D365 label keys (e.g. @SYS123) via OData.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Date format for D365</label>
+                        <select id="dateFormat" class="form-control">
+                            <option value="DDMMYYYY" selected>DD/MM/YYYY (e.g., 28012026)</option>
+                            <option value="MMDDYYYY">MM/DD/YYYY (e.g., 01282026)</option>
+                            <option value="YYYYMMDD">YYYY-MM-DD (ISO format)</option>
+                        </select>
+                        <small style="display:block;margin-top:6px;color:#666;">Format for date values imported from Task Recorder XML.</small>
                     </div>
 
                     <div class="btn-group-vertical">

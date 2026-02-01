@@ -187,7 +187,7 @@ export const xmlImportMethods = {
     extractUserActions(xmlDoc) {
         const actions = [];
         
-        // Find all Node elements that are CommandUserAction or PropertyUserAction
+        // Find all Node elements that are CommandUserAction, PropertyUserAction, or MenuItemUserAction
         const allNodes = xmlDoc.querySelectorAll('Node');
         
         allNodes.forEach(node => {
@@ -198,6 +198,12 @@ export const xmlImportMethods = {
                 if (action) {
                     actions.push(action);
                 }
+            } else if (nodeType === 'MenuItemUserAction') {
+                // Parse navigation/menu item actions
+                const action = this.parseMenuItemAction(node);
+                if (action) {
+                    actions.push(action);
+                }
             }
         });
 
@@ -205,6 +211,35 @@ export const xmlImportMethods = {
         actions.sort((a, b) => a.sequence - b.sequence);
         
         return actions;
+    },
+
+    /**
+     * Parse a MenuItemUserAction node from the XML
+     * These represent navigation to forms via menu items
+     */
+    parseMenuItemAction(node) {
+        const sequence = parseInt(this.getNodeText(node, 'Sequence') || '0');
+        const description = this.getNodeText(node, 'Description') || '';
+        const menuItemName = this.getNodeText(node, 'MenuItemName') || '';
+        const menuItemType = this.getNodeText(node, 'MenuItemType') || 'Display'; // Display or Action
+        
+        // Extract navigation path
+        const navigationPath = [];
+        const pathNodes = node.querySelectorAll('NavigationPath > d2p1\\:string, NavigationPath > string');
+        pathNodes.forEach(p => {
+            if (p.textContent) navigationPath.push(p.textContent.trim());
+        });
+        
+        return {
+            sequence,
+            nodeType: 'MenuItemUserAction',
+            description,
+            menuItemName,
+            menuItemType,
+            navigationPath,
+            controlName: menuItemName, // Use menu item name as control name for compatibility
+            controlLabel: description
+        };
     },
 
     /**
@@ -342,6 +377,24 @@ export const xmlImportMethods = {
                  current.controlName?.includes('AddLine') ||
                  current.displayText?.toLowerCase().includes('add line'))) {
                 if (next.type === 'grid-input') {
+                    next.waitUntilVisible = true;
+                }
+            }
+
+            // If a click opens a dialog/view (Recurrence, Filter, Query, etc),
+            // ensure the next actionable step waits for visibility.
+            if (current.type === 'click') {
+                const name = (current.controlName || '').toLowerCase();
+                const label = (current.displayText || '').toLowerCase();
+                const dialogOpeners = [
+                    'recurrence', 'filter', 'query', 'select', 'add', 'new',
+                    'create', 'lookup', 'browse', 'search', 'edit', 'modify',
+                    'change', 'range', 'batch'
+                ];
+                const isDialogOpener = dialogOpeners.some(pattern =>
+                    name.includes(pattern) || label.includes(pattern)
+                );
+                if (isDialogOpener && next && !next.waitUntilVisible) {
                     next.waitUntilVisible = true;
                 }
             }
@@ -493,7 +546,9 @@ export const xmlImportMethods = {
             waitUntilHidden: false
         };
 
-        if (action.nodeType === 'CommandUserAction') {
+        if (action.nodeType === 'MenuItemUserAction') {
+            return this.convertMenuItemAction(action, step);
+        } else if (action.nodeType === 'CommandUserAction') {
             return this.convertCommandAction(action, step);
         } else if (action.nodeType === 'PropertyUserAction') {
             return this.convertPropertyAction(action, step, resolvedLabels);
@@ -503,12 +558,57 @@ export const xmlImportMethods = {
     },
 
     /**
+     * Convert MenuItemUserAction to navigate step
+     */
+    convertMenuItemAction(action, step) {
+        step.type = 'navigate';
+        step.navigateMethod = 'menuItem';
+        step.menuItemName = action.menuItemName || '';
+        step.menuItemType = action.menuItemType || 'Display';
+        step.displayText = action.description || `Navigate to ${action.menuItemName}`;
+        step.navigationPath = action.navigationPath || [];
+        step.waitForLoad = 3000;
+        step.urlFilters = '';
+        
+        return step;
+    },
+
+    /**
      * Convert CommandUserAction to step
      */
     convertCommandAction(action, step) {
-        // Skip if no control name
-        if (!action.controlName) {
+        // Skip if no control name (except for certain commands)
+        if (!action.controlName && action.commandName !== 'RequestClose') {
             return null;
+        }
+
+        // Handle ActivateTab (tab navigation)
+        if (action.commandName === 'ActivateTab') {
+            step.type = 'tab-navigate';
+            step.controlName = action.controlName;
+            step.displayText = action.controlLabel || action.controlName;
+            return step;
+        }
+
+        // Handle ExpandedChanged (expand/collapse sections)
+        if (action.commandName === 'ExpandedChanged') {
+            step.type = 'expand-section';
+            step.controlName = action.controlName;
+            step.displayText = action.controlLabel || action.controlName;
+            // Arguments[0] = '0' means expand, '1' means collapse (based on the XML)
+            step.expandAction = (action.arguments && action.arguments[0] === '1') ? 'collapse' : 'expand';
+            return step;
+        }
+
+        // Handle FrameOptionValueChanged (radio button groups like recurrence end date options)
+        if (action.commandName === 'FrameOptionValueChanged') {
+            // This is typically used for radio button selections
+            // We'll convert it to a special type that can be used in recurrence config
+            step.type = 'click'; // For now, treat as click
+            step.controlName = action.controlName;
+            step.displayText = action.controlLabel || action.controlName;
+            step.isRadioOption = true;
+            return step;
         }
 
         // Handle RequestPopup (lookup selection) specially
@@ -533,6 +633,14 @@ export const xmlImportMethods = {
                 step.waitForValidation = true;
             }
 
+            return step;
+        }
+
+        // Handle RequestClose (close form/dialog)
+        if (action.commandName === 'RequestClose') {
+            step.type = 'click';
+            step.controlName = 'RequestClose'; // Special control name
+            step.displayText = 'Close the page';
             return step;
         }
 
@@ -597,7 +705,7 @@ export const xmlImportMethods = {
         // Grid input
         else if (isGridContext) {
             step.type = 'grid-input';
-            step.value = action.value || '';
+            step.value = this.convertValueForD365(action.value, action.controlName, action.boundProperty) || '';
             
             // Add wait for validation for item-related fields
             if (this.isItemField(action.controlName, action.boundProperty)) {
@@ -607,7 +715,7 @@ export const xmlImportMethods = {
         // Regular input
         else {
             step.type = 'input';
-            step.value = action.value || '';
+            step.value = this.convertValueForD365(action.value, action.controlName, action.boundProperty) || '';
 
             // Detect if it's a lookup field
             if (action.controlType === 'Input' || action.userActionType === 'Input') {
@@ -624,6 +732,106 @@ export const xmlImportMethods = {
         this.applySmartWaitConditions(action, step);
 
         return step;
+    },
+
+    /**
+     * Convert a value for D365 based on the field type
+     * Handles date and time conversions
+     */
+    convertValueForD365(value, controlName, boundProperty) {
+        if (!value) return value;
+        
+        const fieldNameLower = (controlName + ' ' + (boundProperty || '')).toLowerCase();
+        
+        // Check if this is a date field
+        if (this.isDateField(fieldNameLower)) {
+            return this.convertDateForD365(value);
+        }
+        
+        // Check if this is a time field (stored as seconds since midnight in Task Recorder)
+        if (this.isTimeField(fieldNameLower)) {
+            return this.convertTimeForD365(value);
+        }
+        
+        return value;
+    },
+
+    /**
+     * Check if a field is a date field
+     */
+    isDateField(fieldName) {
+        const datePatterns = [
+            /date/i,
+            /startdate/i,
+            /enddate/i,
+            /fromdate/i,
+            /todate/i,
+            /transdate/i,
+            /deliverydate/i,
+            /duedate/i,
+            /createddate/i,
+            /modifieddate/i
+        ];
+        return datePatterns.some(pattern => pattern.test(fieldName));
+    },
+
+    /**
+     * Check if a field is a time field
+     */
+    isTimeField(fieldName) {
+        const timePatterns = [
+            /time(?!zone)/i,  // 'time' but not 'timezone'
+            /starttime/i,
+            /endtime/i,
+            /fromtime/i,
+            /totime/i
+        ];
+        return timePatterns.some(pattern => pattern.test(fieldName));
+    },
+
+    /**
+     * Convert ISO date (2026-01-28) to D365 format based on settings
+     */
+    convertDateForD365(value) {
+        // Check if it's an ISO date format (YYYY-MM-DD)
+        const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!isoMatch) return value; // Not an ISO date, return as-is
+        
+        const [, year, month, day] = isoMatch;
+        
+        // Get date format from settings (default: DDMMYYYY)
+        const settings = JSON.parse(localStorage.getItem('d365-settings') || '{}');
+        const dateFormat = settings.dateFormat || 'DDMMYYYY';
+        
+        switch (dateFormat) {
+            case 'DDMMYYYY':
+                return `${day}${month}${year}`; // 28012026
+            case 'MMDDYYYY':
+                return `${month}${day}${year}`; // 01282026
+            case 'YYYYMMDD':
+                return `${year}${month}${day}`; // 20260128
+            default:
+                return `${day}${month}${year}`; // Default to DDMMYYYY
+        }
+    },
+
+    /**
+     * Convert seconds since midnight to HH:mm:ss format
+     * Task Recorder stores time as total seconds (e.g., 78537 = 21:48:57)
+     */
+    convertTimeForD365(value) {
+        const seconds = parseInt(value, 10);
+        if (isNaN(seconds)) return value; // Not a number, return as-is
+        
+        // Check if it's likely seconds since midnight (0 to 86400)
+        if (seconds < 0 || seconds > 86400) return value;
+        
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        // Format as HH:mm:ss
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     },
 
     /**
@@ -650,16 +858,31 @@ export const xmlImportMethods = {
         const controlName = action.controlName?.toLowerCase() || '';
         const controlLabel = action.controlLabel?.toLowerCase() || '';
 
-        // Wait until visible for dialog buttons
+        // Wait until visible for dialog buttons (they may appear after loading)
         if (controlName.includes('ok') || controlName.includes('yes') || 
             controlName.includes('confirm') || controlLabel.includes('ok')) {
             step.waitUntilVisible = true;
         }
 
-        // Wait until hidden for closing buttons
+        // Wait until hidden for closing buttons (ensures dialog closes before continuing)
         if (controlName.includes('ok') || controlName.includes('close') ||
             controlLabel.includes('ok') || controlLabel.includes('close')) {
             step.waitUntilHidden = true;
+        }
+        
+        // Wait until visible for buttons that open dialogs or popups
+        // These buttons show new UI elements that subsequent steps depend on
+        const dialogOpeningButtons = [
+            'filter', 'query', 'select', 'add', 'new', 'create',
+            'recurrence', 'batch', 'lookup', 'browse', 'search',
+            'edit', 'modify', 'change', 'range'
+        ];
+        
+        for (const pattern of dialogOpeningButtons) {
+            if (controlName.includes(pattern) || controlLabel.includes(pattern)) {
+                step.waitUntilVisible = true;
+                break;
+            }
         }
 
         // Wait until visible for fields that appear after button clicks

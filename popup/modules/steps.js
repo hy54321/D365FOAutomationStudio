@@ -273,6 +273,7 @@ export const stepMethods = {
             `;
         } else if (stepType === 'input' || stepType === 'select' || stepType === 'lookupSelect') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
+            const valueSource = this.currentStep?.valueSource || (hasFieldMapping ? 'data' : 'static');
             const waitOptions = this.renderWaitOptions();
             container.innerHTML = `
                 <div class="form-group">
@@ -287,19 +288,24 @@ export const stepMethods = {
                 <div class="form-group">
                     <label>Value Source</label>
                     <select id="stepValueSource" class="form-control">
-                        <option value="static" ${!hasFieldMapping ? 'selected' : ''}>Static Value</option>
-                        <option value="data" ${hasFieldMapping ? 'selected' : ''}>From Data Field</option>
+                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
+                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
+                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
                     </select>
                 </div>
-                <div class="form-group ${hasFieldMapping ? 'is-hidden' : ''}" id="staticValueGroup">
+                <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
                     <label>Value</label>
                     <input type="text" id="stepValue" class="form-control" 
                            value="${this.currentStep?.value || ''}" 
                            placeholder="Enter value">
                 </div>
-                <div class="form-group ${!hasFieldMapping ? 'is-hidden' : ''}" id="dataFieldGroup">
+                <div class="form-group ${valueSource !== 'data' ? 'is-hidden' : ''}" id="dataFieldGroup">
                     <label>Data Field</label>
                     ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
+                </div>
+                <div class="form-group ${valueSource !== 'clipboard' ? 'is-hidden' : ''}" id="clipboardValueGroup">
+                    <label>Clipboard</label>
+                    <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
                 ${waitOptions}
             `;
@@ -307,9 +313,10 @@ export const stepMethods = {
             // Add event listener for value source change
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
-                    const isData = e.target.value === 'data';
-                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', isData);
-                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', !isData);
+                    const source = e.target.value;
+                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
+                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
+                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
                 });
             }, 0);
         } else if (stepType === 'checkbox') {
@@ -391,6 +398,7 @@ export const stepMethods = {
             `;
         } else if (stepType === 'filter') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
+            const valueSource = this.currentStep?.valueSource || (hasFieldMapping ? 'data' : 'static');
             container.innerHTML = `
                 <div class="form-group">
                     <label>Column Header Control Name</label>
@@ -419,19 +427,24 @@ export const stepMethods = {
                 <div class="form-group">
                     <label>Value Source</label>
                     <select id="stepValueSource" class="form-control">
-                        <option value="static" ${!hasFieldMapping ? 'selected' : ''}>Static Value</option>
-                        <option value="data" ${hasFieldMapping ? 'selected' : ''}>From Data Field</option>
+                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
+                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
+                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
                     </select>
                 </div>
-                <div class="form-group ${hasFieldMapping ? 'is-hidden' : ''}" id="staticValueGroup">
+                <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
                     <label>Filter Value</label>
                     <input type="text" id="stepValue" class="form-control" 
                            value="${this.currentStep?.value || ''}" 
                            placeholder="Value to filter by">
                 </div>
-                <div class="form-group ${!hasFieldMapping ? 'is-hidden' : ''}" id="dataFieldGroup">
+                <div class="form-group ${valueSource !== 'data' ? 'is-hidden' : ''}" id="dataFieldGroup">
                     <label>Data Field</label>
                     ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
+                </div>
+                <div class="form-group ${valueSource !== 'clipboard' ? 'is-hidden' : ''}" id="clipboardValueGroup">
+                    <label>Clipboard</label>
+                    <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
                 <div class="form-group">
                     <label>Display Text (for reference)</label>
@@ -444,9 +457,10 @@ export const stepMethods = {
             // Add event listener for value source change
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
-                    const isData = e.target.value === 'data';
-                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', isData);
-                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', !isData);
+                    const source = e.target.value;
+                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
+                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
+                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
                 });
             }, 0);
         } else if (stepType === 'wait-until') {
@@ -502,8 +516,340 @@ export const stepMethods = {
                     this.autoSaveStep();
                 });
             }, 0);
+        } else if (stepType === 'navigate') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Navigation Method</label>
+                    <select id="stepNavigateMethod" class="form-control">
+                        <option value="menuItem" ${(this.currentStep?.navigateMethod || 'menuItem') === 'menuItem' ? 'selected' : ''}>Menu Item Name (URL parameter)</option>
+                        <option value="url" ${this.currentStep?.navigateMethod === 'url' ? 'selected' : ''}>Full URL</option>
+                    </select>
+                </div>
+                <div class="form-group" id="menuItemGroup">
+                    <label>Menu Item Name</label>
+                    <input type="text" id="stepMenuItemName" class="form-control" 
+                           value="${this.currentStep?.menuItemName || ''}" 
+                           placeholder="e.g., MarkupTable_Cust, CustParameters, SalesTableListPage">
+                    <small style="color: #666; font-size: 11px;">The D365 menu item name (mi parameter in URL). Found in task recordings as MenuItemName.</small>
+                </div>
+                <div class="form-group" id="menuItemTypeGroup">
+                    <label>Menu Item Type</label>
+                    <select id="stepMenuItemType" class="form-control">
+                        <option value="Display" ${(this.currentStep?.menuItemType || 'Display') === 'Display' ? 'selected' : ''}>Display (default)</option>
+                        <option value="Action" ${this.currentStep?.menuItemType === 'Action' ? 'selected' : ''}>Action</option>
+                        <option value="Output" ${this.currentStep?.menuItemType === 'Output' ? 'selected' : ''}>Output</option>
+                    </select>
+                    <small style="color: #666; font-size: 11px;">Use Action:MenuItemName or Output:MenuItemName for non-Display menu items.</small>
+                </div>
+                <div class="form-group ${this.currentStep?.navigateMethod !== 'url' ? 'is-hidden' : ''}" id="urlGroup">
+                    <label>URL Path</label>
+                    <input type="text" id="stepNavigateUrl" class="form-control" 
+                           value="${this.currentStep?.navigateUrl || ''}" 
+                           placeholder="e.g., ?mi=MarkupTable_Cust&q=...">
+                    <small style="color: #666; font-size: 11px;">Relative URL path with query parameters</small>
+                </div>
+                <div class="form-group">
+                    <label>Wait for Form Load (ms)</label>
+                    <input type="number" id="stepWaitForLoad" class="form-control" 
+                           value="${this.currentStep?.waitForLoad || 3000}" 
+                           min="1000"
+                           placeholder="3000">
+                </div>
+                <div class="form-group">
+                    <label>Display Text (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Open Charges codes form">
+                </div>
+            `;
+
+            setTimeout(() => {
+                document.getElementById('stepNavigateMethod')?.addEventListener('change', (e) => {
+                    const isUrl = e.target.value === 'url';
+                    document.getElementById('menuItemGroup').classList.toggle('is-hidden', isUrl);
+                    document.getElementById('menuItemTypeGroup').classList.toggle('is-hidden', isUrl);
+                    document.getElementById('urlGroup').classList.toggle('is-hidden', !isUrl);
+                    this.autoSaveStep();
+                });
+            }, 0);
+        } else if (stepType === 'tab-navigate') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Tab Control Name</label>
+                    <input type="text" id="stepControlName" class="form-control" 
+                           value="${this.currentStep?.controlName || ''}" 
+                           placeholder="e.g., TabUpdates, TabGeneral, TabLedger">
+                    <button id="pickElement" class="btn btn-secondary btn-block" style="margin-top: 8px;">
+                        Select from Inspector Tab
+                    </button>
+                    <small style="color: #666; font-size: 11px;">Select a tab (PivotItem) from the Inspector. In task recordings, look for ActivateTab command.</small>
+                </div>
+                <div class="form-group">
+                    <label>Tab Label (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Updates, General, Ledger and sales tax">
+                </div>
+            `;
+        } else if (stepType === 'expand-section') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Section Control Name</label>
+                    <input type="text" id="stepControlName" class="form-control" 
+                           value="${this.currentStep?.controlName || ''}" 
+                           placeholder="e.g., Query, UpdatePackingListFastTab">
+                    <button id="pickElement" class="btn btn-secondary btn-block" style="margin-top: 8px;">
+                        Select from Inspector Tab
+                    </button>
+                    <small style="color: #666; font-size: 11px;">Section/FastTab control name. In task recordings, look for ExpandedChanged command.</small>
+                </div>
+                <div class="form-group">
+                    <label>Action</label>
+                    <select id="stepExpandAction" class="form-control">
+                        <option value="expand" ${(this.currentStep?.expandAction || 'expand') === 'expand' ? 'selected' : ''}>Expand</option>
+                        <option value="collapse" ${this.currentStep?.expandAction === 'collapse' ? 'selected' : ''}>Collapse</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Section Label (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Records to include, Picking list">
+                </div>
+            `;
+        } else if (stepType === 'close-dialog') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Form Name</label>
+                    <select id="stepFormName" class="form-control">
+                        <option value="SysOperationTemplateForm" ${(this.currentStep?.formName || 'SysOperationTemplateForm') === 'SysOperationTemplateForm' ? 'selected' : ''}>SysOperationTemplateForm (Batch Job Dialog)</option>
+                        <option value="SysRecurrence" ${this.currentStep?.formName === 'SysRecurrence' ? 'selected' : ''}>SysRecurrence (Recurrence Dialog)</option>
+                        <option value="SysQueryForm" ${this.currentStep?.formName === 'SysQueryForm' ? 'selected' : ''}>SysQueryForm (Filter Dialog)</option>
+                    </select>
+                    <small style="color: #666; font-size: 11px;">The dialog form to close</small>
+                </div>
+                <div class="form-group">
+                    <label>Or Custom Control Name</label>
+                    <input type="text" id="stepControlName" class="form-control" 
+                           value="${this.currentStep?.controlName || ''}" 
+                           placeholder="Leave empty to use form name above">
+                    <small style="color: #666; font-size: 11px;">For dialogs not in the list above</small>
+                </div>
+                <div class="form-group">
+                    <label>Action</label>
+                    <select id="stepCloseAction" class="form-control">
+                        <option value="ok" ${(this.currentStep?.closeAction || 'ok') === 'ok' ? 'selected' : ''}>Click OK</option>
+                        <option value="cancel" ${this.currentStep?.closeAction === 'cancel' ? 'selected' : ''}>Click Cancel</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Display Text (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Submit batch job">
+                </div>
+            `;
+        } else if (stepType === 'query-filter') {
+            const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
+            const valueSource = this.currentStep?.valueSource || (hasFieldMapping ? 'data' : 'static');
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Table Name (RangeTable)</label>
+                    <input type="text" id="stepTableName" class="form-control" 
+                           value="${this.currentStep?.tableName || ''}" 
+                           placeholder="e.g., SalesTable, Customers">
+                    <small style="color: #666; font-size: 11px;">The table in the query filter grid (shown in Table column)</small>
+                </div>
+                <div class="form-group">
+                    <label>Field Name (RangeField)</label>
+                    <input type="text" id="stepFieldName" class="form-control" 
+                           value="${this.currentStep?.fieldName || ''}" 
+                           placeholder="e.g., Sales order, Customer account">
+                    <small style="color: #666; font-size: 11px;">The field label shown in the Field column of the filter grid</small>
+                </div>
+                <div class="form-group">
+                    <label>Value Source</label>
+                    <select id="stepValueSource" class="form-control">
+                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
+                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
+                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
+                    </select>
+                </div>
+                <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
+                    <label>Criteria Value (RangeValue)</label>
+                    <input type="text" id="stepValue" class="form-control" 
+                           value="${this.currentStep?.value || ''}" 
+                           placeholder="e.g., S*, 12345, US-001">
+                    <small style="color: #666; font-size: 11px;">The value for the Criteria column. Use wildcards like S* for pattern matching.</small>
+                </div>
+                <div class="form-group ${valueSource !== 'data' ? 'is-hidden' : ''}" id="dataFieldGroup">
+                    <label>Data Field</label>
+                    ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
+                </div>
+                <div class="form-group ${valueSource !== 'clipboard' ? 'is-hidden' : ''}" id="clipboardValueGroup">
+                    <label>Clipboard</label>
+                    <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
+                </div>
+                <div class="form-group">
+                    <label>Saved Query (optional)</label>
+                    <input type="text" id="stepSavedQuery" class="form-control" 
+                           value="${this.currentStep?.savedQuery || ''}" 
+                           placeholder="Select from SavedQueriesBox dropdown">
+                    <small style="color: #666; font-size: 11px;">If specified, selects a pre-saved query before adding filters</small>
+                </div>
+                <div class="form-group">
+                    <label>Close Dialog After</label>
+                    <select id="stepCloseDialogAfter" class="form-control">
+                        <option value="" ${!this.currentStep?.closeDialogAfter ? 'selected' : ''}>Keep Open (manual close)</option>
+                        <option value="ok" ${this.currentStep?.closeDialogAfter === 'ok' ? 'selected' : ''}>Click OK</option>
+                        <option value="cancel" ${this.currentStep?.closeDialogAfter === 'cancel' ? 'selected' : ''}>Click Cancel</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Display Text (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Filter by Sales order">
+                </div>
+            `;
+
+            setTimeout(() => {
+                document.getElementById('stepValueSource')?.addEventListener('change', (e) => {
+                    const source = e.target.value;
+                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
+                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
+                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
+                });
+            }, 0);
+        } else if (stepType === 'batch-processing') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Batch Processing</label>
+                    <select id="stepBatchEnabled" class="form-control">
+                        <option value="true" ${this.currentStep?.batchEnabled === 'true' ? 'selected' : ''}>Enable (Yes)</option>
+                        <option value="false" ${(this.currentStep?.batchEnabled || 'false') === 'false' ? 'selected' : ''}>Disable (No)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Task Description (Fld2_1)</label>
+                    <input type="text" id="stepTaskDescription" class="form-control" 
+                           value="${this.currentStep?.taskDescription || ''}" 
+                           placeholder="e.g., Customer account statement">
+                </div>
+                <div class="form-group">
+                    <label>Batch Group (Fld3_1)</label>
+                    <input type="text" id="stepBatchGroup" class="form-control" 
+                           value="${this.currentStep?.batchGroup || ''}" 
+                           placeholder="Leave empty for default">
+                </div>
+                <div class="form-group">
+                    <label>Private (Fld4_1)</label>
+                    <select id="stepPrivateJob" class="form-control">
+                        <option value="false" ${(this.currentStep?.privateJob || 'false') === 'false' ? 'selected' : ''}>No</option>
+                        <option value="true" ${this.currentStep?.privateJob === 'true' ? 'selected' : ''}>Yes</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Critical Job (Fld5_1)</label>
+                    <select id="stepCriticalJob" class="form-control">
+                        <option value="false" ${(this.currentStep?.criticalJob || 'false') === 'false' ? 'selected' : ''}>No</option>
+                        <option value="true" ${this.currentStep?.criticalJob === 'true' ? 'selected' : ''}>Yes</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Monitoring Category (Fld6_1)</label>
+                    <input type="text" id="stepMonitoringCategory" class="form-control" 
+                           value="${this.currentStep?.monitoringCategory || ''}" 
+                           placeholder="Leave empty for default">
+                </div>
+                <div class="form-group">
+                    <label>Display Text (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Enable batch processing">
+                </div>
+            `;
+        } else if (stepType === 'recurrence') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Recurrence Pattern</label>
+                    <select id="stepPatternUnit" class="form-control">
+                        <option value="0" ${(this.currentStep?.patternUnit || '0') === '0' ? 'selected' : ''}>Minutes</option>
+                        <option value="1" ${this.currentStep?.patternUnit === '1' ? 'selected' : ''}>Hours</option>
+                        <option value="2" ${this.currentStep?.patternUnit === '2' ? 'selected' : ''}>Days</option>
+                        <option value="3" ${this.currentStep?.patternUnit === '3' ? 'selected' : ''}>Weeks</option>
+                        <option value="4" ${this.currentStep?.patternUnit === '4' ? 'selected' : ''}>Months</option>
+                        <option value="5" ${this.currentStep?.patternUnit === '5' ? 'selected' : ''}>Years</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Count (Repeat Interval)</label>
+                    <input type="number" id="stepPatternCount" class="form-control" 
+                           value="${this.currentStep?.patternCount || 10}" 
+                           min="1"
+                           placeholder="10">
+                    <small style="color: #666; font-size: 11px;">e.g., "10" with "Minutes" = repeat every 10 minutes</small>
+                </div>
+                <div class="form-group">
+                    <label>End Date Option</label>
+                    <select id="stepEndDateOption" class="form-control">
+                        <option value="noEndDate" ${(this.currentStep?.endDateOption || 'noEndDate') === 'noEndDate' ? 'selected' : ''}>No end date</option>
+                        <option value="endAfter" ${this.currentStep?.endDateOption === 'endAfter' ? 'selected' : ''}>End after N occurrences</option>
+                        <option value="endBy" ${this.currentStep?.endDateOption === 'endBy' ? 'selected' : ''}>End by date</option>
+                    </select>
+                </div>
+                <div class="form-group ${this.currentStep?.endDateOption !== 'endAfter' ? 'is-hidden' : ''}" id="endAfterGroup">
+                    <label>End After (occurrences)</label>
+                    <input type="number" id="stepEndAfterCount" class="form-control" 
+                           value="${this.currentStep?.endAfterCount || 1}" 
+                           min="1">
+                </div>
+                <div class="form-group ${this.currentStep?.endDateOption !== 'endBy' ? 'is-hidden' : ''}" id="endByGroup">
+                    <label>End By Date (EndDateDate)</label>
+                    <input type="date" id="stepEndByDate" class="form-control" 
+                           value="${this.currentStep?.endByDate || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Start Date (StartDate - defaults to today)</label>
+                    <input type="date" id="stepStartDate" class="form-control" 
+                           value="${this.currentStep?.startDate || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Start Time (StartTime - defaults to current time)</label>
+                    <input type="time" id="stepStartTime" class="form-control" 
+                           value="${this.currentStep?.startTime || ''}">
+                </div>
+                <div class="form-group">
+                    <label>Timezone (optional)</label>
+                    <input type="text" id="stepTimezone" class="form-control" 
+                           value="${this.currentStep?.timezone || ''}" 
+                           placeholder="e.g., (GMT+01:00) Amsterdam, Berlin...">
+                </div>
+                <div class="form-group">
+                    <label>Close Dialog After Config</label>
+                    <select id="stepCloseDialogAfter" class="form-control">
+                        <option value="" ${!this.currentStep?.closeDialogAfter ? 'selected' : ''}>Keep Open (manual close)</option>
+                        <option value="ok" ${this.currentStep?.closeDialogAfter === 'ok' ? 'selected' : ''}>Click OK</option>
+                        <option value="cancel" ${this.currentStep?.closeDialogAfter === 'cancel' ? 'selected' : ''}>Click Cancel</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Display Text (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Run every 4 hours">
+                </div>
+            `;
+
+            setTimeout(() => {
+                document.getElementById('stepEndDateOption')?.addEventListener('change', (e) => {
+                    document.getElementById('endAfterGroup').classList.toggle('is-hidden', e.target.value !== 'endAfter');
+                    document.getElementById('endByGroup').classList.toggle('is-hidden', e.target.value !== 'endBy');
+                });
+            }, 0);
         } else if (stepType === 'grid-input') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
+            const valueSource = this.currentStep?.valueSource || (hasFieldMapping ? 'data' : 'static');
             const waitOptions = this.renderWaitOptions();
             const waitForValidation = this.currentStep?.waitForValidation ? 'checked' : '';
             container.innerHTML = `
@@ -520,19 +866,24 @@ export const stepMethods = {
                 <div class="form-group">
                     <label>Value Source</label>
                     <select id="stepValueSource" class="form-control">
-                        <option value="static" ${!hasFieldMapping ? 'selected' : ''}>Static Value</option>
-                        <option value="data" ${hasFieldMapping ? 'selected' : ''}>From Data Field</option>
+                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
+                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
+                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
                     </select>
                 </div>
-                <div class="form-group ${hasFieldMapping ? 'is-hidden' : ''}" id="staticValueGroup">
+                <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
                     <label>Value</label>
                     <input type="text" id="stepValue" class="form-control" 
                            value="${this.currentStep?.value || ''}" 
                            placeholder="Enter value (e.g., item number, quantity)">
                 </div>
-                <div class="form-group ${!hasFieldMapping ? 'is-hidden' : ''}" id="dataFieldGroup">
+                <div class="form-group ${valueSource !== 'data' ? 'is-hidden' : ''}" id="dataFieldGroup">
                     <label>Data Field</label>
                     ${this.renderFieldMappingDropdown(this.currentStep?.fieldMapping || '')}
+                </div>
+                <div class="form-group ${valueSource !== 'clipboard' ? 'is-hidden' : ''}" id="clipboardValueGroup">
+                    <label>Clipboard</label>
+                    <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
                 <div class="form-group">
                     <label>Display Text (for reference)</label>
@@ -556,9 +907,10 @@ export const stepMethods = {
             // Add event listener for value source change
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
-                    const isData = e.target.value === 'data';
-                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', isData);
-                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', !isData);
+                    const source = e.target.value;
+                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
+                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
+                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
                 });
             }, 0);
         }
@@ -588,11 +940,13 @@ export const stepMethods = {
             select.addEventListener('change', () => {
                 // Handle value source toggle
                 if (select.id === 'stepValueSource') {
-                    const isData = select.value === 'data';
+                    const source = select.value;
                     const staticGroup = document.getElementById('staticValueGroup');
                     const dataGroup = document.getElementById('dataFieldGroup');
-                    if (staticGroup) staticGroup.classList.toggle('is-hidden', isData);
-                    if (dataGroup) dataGroup.classList.toggle('is-hidden', !isData);
+                    const clipboardGroup = document.getElementById('clipboardValueGroup');
+                    if (staticGroup) staticGroup.classList.toggle('is-hidden', source !== 'static');
+                    if (dataGroup) dataGroup.classList.toggle('is-hidden', source !== 'data');
+                    if (clipboardGroup) clipboardGroup.classList.toggle('is-hidden', source !== 'clipboard');
                 }
                 this.autoSaveStep();
             });
@@ -742,12 +1096,16 @@ export const stepMethods = {
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
 
             const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+            this.currentStep.valueSource = valueSource;
             if (valueSource === 'static') {
                 this.currentStep.value = document.getElementById('stepValue')?.value || '';
                 this.currentStep.fieldMapping = '';
-            } else {
+            } else if (valueSource === 'data') {
                 this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
                 this.currentStep.value = '';
+            } else {
+                this.currentStep.value = '';
+                this.currentStep.fieldMapping = '';
             }
         } else if (this.currentStep.type === 'checkbox') {
             this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
@@ -767,13 +1125,74 @@ export const stepMethods = {
             this.currentStep.filterMethod = document.getElementById('stepFilterMethod')?.value || 'is exactly';
 
             const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+            this.currentStep.valueSource = valueSource;
             if (valueSource === 'static') {
                 this.currentStep.value = document.getElementById('stepValue')?.value || '';
                 this.currentStep.fieldMapping = '';
-            } else {
+            } else if (valueSource === 'data') {
                 this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
                 this.currentStep.value = '';
+            } else {
+                this.currentStep.value = '';
+                this.currentStep.fieldMapping = '';
             }
+        } else if (this.currentStep.type === 'navigate') {
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+            this.currentStep.navigateMethod = document.getElementById('stepNavigateMethod')?.value || 'menuItem';
+            this.currentStep.menuItemName = document.getElementById('stepMenuItemName')?.value || '';
+            this.currentStep.menuItemType = document.getElementById('stepMenuItemType')?.value || 'Display';
+            this.currentStep.navigateUrl = document.getElementById('stepNavigateUrl')?.value || '';
+            this.currentStep.waitForLoad = parseInt(document.getElementById('stepWaitForLoad')?.value) || 3000;
+        } else if (this.currentStep.type === 'tab-navigate') {
+            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+        } else if (this.currentStep.type === 'expand-section') {
+            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+            this.currentStep.expandAction = document.getElementById('stepExpandAction')?.value || 'expand';
+        } else if (this.currentStep.type === 'close-dialog') {
+            this.currentStep.formName = document.getElementById('stepFormName')?.value || 'SysOperationTemplateForm';
+            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+            this.currentStep.closeAction = document.getElementById('stepCloseAction')?.value || 'ok';
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+        } else if (this.currentStep.type === 'query-filter') {
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+            this.currentStep.tableName = document.getElementById('stepTableName')?.value || '';
+            this.currentStep.fieldName = document.getElementById('stepFieldName')?.value || '';
+            this.currentStep.savedQuery = document.getElementById('stepSavedQuery')?.value || '';
+            this.currentStep.closeDialogAfter = document.getElementById('stepCloseDialogAfter')?.value || '';
+            
+            const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+            this.currentStep.valueSource = valueSource;
+            if (valueSource === 'static') {
+                this.currentStep.value = document.getElementById('stepValue')?.value || '';
+                this.currentStep.fieldMapping = '';
+            } else if (valueSource === 'data') {
+                this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
+                this.currentStep.value = '';
+            } else {
+                this.currentStep.value = '';
+                this.currentStep.fieldMapping = '';
+            }
+        } else if (this.currentStep.type === 'batch-processing') {
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+            this.currentStep.batchEnabled = document.getElementById('stepBatchEnabled')?.value || 'false';
+            this.currentStep.taskDescription = document.getElementById('stepTaskDescription')?.value || '';
+            this.currentStep.batchGroup = document.getElementById('stepBatchGroup')?.value || '';
+            this.currentStep.privateJob = document.getElementById('stepPrivateJob')?.value || 'false';
+            this.currentStep.criticalJob = document.getElementById('stepCriticalJob')?.value || 'false';
+            this.currentStep.monitoringCategory = document.getElementById('stepMonitoringCategory')?.value || '';
+        } else if (this.currentStep.type === 'recurrence') {
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+            this.currentStep.patternUnit = document.getElementById('stepPatternUnit')?.value || '0';
+            this.currentStep.patternCount = parseInt(document.getElementById('stepPatternCount')?.value) || 10;
+            this.currentStep.endDateOption = document.getElementById('stepEndDateOption')?.value || 'noEndDate';
+            this.currentStep.endAfterCount = parseInt(document.getElementById('stepEndAfterCount')?.value) || 1;
+            this.currentStep.endByDate = document.getElementById('stepEndByDate')?.value || '';
+            this.currentStep.startDate = document.getElementById('stepStartDate')?.value || '';
+            this.currentStep.startTime = document.getElementById('stepStartTime')?.value || '';
+            this.currentStep.timezone = document.getElementById('stepTimezone')?.value || '';
+            this.currentStep.closeDialogAfter = document.getElementById('stepCloseDialogAfter')?.value || '';
         } else if (this.currentStep.type === 'wait-until') {
             this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
@@ -786,12 +1205,16 @@ export const stepMethods = {
             this.currentStep.waitForValidation = document.getElementById('stepWaitForValidation')?.checked || false;
 
             const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+            this.currentStep.valueSource = valueSource;
             if (valueSource === 'static') {
                 this.currentStep.value = document.getElementById('stepValue')?.value || '';
                 this.currentStep.fieldMapping = '';
-            } else {
+            } else if (valueSource === 'data') {
                 this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
                 this.currentStep.value = '';
+            } else {
+                this.currentStep.value = '';
+                this.currentStep.fieldMapping = '';
             }
         }
 
@@ -897,13 +1320,16 @@ export const stepMethods = {
                 stepDesc = `Click "${step.displayText || step.controlName}"${waitFlags}`;
             } else if (step.type === 'input') {
                 stepIcon = 'IN';
-                stepDesc = `Enter "${step.value || '{' + step.fieldMapping + '}'}" into ${step.displayText || step.controlName}${waitFlags}`;
+                const inputVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                stepDesc = `Enter "${inputVal}" into ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'select') {
                 stepIcon = 'SEL';
-                stepDesc = `Select "${step.value || '{' + step.fieldMapping + '}'}" in ${step.displayText || step.controlName}${waitFlags}`;
+                const selectVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                stepDesc = `Select "${selectVal}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'lookupSelect') {
                 stepIcon = 'LOOK';
-                stepDesc = `Lookup "${step.value || '{' + step.fieldMapping + '}'}" in ${step.displayText || step.controlName}${waitFlags}`;
+                const lookupVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                stepDesc = `Lookup "${lookupVal}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'checkbox') {
                 stepIcon = 'CHK';
                 const action = step.value === 'true' ? 'Check' : 'Uncheck';
@@ -922,16 +1348,45 @@ export const stepMethods = {
             } else if (step.type === 'filter') {
                 stepIcon = 'FLT';
                 const method = step.filterMethod || 'is exactly';
-                const filterVal = step.value || '{' + step.fieldMapping + '}';
+                const filterVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
                 stepDesc = `Filter "${step.displayText || step.controlName}" ${method} "${filterVal}"`;
             } else if (step.type === 'grid-input') {
                 stepIcon = 'GRID';
-                const gridVal = step.value || '{' + step.fieldMapping + '}';
+                const gridVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
                 stepDesc = `Set grid cell "${step.displayText || step.controlName}" to "${gridVal}"${waitFlags}`;
             } else if (step.type === 'wait-until') {
                 stepIcon = 'WAIT';
                 const condition = step.waitCondition || 'visible';
                 stepDesc = `Wait until "${step.displayText || step.controlName}" ${condition}`;
+            } else if (step.type === 'navigate') {
+                stepIcon = '🧭';
+                const target = step.menuItemName || step.navigateUrl || 'form';
+                stepDesc = `Navigate to "${step.displayText || target}"`;
+            } else if (step.type === 'tab-navigate') {
+                stepIcon = '📑';
+                stepDesc = `Switch to tab "${step.displayText || step.controlName}"`;
+            } else if (step.type === 'expand-section') {
+                stepIcon = '📂';
+                const action = step.expandAction === 'collapse' ? 'Collapse' : 'Expand';
+                stepDesc = `${action} section "${step.displayText || step.controlName}"`;
+            } else if (step.type === 'query-filter') {
+                stepIcon = '🔎';
+                const filterVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                stepDesc = `Query filter: ${step.fieldName || 'field'} = "${filterVal}"`;
+            } else if (step.type === 'batch-processing') {
+                stepIcon = '⚙️';
+                const enabled = step.batchEnabled === 'true' ? 'Enable' : 'Disable';
+                stepDesc = `${enabled} batch processing`;
+            } else if (step.type === 'recurrence') {
+                stepIcon = '🔁';
+                const units = ['Minutes', 'Hours', 'Days', 'Weeks', 'Months', 'Years'];
+                const unit = units[parseInt(step.patternUnit) || 0] || 'Minutes';
+                stepDesc = `${step.displayText || `Recurrence: every ${step.patternCount || 10} ${unit.toLowerCase()}`}`;
+            } else if (step.type === 'close-dialog') {
+                stepIcon = '✓';
+                const action = step.closeAction === 'cancel' ? 'Cancel' : 'OK';
+                const formName = step.formName || step.controlName || 'dialog';
+                stepDesc = `Close ${formName} with ${action}`;
             }
 
             const isSelected = this.selectedStepIds.has(step.id);

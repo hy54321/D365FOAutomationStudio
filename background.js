@@ -127,8 +127,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             chrome.runtime.sendMessage(request).catch(() => {});
         });
     }
-
-    // NOTE: workflowProgress, workflowComplete, workflowError are NOT forwarded here
+    
+    // Handle workflow navigation - save state for resumption after page load
+    if (request.action === 'workflowNavigating') {
+        // Forward to popup to save workflow state
+        chrome.runtime.sendMessage({
+            action: 'saveWorkflowState',
+            targetUrl: request.targetUrl,
+            waitForLoad: request.waitForLoad
+        }).catch(() => {});
+    }
+    
+    // NOTE: resumeAfterNavigation, workflowProgress, workflowComplete, workflowError are NOT forwarded here
     // because chrome.runtime.sendMessage from content.js already broadcasts to all
     // extension contexts (including popup). Re-forwarding would cause duplicate messages.
     

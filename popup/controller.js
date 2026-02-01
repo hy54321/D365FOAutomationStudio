@@ -8,6 +8,7 @@ import { dataSourceMethods } from './modules/data-sources.js';
 import { inspectorMethods } from './modules/inspector.js';
 import { settingsMethods } from './modules/settings.js';
 import { xmlImportMethods } from './modules/xml-import.js';
+import { navButtonsMethods } from './modules/nav-buttons.js';
 
 class PopupController {
     constructor() {
@@ -49,6 +50,8 @@ class PopupController {
         this.resumeSkipByWorkflow = {};
         this.lastRunOptionsByWorkflow = {};
         this.lastFailureInfo = null;
+        this.navButtons = [];
+        this.currentMenuItem = '';
 
         this.init();
     }
@@ -65,7 +68,8 @@ Object.assign(
     dataSourceMethods,
     inspectorMethods,
     settingsMethods,
-    xmlImportMethods
+    xmlImportMethods,
+    navButtonsMethods
 );
 
 export { PopupController };

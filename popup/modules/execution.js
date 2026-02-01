@@ -193,5 +193,155 @@ export const executionMethods = {
             this.addLog('error', 'Workflow stopped by user');
             this.showNotification('Workflow stopped', 'warning');
         }
+    },
+    
+    /**
+     * Handle workflow navigation state save request
+     * This is called when the injected script is about to navigate to a new page
+     */
+    async handleSaveWorkflowState(data) {
+        if (!this.executionState.isRunning || !this.currentWorkflow) {
+            if (this.settings?.logVerbose) {
+                console.warn('[Execution] handleSaveWorkflowState: No running workflow to save');
+            }
+            return;
+        }
+        
+        console.log('[Execution] Saving workflow state for navigation...');
+        
+        // Extract menu item name from target URL
+        let targetMenuItemName = '';
+        try {
+            const url = new URL(data.targetUrl);
+            targetMenuItemName = url.searchParams.get('mi') || '';
+        } catch (e) {
+            console.warn('[Execution] Could not parse target URL:', e);
+        }
+        
+        // Save workflow state for resumption after page reload
+        const pendingState = {
+            workflow: this.currentWorkflow,
+            nextStepIndex: this.executionState.currentStepIndex + 1, // Resume from next step
+            currentRowIndex: this.executionState.currentRow,
+            totalRows: this.executionState.totalRows,
+            data: this.executionState.currentData || null,
+            targetMenuItemName: targetMenuItemName,
+            waitForLoad: data.waitForLoad || 3000,
+            savedAt: Date.now()
+        };
+        
+        console.log('[Execution] Pending state:', { 
+            nextStepIndex: pendingState.nextStepIndex,
+            targetMenuItemName: pendingState.targetMenuItemName,
+            workflowName: pendingState.workflow?.name 
+        });
+        
+        // Save to sessionStorage so it persists across page navigation
+        // but not across browser sessions
+        try {
+            // We need to save this via the content script since we can't directly
+            // access the tab's sessionStorage from the popup
+            await this.savePendingWorkflowToTab(pendingState);
+            console.log('[Execution] Workflow state saved successfully');
+        } catch (e) {
+            console.error('[Execution] Failed to save workflow state:', e);
+        }
+        
+        this.addLog('info', 'Navigation in progress, workflow will resume after page load...');
+    },
+    
+    /**
+     * Save pending workflow state to the tab's sessionStorage
+     */
+    async savePendingWorkflowToTab(pendingState) {
+        const tab = await this.getLinkedOrActiveTab();
+        if (!tab) return;
+        
+        // Execute in the tab context to save to sessionStorage
+        try {
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: (state) => {
+                    sessionStorage.setItem('d365_pending_workflow', JSON.stringify(state));
+                },
+                args: [pendingState]
+            });
+        } catch (e) {
+            console.error('[Execution] Failed to save to tab sessionStorage:', e);
+        }
+    },
+    
+    /**
+     * Handle workflow resume after navigation
+     * This is called when the content script detects a pending workflow after page load
+     */
+    async handleResumeAfterNavigation(data) {
+        const { workflow, nextStepIndex, currentRowIndex, data: rowData } = data;
+        
+        // Prevent duplicate resume handling (message may arrive from multiple sources)
+        const resumeKey = `${workflow?.id || 'unknown'}_${nextStepIndex}_${Date.now()}`;
+        if (this._lastResumeKey && this._lastResumeKey === `${workflow?.id || 'unknown'}_${nextStepIndex}`) {
+            console.log('[Execution] Ignoring duplicate resume request');
+            return;
+        }
+        this._lastResumeKey = `${workflow?.id || 'unknown'}_${nextStepIndex}`;
+        
+        // Clear the deduplication key after a short delay to allow future resumes
+        setTimeout(() => {
+            if (this._lastResumeKey === `${workflow?.id || 'unknown'}_${nextStepIndex}`) {
+                this._lastResumeKey = null;
+            }
+        }, 5000);
+        
+        this.addLog('info', `Resuming workflow after navigation (step ${nextStepIndex + 1})`);
+        
+        // Resume the workflow from the next step
+        const tab = await this.getLinkedOrActiveTab();
+        if (!tab) {
+            this.addLog('error', 'Could not find linked tab to resume workflow');
+            return;
+        }
+        
+        // Set up execution state
+        this.currentWorkflow = workflow;
+        this.executionState.isRunning = true;
+        this.executionState.isPaused = false;
+        this.executionState.currentStepIndex = nextStepIndex;
+        this.executionState.currentRow = currentRowIndex || 0;
+        this.executionState.totalSteps = workflow.steps?.length || 0;
+        this.executionState.currentWorkflowId = workflow.id;
+        
+        this.markWorkflowAsRunning(workflow.id);
+        this.updateExecutionBar();
+        
+        // Build data array
+        let dataToProcess = [];
+        if (rowData) {
+            dataToProcess = Array.isArray(rowData) ? rowData : [rowData];
+        } else if (this.dataSources?.primary?.data) {
+            dataToProcess = this.dataSources.primary.data;
+        }
+        
+        // Continue execution with remaining steps
+        const remainingSteps = workflow.steps.slice(nextStepIndex);
+        const continueWorkflow = {
+            ...workflow,
+            steps: remainingSteps,
+            _isResume: true,
+            _originalStartIndex: nextStepIndex
+        };
+        
+        try {
+            await chrome.tabs.sendMessage(tab.id, {
+                action: 'executeWorkflow',
+                workflow: continueWorkflow,
+                data: dataToProcess.length > 0 ? dataToProcess : [{}]
+            });
+        } catch (e) {
+            this.addLog('error', `Failed to resume workflow: ${e.message}`);
+            this.executionState.isRunning = false;
+            this.markWorkflowAsNotRunning();
+            this.updateExecutionBar();
+        }
     }
 };

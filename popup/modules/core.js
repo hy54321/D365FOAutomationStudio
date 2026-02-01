@@ -9,12 +9,21 @@ export const coreMethods = {
 
         // Load workflows from storage
         await this.loadWorkflows();
+        // Load nav button configs
+        if (this.loadNavButtons) {
+            await this.loadNavButtons();
+        }
 
         // Set up tab navigation
         this.setupTabs();
 
         // Set up event listeners
         this.setupEventListeners();
+
+        // Initialize nav button UI after DOM + listeners are ready
+        if (this.initNavButtonsUI) {
+            this.initNavButtonsUI();
+        }
 
         // Load settings into UI
         this.loadSettingsUI();
@@ -202,6 +211,10 @@ export const coreMethods = {
                 if (tabName === 'inspector') {
                     // Auto-refresh elements when inspector tab is opened
                 }
+
+                if (this.onTabActivated) {
+                    this.onTabActivated(tabName);
+                }
             });
         });
     },
@@ -293,6 +306,14 @@ export const coreMethods = {
             }
             if (request.action === 'workflowLog') {
                 this.addLog(request.log.level, request.log.message);
+            }
+            // Handle workflow navigation state save
+            if (request.action === 'saveWorkflowState') {
+                this.handleSaveWorkflowState(request);
+            }
+            // Handle workflow resume after navigation
+            if (request.action === 'resumeAfterNavigation') {
+                this.handleResumeAfterNavigation(request);
             }
         });
 

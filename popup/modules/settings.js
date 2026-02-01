@@ -9,7 +9,8 @@ export const settingsMethods = {
             pauseOnError: false,
             comboSelectMode: 'method3',
             suppressLookupWarnings: false,
-            labelLanguage: 'en-us'
+            labelLanguage: 'en-us',
+            dateFormat: 'DDMMYYYY'  // Date format for D365: DDMMYYYY or MMDDYYYY
         };
 
         const stored = localStorage.getItem('d365-settings');
@@ -26,6 +27,7 @@ export const settingsMethods = {
         document.getElementById('comboSelectMode').value = this.settings.comboSelectMode || 'method3';
         document.getElementById('suppressLookupWarnings').checked = !!this.settings.suppressLookupWarnings;
         document.getElementById('labelLanguage').value = this.settings.labelLanguage || 'en-us';
+        document.getElementById('dateFormat').value = this.settings.dateFormat || 'DDMMYYYY';
     },
 
     saveSettings() {
@@ -37,7 +39,8 @@ export const settingsMethods = {
             logVerbose: document.getElementById('logVerbose').checked,
             pauseOnError: document.getElementById('pauseOnError').checked,
             comboSelectMode: document.getElementById('comboSelectMode').value,
-            suppressLookupWarnings: document.getElementById('suppressLookupWarnings').checked
+            suppressLookupWarnings: document.getElementById('suppressLookupWarnings').checked,
+            dateFormat: document.getElementById('dateFormat').value || 'DDMMYYYY'
         };
 
         // Read optional label language field

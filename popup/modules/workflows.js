@@ -62,6 +62,9 @@ export const workflowMethods = {
         const result = await chrome.storage.local.get(['workflows']);
         this.workflows = result.workflows || [];
         this.displayWorkflows();
+        if (this.updateNavButtonsWorkflowOptions) {
+            this.updateNavButtonsWorkflowOptions();
+        }
     },
 
     async loadResumeState() {
@@ -87,6 +90,12 @@ export const workflowMethods = {
 
         await chrome.storage.local.set({ workflows: this.workflows });
         this.displayWorkflows();
+        if (this.updateNavButtonsWorkflowOptions) {
+            this.updateNavButtonsWorkflowOptions();
+        }
+        if (this.renderNavButtons) {
+            this.renderNavButtons();
+        }
 
         this.showNotification('Workflow saved successfully!', 'success');
     },
@@ -143,6 +152,12 @@ export const workflowMethods = {
                     this.workflows = this.workflows.filter(w => w.id !== workflow.id);
                     await chrome.storage.local.set({ workflows: this.workflows });
                     this.displayWorkflows();
+                    if (this.updateNavButtonsWorkflowOptions) {
+                        this.updateNavButtonsWorkflowOptions();
+                    }
+                    if (this.renderNavButtons) {
+                        this.renderNavButtons();
+                    }
                     this.showNotification('Workflow deleted', 'success');
                 }
             });
@@ -408,6 +423,12 @@ export const workflowMethods = {
                     this.workflows.push(workflow);
                     await chrome.storage.local.set({ workflows: this.workflows });
                     this.displayWorkflows();
+                    if (this.updateNavButtonsWorkflowOptions) {
+                        this.updateNavButtonsWorkflowOptions();
+                    }
+                    if (this.renderNavButtons) {
+                        this.renderNavButtons();
+                    }
                     this.showNotification(`Workflow "${workflow.name}" imported successfully`, 'success');
                 } catch (error) {
                     this.showNotification('Failed to import workflow: ' + error.message, 'error');
