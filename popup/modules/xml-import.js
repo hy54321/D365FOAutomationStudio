@@ -1217,6 +1217,7 @@ export const xmlImportMethods = {
             
             // Parse XML and resolve labels (async)
             const workflow = await this.parseTaskRecorderXML(this._pendingXMLContent);
+            workflow.projectIds = workflow.projectIds || [];
             
             // Count how many labels were resolved
             const resolvedCount = workflow.steps.filter(s => 
@@ -1233,6 +1234,9 @@ export const xmlImportMethods = {
             
             // Update UI
             this.displayWorkflows();
+            if (this.renderProjectsManager) {
+                this.renderProjectsManager();
+            }
             
             // Close modal
             document.getElementById('xmlImportModal')?.classList.add('is-hidden');
@@ -1302,3 +1306,6 @@ export const xmlImportMethods = {
         return div.innerHTML;
     }
 };
+
+
+

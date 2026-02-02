@@ -7,6 +7,11 @@ export const coreMethods = {
         // Check if we're connected to a D365 page
         this.checkD365Status();
 
+        // Load projects before workflows for filtering
+        if (this.loadProjects) {
+            await this.loadProjects();
+        }
+
         // Load workflows from storage
         await this.loadWorkflows();
         // Load nav button configs
@@ -224,6 +229,9 @@ export const coreMethods = {
         document.getElementById('newWorkflow').addEventListener('click', () => this.createNewWorkflow());
         // Import dropdown is initialized separately to handle dropdown menu
         this.initImportDropdown();
+        if (this.setupProjectUI) {
+            this.setupProjectUI();
+        }
 
         // Builder tab
         document.getElementById('addStep').addEventListener('click', () => this.addStep());

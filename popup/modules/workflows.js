@@ -6,6 +6,9 @@ export const workflowMethods = {
             this.loadDataSourcesFromWorkflow();
             document.getElementById('workflowName').value = this.currentWorkflow.name;
             this.displaySteps();
+            if (this.renderWorkflowProjects) {
+                this.renderWorkflowProjects();
+            }
             this.showNotification('Changes discarded', 'info');
         }
 
@@ -25,6 +28,7 @@ export const workflowMethods = {
             id: Date.now().toString(),
             name: 'New Workflow',
             steps: [],
+            projectIds: [],
             dataSources: {
                 primary: { type: 'none', data: null, fields: [] },
                 details: [],
@@ -53,6 +57,9 @@ export const workflowMethods = {
         document.getElementById('primaryDataFields').innerHTML = '';
         document.getElementById('detailDataSources').innerHTML = '';
         document.getElementById('relationshipsSection').classList.add('is-hidden');
+        if (this.renderWorkflowProjects) {
+            this.renderWorkflowProjects();
+        }
 
         // Switch to builder tab
         document.querySelector('[data-tab="builder"]').click();
@@ -65,17 +72,22 @@ export const workflowMethods = {
         if (this.updateNavButtonsWorkflowOptions) {
             this.updateNavButtonsWorkflowOptions();
         }
+        if (this.renderProjectsManager) {
+            this.renderProjectsManager();
+        }
     },
 
     async loadResumeState() {
         const result = await chrome.storage.local.get(['resumeSkipByWorkflow']);
         this.resumeSkipByWorkflow = result.resumeSkipByWorkflow || {};
     },
-
     async saveWorkflow() {
         if (!this.currentWorkflow) return;
 
         this.currentWorkflow.name = document.getElementById('workflowName').value;
+        if (this.syncCurrentWorkflowProjectsFromUI) {
+            this.syncCurrentWorkflowProjectsFromUI();
+        }
 
         // Save data sources with the workflow
         this.currentWorkflow.dataSources = JSON.parse(JSON.stringify(this.dataSources));
@@ -96,37 +108,49 @@ export const workflowMethods = {
         if (this.renderNavButtons) {
             this.renderNavButtons();
         }
+        if (this.renderProjectsManager) {
+            this.renderProjectsManager();
+        }
 
         this.showNotification('Workflow saved successfully!', 'success');
     },
-
     displayWorkflows() {
         const container = document.getElementById('workflowsList');
         container.innerHTML = '';
+
+        const workflows = this.getFilteredWorkflows ? this.getFilteredWorkflows() : this.workflows;
 
         if (this.workflows.length === 0) {
             container.innerHTML = '<p class="empty-state">No workflows yet. Click "New Workflow" to get started!</p>';
             return;
         }
 
-        this.workflows.forEach(workflow => {
+        if (workflows.length === 0) {
+            const projectName = this.getSelectedProjectName ? this.getSelectedProjectName() : 'this project';
+            container.innerHTML = `<p class="empty-state">No workflows linked to ${projectName}.</p>`;
+            return;
+        }
+
+        workflows.forEach(workflow => {
             const item = document.createElement('div');
             item.className = 'workflow-item';
 
             // Count loop blocks
             const loopStarts = workflow.steps.filter(s => s.type === 'loop-start').length;
             const hasData = workflow.dataSources?.primary?.type !== 'none';
+            const projectNames = this.getProjectNamesByIds ? this.getProjectNamesByIds(workflow.projectIds || []) : [];
 
             item.innerHTML = `
                 <div class="workflow-info">
                     <h4>${workflow.name}</h4>
-                    <p>${workflow.steps.length} steps${loopStarts > 0 ? `, ${loopStarts} loop(s)` : ''}${hasData ? ' • Has data' : ''}</p>
+                    <p>${workflow.steps.length} steps${loopStarts > 0 ? `, ${loopStarts} loop(s)` : ''}${hasData ? ' &bull; Has data' : ''}</p>
+                    ${projectNames.length ? `<div class="workflow-project-tags">${projectNames.map(name => `<span class="project-tag">${name}</span>`).join('')}</div>` : ''}
                 </div>
                 <div class="workflow-actions">
-                    <button class="btn-icon" data-action="run" title="Run Workflow">▶️</button>
-                    <button class="btn-icon" data-action="edit" title="Edit Workflow">✏️</button>
-                    <button class="btn-icon" data-action="export" title="Export Workflow">📤</button>
-                    <button class="btn-icon" data-action="delete" title="Delete Workflow">🗑️</button>
+                    <button class="btn-icon" data-action="run" title="Run Workflow">&#9654;</button>
+                    <button class="btn-icon" data-action="edit" title="Edit Workflow">&#9998;</button>
+                    <button class="btn-icon" data-action="export" title="Export Workflow">&#128228;</button>
+                    <button class="btn-icon" data-action="delete" title="Delete Workflow">&#128465;</button>
                 </div>
             `;
 
@@ -158,6 +182,9 @@ export const workflowMethods = {
                     if (this.renderNavButtons) {
                         this.renderNavButtons();
                     }
+                    if (this.renderProjectsManager) {
+                        this.renderProjectsManager();
+                    }
                     this.showNotification('Workflow deleted', 'success');
                 }
             });
@@ -165,9 +192,11 @@ export const workflowMethods = {
             container.appendChild(item);
         });
     },
-
     loadWorkflow(workflow) {
         this.currentWorkflow = JSON.parse(JSON.stringify(workflow));
+        if (!this.currentWorkflow.projectIds) {
+            this.currentWorkflow.projectIds = [];
+        }
 
         // Store original state for cancel functionality
         this.originalWorkflowState = JSON.parse(JSON.stringify(workflow));
@@ -178,6 +207,9 @@ export const workflowMethods = {
         this.loadDataSourcesFromWorkflow();
 
         this.displaySteps();
+        if (this.renderWorkflowProjects) {
+            this.renderWorkflowProjects();
+        }
 
         // Switch to builder tab
         document.querySelector('[data-tab="builder"]').click();
@@ -396,7 +428,6 @@ export const workflowMethods = {
             });
         });
     },
-
     async importJSONWorkflow() {
         const input = document.createElement('input');
         input.type = 'file';
@@ -419,6 +450,7 @@ export const workflowMethods = {
 
                     // Generate new ID to avoid conflicts
                     workflow.id = Date.now().toString();
+                    workflow.projectIds = workflow.projectIds || [];
 
                     this.workflows.push(workflow);
                     await chrome.storage.local.set({ workflows: this.workflows });
@@ -428,6 +460,9 @@ export const workflowMethods = {
                     }
                     if (this.renderNavButtons) {
                         this.renderNavButtons();
+                    }
+                    if (this.renderProjectsManager) {
+                        this.renderProjectsManager();
                     }
                     this.showNotification(`Workflow "${workflow.name}" imported successfully`, 'success');
                 } catch (error) {
@@ -458,3 +493,16 @@ export const workflowMethods = {
         input.click();
     }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+

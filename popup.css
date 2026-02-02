@@ -1689,3 +1689,113 @@ header h1 {
 .preview-step.needs-value .step-desc {
     color: #856404;
 }
+
+/* Projects */
+.projects-bar {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin: 8px 0 6px;
+}
+
+.projects-bar .form-group {
+    flex: 1;
+    margin: 0;
+}
+
+.projects-manager {
+    border: 1px solid #e3e7ec;
+    background: #f7f9fb;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+}
+
+.projects-manager-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.projects-list {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.project-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: #ffffff;
+    border: 1px solid #e3e7ec;
+    border-radius: 8px;
+    padding: 6px 8px;
+}
+
+.project-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 12px;
+}
+
+.project-count {
+    color: #6b7280;
+    font-size: 11px;
+}
+
+.workflow-project-tags {
+    margin-top: 6px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.project-tag {
+    font-size: 11px;
+    color: #2b3a45;
+    background: #eef2f6;
+    border-radius: 999px;
+    padding: 2px 8px;
+}
+
+.workflow-projects-panel {
+    background: #f7f9fb;
+    border: 1px solid #e3e7ec;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 8px 0 12px;
+}
+
+.workflow-projects-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.workflow-projects-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.project-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    background: #ffffff;
+    border: 1px solid #e3e7ec;
+    padding: 4px 8px;
+    border-radius: 999px;
+}
+
+.muted {
+    color: #6b7280;
+    font-size: 12px;
+}

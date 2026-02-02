@@ -9,6 +9,7 @@ import { inspectorMethods } from './modules/inspector.js';
 import { settingsMethods } from './modules/settings.js';
 import { xmlImportMethods } from './modules/xml-import.js';
 import { navButtonsMethods } from './modules/nav-buttons.js';
+import { projectMethods } from './modules/projects.js';
 
 class PopupController {
     constructor() {
@@ -52,6 +53,8 @@ class PopupController {
         this.lastFailureInfo = null;
         this.navButtons = [];
         this.currentMenuItem = '';
+        this.projects = [];
+        this.selectedProjectId = 'all';
 
         this.init();
     }
@@ -69,7 +72,8 @@ Object.assign(
     inspectorMethods,
     settingsMethods,
     xmlImportMethods,
-    navButtonsMethods
+    navButtonsMethods,
+    projectMethods
 );
 
 export { PopupController };

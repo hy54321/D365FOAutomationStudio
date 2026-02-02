@@ -73,8 +73,24 @@
                             </button>
                         </div>
                     </div>
+                                </div>
+
+                <div class="projects-bar">
+                    <div class="form-group">
+                        <label>Project filter</label>
+                        <select id="projectFilter" class="form-control form-control-sm"></select>
+                    </div>
+                    <button id="toggleProjectsManager" class="btn btn-secondary btn-sm">Manage projects</button>
                 </div>
-                
+
+                <div class="projects-manager is-hidden" id="projectsManager">
+                    <div class="projects-manager-header">
+                        <input type="text" id="newProjectName" class="form-control form-control-sm" placeholder="New project name">
+                        <button id="createProject" class="btn btn-primary btn-sm">Add</button>
+                    </div>
+                    <div id="projectsList" class="projects-list"></div>
+                </div>
+
                 <div id="workflowsList" class="workflows-list">
                     <!-- Workflows will be listed here -->
                 </div>
@@ -88,6 +104,14 @@
                         <span class="linked-icon">🔗</span>
                         <span id="linkedTabName">No tab linked</span>
                     </div>
+                                </div>
+
+                <div class="workflow-projects-panel">
+                    <div class="workflow-projects-header">
+                        <h3>Projects</h3>
+                        <span class="muted">Assign this workflow to one or more projects.</span>
+                    </div>
+                    <div id="workflowProjectsList" class="workflow-projects-list"></div>
                 </div>
 
                 <!-- Main Builder Area -->
@@ -491,3 +515,5 @@
     <script type="module" src="popup.js"></script>
 </body>
 </html>
+
+
