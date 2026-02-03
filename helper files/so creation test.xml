@@ -1,0 +1,772 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Recording xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Microsoft.Dynamics.Client.ServerForm.TaskRecording">
+  <CanonicalId>e0e70afe-ed3c-49f2-885e-d53b4aaafb08</CanonicalId>
+  <CurrentSequence>79</CurrentSequence>
+  <Description></Description>
+  <FormContexts xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>3_SalesTableListPage_3b3f2189-36e5-4b05-acd1-672dd848b959</d2p1:Key>
+      <d2p1:Value>
+        <Annotations>
+          <Annotation i:type="FormAnnotation">
+            <ConfigurationOwnerName>SalesTableListPage</ConfigurationOwnerName>
+            <ConfigurationScope>10</ConfigurationScope>
+            <FilterCommandName>ApplyFilters</FilterCommandName>
+            <FilterControlName>SystemDefinedFilterPane</FilterControlName>
+            <FormViewOptionType>0</FormViewOptionType>
+            <MenuItemLabel>All sales orders</MenuItemLabel>
+            <MenuItemName>SalesTableListPage</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <PublishedFromConfiguration>0</PublishedFromConfiguration>
+          </Annotation>
+        </Annotations>
+        <FormID>3_SalesTableListPage_3b3f2189-36e5-4b05-acd1-672dd848b959</FormID>
+        <FormName>SalesTableListPage</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>SalesTableListPage</RecordingName>
+        <Sequence>1</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>392_SalesCreateOrder_3b3f2189-36e5-4b05-acd1-672dd848b959</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>392_SalesCreateOrder_3b3f2189-36e5-4b05-acd1-672dd848b959</FormID>
+        <FormName>SalesCreateOrder</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>SalesCreateOrder</RecordingName>
+        <Sequence>7</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</d2p1:Key>
+      <d2p1:Value>
+        <Annotations>
+          <Annotation i:type="FormAnnotation">
+            <ConfigurationOwnerName>SalesTable</ConfigurationOwnerName>
+            <ConfigurationScope>41</ConfigurationScope>
+            <FilterCommandName>ApplyFilters</FilterCommandName>
+            <FilterControlName>SystemDefinedFilterPane</FilterControlName>
+            <FormViewOptionType>0</FormViewOptionType>
+            <MenuItemLabel>Sales order</MenuItemLabel>
+            <MenuItemName>SalesTableForNew</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <PublishedFromConfiguration>0</PublishedFromConfiguration>
+          </Annotation>
+          <Annotation i:type="FormAnnotation">
+            <ConfigurationOwnerName>SalesTable</ConfigurationOwnerName>
+            <ConfigurationScope>10</ConfigurationScope>
+            <FilterCommandName>ApplyFilters</FilterCommandName>
+            <FilterControlName>SystemDefinedFilterPane</FilterControlName>
+            <FormViewOptionType>1</FormViewOptionType>
+            <MenuItemLabel>Sales order</MenuItemLabel>
+            <MenuItemName>SalesTableForNew</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <PublishedFromConfiguration>0</PublishedFromConfiguration>
+          </Annotation>
+        </Annotations>
+        <FormID>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormID>
+        <FormName>SalesTable</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>SalesTable</RecordingName>
+        <Sequence>19</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>1404_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>1404_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</FormID>
+        <FormName></FormName>
+        <HasMetadata>false</HasMetadata>
+        <RecordingName>SalesLine_ItemId_Lookup</RecordingName>
+        <Sequence>31</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>1803_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>1803_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</FormID>
+        <FormName></FormName>
+        <HasMetadata>false</HasMetadata>
+        <RecordingName>SalesLine_ItemId_Lookup</RecordingName>
+        <Sequence>59</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+  </FormContexts>
+  <Name>so creation test</Name>
+  <RootScope z:Id="i1" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/">
+    <CustomDescription i:nil="true" />
+    <Description i:nil="true" />
+    <Id>3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+    <Parent i:nil="true" />
+    <ParentSequence>0</ParentSequence>
+    <ScreenshotUri i:nil="true" />
+    <Sequence>0</Sequence>
+    <Children>
+      <Node z:Id="i2" i:type="Scope">
+        <CustomDescription i:nil="true" />
+        <Description></Description>
+        <Id>3_SalesTableListPage_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+        <Parent z:Ref="i1" />
+        <ParentSequence>0</ParentSequence>
+        <ScreenshotUri i:nil="true" />
+        <Sequence>2</Sequence>
+        <Children>
+          <Node z:Id="i3" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>74_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>3</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>4</Sequence>
+            <Children>
+              <Node z:Id="i4" i:type="CommandUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>Click New.</Description>
+                <Id>74_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959x5</Id>
+                <Parent z:Ref="i3" />
+                <ParentSequence>4</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>5</Sequence>
+                <Annotations />
+                <GlobalId>5cd12a46-60bb-4899-b841-88f5582daf33</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>New</ControlLabel>
+                <ControlLabelId></ControlLabelId>
+                <FormId>3_SalesTableListPage_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <Arguments />
+                <CommandName>Click</CommandName>
+                <ControlName>SystemDefinedNewButton</ControlName>
+                <ControlType>CommandButton</ControlType>
+                <LabelId i:nil="true" />
+                <ReturnType>Void</ReturnType>
+                <ReturnValue i:nil="true" />
+                <TaskId>260</TaskId>
+              </Node>
+              <Node z:Id="i5" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>392_SalesCreateOrder_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                <Parent z:Ref="i3" />
+                <ParentSequence>4</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>6</Sequence>
+                <Children>
+                  <Node z:Id="i6" i:type="Scope">
+                    <CustomDescription i:nil="true" />
+                    <Description></Description>
+                    <Id>694Value_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                    <Parent z:Ref="i5" />
+                    <ParentSequence>9</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>10</Sequence>
+                    <Children>
+                      <Node z:Id="i7" i:type="PropertyUserAction">
+                        <CustomDescription i:nil="true" />
+                        <Description>In the Customer account field, type a value.</Description>
+                        <Id>694Value_3b3f2189-36e5-4b05-acd1-672dd848b959x11</Id>
+                        <Parent z:Ref="i6" />
+                        <ParentSequence>10</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>11</Sequence>
+                        <Annotations />
+                        <GlobalId>a5a011a1-84e4-4bed-835d-eac9ca86a55c</GlobalId>
+                        <SystemGenerated>false</SystemGenerated>
+                        <ControlLabel>Customer account</ControlLabel>
+                        <ControlLabelId>@SYS7149</ControlLabelId>
+                        <FormId>392_SalesCreateOrder_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                        <ListContext i:nil="true" />
+                        <RowIndex i:nil="true" />
+                        <BoundDataSource>SalesTable</BoundDataSource>
+                        <BoundProperty>CustAccount</BoundProperty>
+                        <ControlName>SalesTable_CustAccount</ControlName>
+                        <ControlType>Input</ControlType>
+                        <IsReference>false</IsReference>
+                        <LabelId i:nil="true" />
+                        <PropertyName>Value</PropertyName>
+                        <UserActionType>Input</UserActionType>
+                        <Value>1230002</Value>
+                        <ValueLabel i:nil="true" />
+                      </Node>
+                    </Children>
+                    <IsForm>false</IsForm>
+                    <IsStepGroup>false</IsStepGroup>
+                    <Name>SalesTable_CustAccount_Value</Name>
+                    <ScopeType>Private</ScopeType>
+                  </Node>
+                  <Node z:Id="i8" i:type="Scope">
+                    <CustomDescription i:nil="true" />
+                    <Description></Description>
+                    <Id>752_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                    <Parent z:Ref="i5" />
+                    <ParentSequence>13</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>14</Sequence>
+                    <Children>
+                      <Node z:Id="i9" i:type="CommandUserAction">
+                        <CustomDescription i:nil="true" />
+                        <Description>Click OK.</Description>
+                        <Id>752_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959x15</Id>
+                        <Parent z:Ref="i8" />
+                        <ParentSequence>14</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>15</Sequence>
+                        <Annotations />
+                        <GlobalId>9be2db84-ed23-4082-b5f2-2835947826a6</GlobalId>
+                        <SystemGenerated>false</SystemGenerated>
+                        <ControlLabel>OK</ControlLabel>
+                        <ControlLabelId></ControlLabelId>
+                        <FormId>392_SalesCreateOrder_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                        <ListContext i:nil="true" />
+                        <RowIndex i:nil="true" />
+                        <Arguments />
+                        <CommandName>Click</CommandName>
+                        <ControlName>OK</ControlName>
+                        <ControlType>CommandButton</ControlType>
+                        <LabelId i:nil="true" />
+                        <ReturnType>Void</ReturnType>
+                        <ReturnValue i:nil="true" />
+                        <TaskId>263</TaskId>
+                      </Node>
+                    </Children>
+                    <IsForm>false</IsForm>
+                    <IsStepGroup>false</IsStepGroup>
+                    <Name>OK_Click</Name>
+                    <ScopeType>Private</ScopeType>
+                  </Node>
+                  <Node z:Id="i10" i:type="Scope">
+                    <CustomDescription i:nil="true" />
+                    <Description></Description>
+                    <Id>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                    <Parent z:Ref="i5" />
+                    <ParentSequence>6</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>18</Sequence>
+                    <Children>
+                      <Node z:Id="i11" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>573_0TabShown_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>20</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>21</Sequence>
+                        <Children>
+                          <Node z:Id="i12" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>On the Action Pane, click Invoice.</Description>
+                            <Id>573_0TabShown_3b3f2189-36e5-4b05-acd1-672dd848b959x22</Id>
+                            <Parent z:Ref="i11" />
+                            <ParentSequence>21</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>22</Sequence>
+                            <Annotations />
+                            <GlobalId>518ab533-252a-4331-ae0c-50c322e9179e</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Invoice</ControlLabel>
+                            <ControlLabelId>@SYS14204</ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext i:nil="true" />
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>TabShown</CommandName>
+                            <ControlName>Invoice</ControlName>
+                            <ControlType>AppBarTab</ControlType>
+                            <LabelId i:nil="true" />
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId></TaskId>
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>Invoice_TabShown</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i13" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>628MarkActiveRow_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>24</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>25</Sequence>
+                        <Children>
+                          <Node z:Id="i14" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the list, mark the selected row.</Description>
+                            <Id>628MarkActiveRow_3b3f2189-36e5-4b05-acd1-672dd848b959x26</Id>
+                            <Parent z:Ref="i13" />
+                            <ParentSequence>25</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>26</Sequence>
+                            <Annotations />
+                            <GlobalId>cee5b528-2541-4729-9a18-17497db8360a</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel></ControlLabel>
+                            <ControlLabelId></ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext>SalesLineGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>MarkActiveRow</CommandName>
+                            <ControlName>SalesLineGrid</ControlName>
+                            <ControlType>Grid</ControlType>
+                            <LabelId></LabelId>
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>SalesLineGrid_MarkActiveRow</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i15" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description i:nil="true" />
+                        <Id>635RequestPopup_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>28</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>29</Sequence>
+                        <Children>
+                          <Node z:Id="i16" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the Item number field, enter or select a value.</Description>
+                            <Id>635RequestPopup_3b3f2189-36e5-4b05-acd1-672dd848b959x30</Id>
+                            <Parent z:Ref="i15" />
+                            <ParentSequence>29</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>30</Sequence>
+                            <Annotations />
+                            <GlobalId>e378d604-07a5-4f10-a5d7-c8487325cf4b</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Item number</ControlLabel>
+                            <ControlLabelId>@SYS12836</ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext>SalesLineGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>RequestPopup</CommandName>
+                            <ControlName>SalesLine_ItemId</ControlName>
+                            <ControlType>Input</ControlType>
+                            <LabelId>@SysTaskRecorder:SetValueFromLookUp</LabelId>
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>true</IsStepGroup>
+                        <Name>SalesLine_ItemId_RequestPopup</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i17" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>1404_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>18</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>34</Sequence>
+                        <Children>
+                          <Node z:Id="i18" i:type="Scope">
+                            <CustomDescription i:nil="true" />
+                            <Description></Description>
+                            <Id>1460NavigationAction_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                            <Parent z:Ref="i17" />
+                            <ParentSequence>42</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>43</Sequence>
+                            <Children>
+                              <Node z:Id="i19" i:type="CommandUserAction">
+                                <CustomDescription i:nil="true" />
+                                <Description>In the list, click the link in the selected row.</Description>
+                                <Id>1460NavigationAction_3b3f2189-36e5-4b05-acd1-672dd848b959x44</Id>
+                                <Parent z:Ref="i18" />
+                                <ParentSequence>43</ParentSequence>
+                                <ScreenshotUri i:nil="true" />
+                                <Sequence>44</Sequence>
+                                <Annotations />
+                                <GlobalId>54670850-2a08-4545-8d74-a9a2d5922d4d</GlobalId>
+                                <SystemGenerated>false</SystemGenerated>
+                                <ControlLabel></ControlLabel>
+                                <ControlLabelId></ControlLabelId>
+                                <FormId>1404_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                                <ListContext>Grid</ListContext>
+                                <RowIndex i:nil="true" />
+                                <Arguments />
+                                <CommandName>NavigationAction</CommandName>
+                                <ControlName>Grid</ControlName>
+                                <ControlType>Grid</ControlType>
+                                <LabelId></LabelId>
+                                <ReturnType>Void</ReturnType>
+                                <ReturnValue i:nil="true" />
+                                <TaskId i:nil="true" />
+                              </Node>
+                            </Children>
+                            <IsForm>false</IsForm>
+                            <IsStepGroup>false</IsStepGroup>
+                            <Name>Grid_NavigationAction</Name>
+                            <ScopeType>Private</ScopeType>
+                          </Node>
+                        </Children>
+                        <IsForm>true</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>SalesLine_ItemId_Lookup</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i20" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>639Value_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>45</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>46</Sequence>
+                        <Children>
+                          <Node z:Id="i21" i:type="PropertyUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the Quantity field, enter a number.</Description>
+                            <Id>639Value_3b3f2189-36e5-4b05-acd1-672dd848b959x47</Id>
+                            <Parent z:Ref="i20" />
+                            <ParentSequence>46</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>47</Sequence>
+                            <Annotations />
+                            <GlobalId>8cf7cb02-b346-4796-9fd1-894d63401238</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Quantity</ControlLabel>
+                            <ControlLabelId>@SYS14578</ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext>SalesLineGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <BoundDataSource>SalesLine</BoundDataSource>
+                            <BoundProperty>SalesQty</BoundProperty>
+                            <ControlName>SalesLine_SalesQty</ControlName>
+                            <ControlType>Real</ControlType>
+                            <IsReference>false</IsReference>
+                            <LabelId i:nil="true" />
+                            <PropertyName>Value</PropertyName>
+                            <UserActionType>Input</UserActionType>
+                            <Value>100.00</Value>
+                            <ValueLabel i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>SalesLine_SalesQty_Value</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i22" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>612_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>48</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>49</Sequence>
+                        <Children>
+                          <Node z:Id="i23" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>Click Add line.</Description>
+                            <Id>612_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959x50</Id>
+                            <Parent z:Ref="i22" />
+                            <ParentSequence>49</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>50</Sequence>
+                            <Annotations />
+                            <GlobalId>59dde208-1a7d-4528-a960-c7940a20c538</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Add line</ControlLabel>
+                            <ControlLabelId>@SYS319116</ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext i:nil="true" />
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>Click</CommandName>
+                            <ControlName>LineStripNew</ControlName>
+                            <ControlType>CommandButton</ControlType>
+                            <LabelId i:nil="true" />
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId>260</TaskId>
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>LineStripNew_Click</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i24" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description i:nil="true" />
+                        <Id>635RequestPopup_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>56</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>57</Sequence>
+                        <Children>
+                          <Node z:Id="i25" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the Item number field, enter or select a value.</Description>
+                            <Id>635RequestPopup_3b3f2189-36e5-4b05-acd1-672dd848b959x58</Id>
+                            <Parent z:Ref="i24" />
+                            <ParentSequence>57</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>58</Sequence>
+                            <Annotations />
+                            <GlobalId>e4061797-7d9e-42b9-bc43-572381b935df</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Item number</ControlLabel>
+                            <ControlLabelId>@SYS12836</ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext>SalesLineGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>RequestPopup</CommandName>
+                            <ControlName>SalesLine_ItemId</ControlName>
+                            <ControlType>Input</ControlType>
+                            <LabelId>@SysTaskRecorder:SetValueFromLookUp</LabelId>
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>true</IsStepGroup>
+                        <Name>SalesLine_ItemId_RequestPopup</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i26" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>1803_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>18</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>62</Sequence>
+                        <Children>
+                          <Node z:Id="i27" i:type="Scope">
+                            <CustomDescription i:nil="true" />
+                            <Description></Description>
+                            <Id>1811NavigationAction_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                            <Parent z:Ref="i26" />
+                            <ParentSequence>63</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>64</Sequence>
+                            <Children>
+                              <Node z:Id="i28" i:type="CommandUserAction">
+                                <CustomDescription i:nil="true" />
+                                <Description>In the list, click the link in the selected row.</Description>
+                                <Id>1811NavigationAction_3b3f2189-36e5-4b05-acd1-672dd848b959x65</Id>
+                                <Parent z:Ref="i27" />
+                                <ParentSequence>64</ParentSequence>
+                                <ScreenshotUri i:nil="true" />
+                                <Sequence>65</Sequence>
+                                <Annotations />
+                                <GlobalId>6cf082c6-96a2-4f21-a436-e891804a4e1d</GlobalId>
+                                <SystemGenerated>false</SystemGenerated>
+                                <ControlLabel></ControlLabel>
+                                <ControlLabelId></ControlLabelId>
+                                <FormId>1803_SalesLine_ItemId_Lookup_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                                <ListContext>Grid</ListContext>
+                                <RowIndex i:nil="true" />
+                                <Arguments />
+                                <CommandName>NavigationAction</CommandName>
+                                <ControlName>Grid</ControlName>
+                                <ControlType>Grid</ControlType>
+                                <LabelId></LabelId>
+                                <ReturnType>Void</ReturnType>
+                                <ReturnValue i:nil="true" />
+                                <TaskId i:nil="true" />
+                              </Node>
+                            </Children>
+                            <IsForm>false</IsForm>
+                            <IsStepGroup>false</IsStepGroup>
+                            <Name>Grid_NavigationAction</Name>
+                            <ScopeType>Private</ScopeType>
+                          </Node>
+                        </Children>
+                        <IsForm>true</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>SalesLine_ItemId_Lookup</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i29" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>628MarkActiveRow_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>66</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>67</Sequence>
+                        <Children>
+                          <Node z:Id="i30" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the list, mark the selected row.</Description>
+                            <Id>628MarkActiveRow_3b3f2189-36e5-4b05-acd1-672dd848b959x68</Id>
+                            <Parent z:Ref="i29" />
+                            <ParentSequence>67</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>68</Sequence>
+                            <Annotations />
+                            <GlobalId>e1de7048-9859-4412-ac39-40d2dbf562be</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel></ControlLabel>
+                            <ControlLabelId></ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext>SalesLineGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>MarkActiveRow</CommandName>
+                            <ControlName>SalesLineGrid</ControlName>
+                            <ControlType>Grid</ControlType>
+                            <LabelId></LabelId>
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>SalesLineGrid_MarkActiveRow</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i31" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>639Value_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>70</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>71</Sequence>
+                        <Children>
+                          <Node z:Id="i32" i:type="PropertyUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the Quantity field, enter a number.</Description>
+                            <Id>639Value_3b3f2189-36e5-4b05-acd1-672dd848b959x72</Id>
+                            <Parent z:Ref="i31" />
+                            <ParentSequence>71</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>72</Sequence>
+                            <Annotations />
+                            <GlobalId>610e3506-ef85-4c8a-aa5f-2bbf00165055</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Quantity</ControlLabel>
+                            <ControlLabelId>@SYS14578</ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext>SalesLineGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <BoundDataSource>SalesLine</BoundDataSource>
+                            <BoundProperty>SalesQty</BoundProperty>
+                            <ControlName>SalesLine_SalesQty</ControlName>
+                            <ControlType>Real</ControlType>
+                            <IsReference>false</IsReference>
+                            <LabelId i:nil="true" />
+                            <PropertyName>Value</PropertyName>
+                            <UserActionType>Input</UserActionType>
+                            <Value>200.00</Value>
+                            <ValueLabel i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>SalesLine_SalesQty_Value</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i33" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>534_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959</Id>
+                        <Parent z:Ref="i10" />
+                        <ParentSequence>74</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>75</Sequence>
+                        <Children>
+                          <Node z:Id="i34" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>Click Save.</Description>
+                            <Id>534_0Click_3b3f2189-36e5-4b05-acd1-672dd848b959x76</Id>
+                            <Parent z:Ref="i33" />
+                            <ParentSequence>75</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>76</Sequence>
+                            <Annotations />
+                            <GlobalId>43946596-91c5-4218-89c0-ee4593bd9a6a</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Save</ControlLabel>
+                            <ControlLabelId></ControlLabelId>
+                            <FormId>205_SalesTable_3b3f2189-36e5-4b05-acd1-672dd848b959</FormId>
+                            <ListContext i:nil="true" />
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>Click</CommandName>
+                            <ControlName>SystemDefinedSaveButton</ControlName>
+                            <ControlType>CommandButton</ControlType>
+                            <LabelId i:nil="true" />
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId>272</TaskId>
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>SystemDefinedSaveButton_Click</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                    </Children>
+                    <IsForm>true</IsForm>
+                    <IsStepGroup>false</IsStepGroup>
+                    <Name>SalesTable</Name>
+                    <ScopeType>Public</ScopeType>
+                  </Node>
+                </Children>
+                <IsForm>true</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>SalesCreateOrder</Name>
+                <ScopeType>Public</ScopeType>
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>SystemDefinedNewButton_Click</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+        </Children>
+        <IsForm>true</IsForm>
+        <IsStepGroup>false</IsStepGroup>
+        <Name>SalesTableListPage</Name>
+        <ScopeType>Public</ScopeType>
+      </Node>
+    </Children>
+    <IsForm>false</IsForm>
+    <IsStepGroup>false</IsStepGroup>
+    <Name>so creation test</Name>
+    <ScopeType>Public</ScopeType>
+  </RootScope>
+  <UserActions xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:anyType z:Ref="i4" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i7" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i9" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i12" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i14" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i16" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i19" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i21" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i23" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i25" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i28" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i30" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i32" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i34" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+  </UserActions>
+  <Version>1</Version>
+</Recording>

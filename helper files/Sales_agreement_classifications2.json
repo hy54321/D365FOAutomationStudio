@@ -1,0 +1,99 @@
+{
+  "id": "1769811382094",
+  "name": "Sales agreement classifications2",
+  "description": "",
+  "steps": [
+    {
+      "id": "1769811382094_5_sk6fm",
+      "displayText": "New",
+      "controlName": "SystemDefinedNewButton",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    },
+    {
+      "id": "1769811382094_9_mqpb2",
+      "displayText": "Name",
+      "controlName": "AgreementClassification_Name1",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "input",
+      "value": "testagain",
+      "fieldType": {
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true,
+        "allowFreetext": true
+      }
+    },
+    {
+      "id": "1769811382094_12_8csxz",
+      "displayText": "Description",
+      "controlName": "AgreementClassification_Description1",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "input",
+      "value": "some description",
+      "fieldType": {
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true,
+        "allowFreetext": true
+      }
+    },
+    {
+      "id": "1769811382094_16_cfq7l",
+      "displayText": "Line matching policy",
+      "controlName": "AgreementClassification_MatchingPolicy",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "select",
+      "value": "",
+      "needsValue": true,
+      "originalEnumValue": "3",
+      "originalLabelId": "@SYS115755",
+      "fieldType": {
+        "controlType": "ComboBox",
+        "inputType": "enum",
+        "isLookup": false,
+        "allowFreetext": false
+      }
+    },
+    {
+      "id": "1769811382094_20_azn5j",
+      "displayText": "Save",
+      "controlName": "SystemDefinedSaveButton",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    }
+  ],
+  "dataSources": {
+    "primary": {
+      "type": "none",
+      "data": null,
+      "fields": []
+    },
+    "details": [],
+    "relationships": []
+  },
+  "settings": {
+    "delayAfterClick": 800,
+    "delayAfterInput": 400,
+    "delayAfterSave": 1000,
+    "maxRetries": 3,
+    "logVerbose": false,
+    "pauseOnError": false,
+    "suppressLookupWarnings": true,
+    "comboSelectMode": "method3"
+  },
+  "importedFrom": "TaskRecorder",
+  "importDate": "2026-01-30T22:16:22.094Z"
+}

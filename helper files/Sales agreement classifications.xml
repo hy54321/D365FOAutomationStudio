@@ -1,0 +1,276 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Recording xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Microsoft.Dynamics.Client.ServerForm.TaskRecording">
+  <CanonicalId>b70003c7-5fe8-435f-b9ca-f744cef342bb</CanonicalId>
+  <CurrentSequence>24</CurrentSequence>
+  <Description></Description>
+  <FormContexts xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</d2p1:Key>
+      <d2p1:Value>
+        <Annotations>
+          <Annotation i:type="FormAnnotation">
+            <ConfigurationOwnerName>AgreementClassification</ConfigurationOwnerName>
+            <ConfigurationScope>41</ConfigurationScope>
+            <FilterCommandName>ApplyFilters</FilterCommandName>
+            <FilterControlName>SystemDefinedFilterPane</FilterControlName>
+            <FormViewOptionType>0</FormViewOptionType>
+            <MenuItemLabel>Sales agreement classifications</MenuItemLabel>
+            <MenuItemName>SalesAgreementClassification</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <PublishedFromConfiguration>0</PublishedFromConfiguration>
+          </Annotation>
+        </Annotations>
+        <FormID>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</FormID>
+        <FormName>AgreementClassification</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>AgreementClassification</RecordingName>
+        <Sequence>1</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+  </FormContexts>
+  <Name>Sales agreement classifications</Name>
+  <RootScope z:Id="i1" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/">
+    <CustomDescription i:nil="true" />
+    <Description i:nil="true" />
+    <Id>0211eb3e-ba0f-45ce-9294-b09079276d7a</Id>
+    <Parent i:nil="true" />
+    <ParentSequence>0</ParentSequence>
+    <ScreenshotUri i:nil="true" />
+    <Sequence>0</Sequence>
+    <Children>
+      <Node z:Id="i2" i:type="Scope">
+        <CustomDescription i:nil="true" />
+        <Description></Description>
+        <Id>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</Id>
+        <Parent z:Ref="i1" />
+        <ParentSequence>0</ParentSequence>
+        <ScreenshotUri i:nil="true" />
+        <Sequence>2</Sequence>
+        <Children>
+          <Node z:Id="i3" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>2219_0Click_0211eb3e-ba0f-45ce-9294-b09079276d7a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>3</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>4</Sequence>
+            <Children>
+              <Node z:Id="i4" i:type="CommandUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>Click New.</Description>
+                <Id>2219_0Click_0211eb3e-ba0f-45ce-9294-b09079276d7ax5</Id>
+                <Parent z:Ref="i3" />
+                <ParentSequence>4</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>5</Sequence>
+                <Annotations />
+                <GlobalId>f63281c6-66f5-4030-8e93-22126a4706ab</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>New</ControlLabel>
+                <ControlLabelId></ControlLabelId>
+                <FormId>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <Arguments />
+                <CommandName>Click</CommandName>
+                <ControlName>SystemDefinedNewButton</ControlName>
+                <ControlType>CommandButton</ControlType>
+                <LabelId i:nil="true" />
+                <ReturnType>Void</ReturnType>
+                <ReturnValue i:nil="true" />
+                <TaskId>260</TaskId>
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>SystemDefinedNewButton_Click</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+          <Node z:Id="i5" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>2238Value_0211eb3e-ba0f-45ce-9294-b09079276d7a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>7</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>8</Sequence>
+            <Children>
+              <Node z:Id="i6" i:type="PropertyUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>In the Name field, type a value.</Description>
+                <Id>2238Value_0211eb3e-ba0f-45ce-9294-b09079276d7ax9</Id>
+                <Parent z:Ref="i5" />
+                <ParentSequence>8</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>9</Sequence>
+                <Annotations />
+                <GlobalId>ea841f51-e8bf-48f7-92ef-2f1eac4ca9af</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>Name</ControlLabel>
+                <ControlLabelId>@SYS180894</ControlLabelId>
+                <FormId>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <BoundDataSource>AgreementClassification</BoundDataSource>
+                <BoundProperty>Name</BoundProperty>
+                <ControlName>AgreementClassification_Name1</ControlName>
+                <ControlType>Input</ControlType>
+                <IsReference>false</IsReference>
+                <LabelId i:nil="true" />
+                <PropertyName>Value</PropertyName>
+                <UserActionType>Input</UserActionType>
+                <Value>testname</Value>
+                <ValueLabel i:nil="true" />
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>AgreementClassification_Name1_Value</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+          <Node z:Id="i7" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>2239Value_0211eb3e-ba0f-45ce-9294-b09079276d7a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>11</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>12</Sequence>
+            <Children>
+              <Node z:Id="i8" i:type="PropertyUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>In the Description field, type a value.</Description>
+                <Id>2239Value_0211eb3e-ba0f-45ce-9294-b09079276d7ax13</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>12</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>13</Sequence>
+                <Annotations />
+                <GlobalId>339d9cb9-cc89-46f3-9b10-ccd6ddc98593</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>Description</ControlLabel>
+                <ControlLabelId>@SYS7576</ControlLabelId>
+                <FormId>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <BoundDataSource>AgreementClassification</BoundDataSource>
+                <BoundProperty>Description_PSN</BoundProperty>
+                <ControlName>AgreementClassification_Description1</ControlName>
+                <ControlType>Input</ControlType>
+                <IsReference>false</IsReference>
+                <LabelId i:nil="true" />
+                <PropertyName>Value</PropertyName>
+                <UserActionType>Input</UserActionType>
+                <Value>testdescription</Value>
+                <ValueLabel i:nil="true" />
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>AgreementClassification_Description1_Value</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+          <Node z:Id="i9" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>2244Value_0211eb3e-ba0f-45ce-9294-b09079276d7a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>15</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>16</Sequence>
+            <Children>
+              <Node z:Id="i10" i:type="PropertyUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>In the Line matching policy field, select an option.</Description>
+                <Id>2244Value_0211eb3e-ba0f-45ce-9294-b09079276d7ax17</Id>
+                <Parent z:Ref="i9" />
+                <ParentSequence>16</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>17</Sequence>
+                <Annotations />
+                <GlobalId>887dc02c-8086-44ac-9fc5-34e6c6f07c2c</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>Line matching policy</ControlLabel>
+                <ControlLabelId>@SYS129844</ControlLabelId>
+                <FormId>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <BoundDataSource>AgreementClassification</BoundDataSource>
+                <BoundProperty>MatchingPolicy</BoundProperty>
+                <ControlName>AgreementClassification_MatchingPolicy</ControlName>
+                <ControlType>ComboBox</ControlType>
+                <IsReference>false</IsReference>
+                <LabelId i:nil="true" />
+                <PropertyName>Value</PropertyName>
+                <UserActionType>Input</UserActionType>
+                <Value>2</Value>
+                <ValueLabel>@SYS129848</ValueLabel>
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>AgreementClassification_MatchingPolicy_Value</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+          <Node z:Id="i11" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>2332_0Click_0211eb3e-ba0f-45ce-9294-b09079276d7a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>19</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>20</Sequence>
+            <Children>
+              <Node z:Id="i12" i:type="CommandUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>Click Save.</Description>
+                <Id>2332_0Click_0211eb3e-ba0f-45ce-9294-b09079276d7ax21</Id>
+                <Parent z:Ref="i11" />
+                <ParentSequence>20</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>21</Sequence>
+                <Annotations />
+                <GlobalId>57e601e3-1213-4833-bb5e-0f54c0e94512</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>Save</ControlLabel>
+                <ControlLabelId></ControlLabelId>
+                <FormId>2160_AgreementClassification_0211eb3e-ba0f-45ce-9294-b09079276d7a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <Arguments />
+                <CommandName>Click</CommandName>
+                <ControlName>SystemDefinedSaveButton</ControlName>
+                <ControlType>CommandButton</ControlType>
+                <LabelId i:nil="true" />
+                <ReturnType>Void</ReturnType>
+                <ReturnValue i:nil="true" />
+                <TaskId>272</TaskId>
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>SystemDefinedSaveButton_Click</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+        </Children>
+        <IsForm>true</IsForm>
+        <IsStepGroup>false</IsStepGroup>
+        <Name>AgreementClassification</Name>
+        <ScopeType>Public</ScopeType>
+      </Node>
+    </Children>
+    <IsForm>false</IsForm>
+    <IsStepGroup>false</IsStepGroup>
+    <Name>Sales agreement classifications</Name>
+    <ScopeType>Public</ScopeType>
+  </RootScope>
+  <UserActions xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:anyType z:Ref="i4" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i6" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i8" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i10" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i12" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+  </UserActions>
+  <Version>1</Version>
+</Recording>

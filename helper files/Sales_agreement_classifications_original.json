@@ -1,0 +1,96 @@
+{
+  "dataSources": {
+    "details": [],
+    "primary": {
+      "data": null,
+      "fields": [],
+      "type": "none"
+    },
+    "relationships": []
+  },
+  "description": "",
+  "id": "1769808974759",
+  "importDate": "2026-01-30T21:36:14.759Z",
+  "importedFrom": "TaskRecorder",
+  "name": "Sales agreement classifications_original",
+  "settings": {
+    "comboSelectMode": "method3",
+    "delayAfterClick": 800,
+    "delayAfterInput": 400,
+    "delayAfterSave": 1000,
+    "logVerbose": false,
+    "maxRetries": 3,
+    "pauseOnError": false,
+    "suppressLookupWarnings": true
+  },
+  "steps": [
+    {
+      "controlName": "SystemDefinedNewButton",
+      "displayText": "New",
+      "fieldMapping": "",
+      "id": "1769808974759_5_ry01o",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "AgreementClassification_Name1",
+      "displayText": "Name",
+      "fieldMapping": "",
+      "fieldType": {
+        "allowFreetext": true,
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true
+      },
+      "id": "1769808974759_9_dk7cc",
+      "type": "input",
+      "value": "testname",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "AgreementClassification_Description1",
+      "displayText": "Description",
+      "fieldMapping": "",
+      "fieldType": {
+        "allowFreetext": true,
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true
+      },
+      "id": "1769808974759_13_ygnza",
+      "type": "input",
+      "value": "testdescription",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "AgreementClassification_MatchingPolicy",
+      "displayText": "Line matching policy",
+      "fieldMapping": "",
+      "fieldType": {
+        "allowFreetext": true,
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true
+      },
+      "id": "1769808974759_17_rsdem",
+      "type": "input",
+      "value": "2",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SystemDefinedSaveButton",
+      "displayText": "Save",
+      "fieldMapping": "",
+      "id": "1769808974759_21_xsvet",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    }
+  ]
+}

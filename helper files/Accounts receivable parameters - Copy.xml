@@ -1,0 +1,443 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Recording xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Microsoft.Dynamics.Client.ServerForm.TaskRecording">
+  <CanonicalId>0ab8aafb-568e-4ff0-aab6-6746fc1b7499</CanonicalId>
+  <CurrentSequence>28</CurrentSequence>
+  <Description></Description>
+  <FormContexts xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>867_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</d2p1:Key>
+      <d2p1:Value>
+        <Annotations>
+          <Annotation i:type="FormAnnotation">
+            <ConfigurationOwnerName>CustParameters</ConfigurationOwnerName>
+            <ConfigurationScope>41</ConfigurationScope>
+            <FilterCommandName>ApplyFilters</FilterCommandName>
+            <FilterControlName>SystemDefinedFilterPane</FilterControlName>
+            <FormViewOptionType>0</FormViewOptionType>
+            <MenuItemLabel>Accounts receivable parameters</MenuItemLabel>
+            <MenuItemName>CustParameters</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <PublishedFromConfiguration>0</PublishedFromConfiguration>
+          </Annotation>
+        </Annotations>
+        <FormID>867_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormID>
+        <FormName>CustParameters</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>CustParameters</RecordingName>
+        <Sequence>1</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</d2p1:Key>
+      <d2p1:Value>
+        <Annotations>
+          <Annotation i:type="FormAnnotation">
+            <ConfigurationOwnerName>CustParameters</ConfigurationOwnerName>
+            <ConfigurationScope>41</ConfigurationScope>
+            <FilterCommandName>ApplyFilters</FilterCommandName>
+            <FilterControlName>SystemDefinedFilterPane</FilterControlName>
+            <FormViewOptionType>0</FormViewOptionType>
+            <MenuItemLabel>Accounts receivable parameters</MenuItemLabel>
+            <MenuItemName>CustParameters</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <PublishedFromConfiguration>0</PublishedFromConfiguration>
+          </Annotation>
+        </Annotations>
+        <FormID>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormID>
+        <FormName>CustParameters</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>CustParameters</RecordingName>
+        <Sequence>8</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+  </FormContexts>
+  <Name>Accounts receivable parameters</Name>
+  <RootScope z:Id="i1" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/">
+    <CustomDescription i:nil="true" />
+    <Description i:nil="true" />
+    <Id>796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+    <Parent i:nil="true" />
+    <ParentSequence>0</ParentSequence>
+    <ScreenshotUri i:nil="true" />
+    <Sequence>0</Sequence>
+    <Children>
+      <Node z:Id="i2" i:type="Scope">
+        <CustomDescription i:nil="true" />
+        <Description></Description>
+        <Id>867_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+        <Parent z:Ref="i1" />
+        <ParentSequence>0</ParentSequence>
+        <ScreenshotUri i:nil="true" />
+        <Sequence>2</Sequence>
+        <Children>
+          <Node z:Id="i3" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>867RequestClose_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>2</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>3</Sequence>
+            <Children>
+              <Node z:Id="i4" i:type="CommandUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>Close the page.</Description>
+                <Id>867RequestClose_796a8368-1a95-4f48-ba82-2ffd9788b567x4</Id>
+                <Parent z:Ref="i3" />
+                <ParentSequence>3</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>4</Sequence>
+                <Annotations />
+                <GlobalId>7f1e119e-3735-4a17-9e55-5fb8adf10053</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel></ControlLabel>
+                <ControlLabelId></ControlLabelId>
+                <FormId>867_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <Arguments />
+                <CommandName>RequestClose</CommandName>
+                <ControlName></ControlName>
+                <ControlType></ControlType>
+                <LabelId>@SysTaskRecorder:CloseForm</LabelId>
+                <ReturnType>Void</ReturnType>
+                <ReturnValue i:nil="true" />
+                <TaskId i:nil="true" />
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>RequestClose</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+        </Children>
+        <IsForm>true</IsForm>
+        <IsStepGroup>false</IsStepGroup>
+        <Name>CustParameters</Name>
+        <ScopeType>Public</ScopeType>
+      </Node>
+      <Node z:Id="i5" i:type="Scope">
+        <CustomDescription i:nil="true" />
+        <Description></Description>
+        <Id>MenuItemcustparameters_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+        <Parent z:Ref="i1" />
+        <ParentSequence>0</ParentSequence>
+        <ScreenshotUri i:nil="true" />
+        <Sequence>5</Sequence>
+        <Children>
+          <Node z:Id="i6" i:type="MenuItemUserAction">
+            <CustomDescription i:nil="true" />
+            <Description>Go to Accounts receivable &gt; Setup &gt; Accounts receivable parameters.</Description>
+            <Id>MenuItemcustparameters_796a8368-1a95-4f48-ba82-2ffd9788b567x6</Id>
+            <Parent z:Ref="i5" />
+            <ParentSequence>5</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>6</Sequence>
+            <Annotations />
+            <GlobalId>cf55105c-8be7-4439-a096-15ead32e8022</GlobalId>
+            <SystemGenerated>false</SystemGenerated>
+            <MenuItemName>custparameters</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <NavigationPath xmlns:d7p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+              <d7p1:string>mainmenu</d7p1:string>
+              <d7p1:string>AccountsReceivable</d7p1:string>
+              <d7p1:string>Setup</d7p1:string>
+            </NavigationPath>
+          </Node>
+          <Node z:Id="i7" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+            <Parent z:Ref="i5" />
+            <ParentSequence>5</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>7</Sequence>
+            <Children>
+              <Node z:Id="i8" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>1914Value_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>9</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>10</Sequence>
+                <Children>
+                  <Node z:Id="i9" i:type="PropertyUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>In the Minimum reimbursement field, enter a number.</Description>
+                    <Id>1914Value_796a8368-1a95-4f48-ba82-2ffd9788b567x11</Id>
+                    <Parent z:Ref="i8" />
+                    <ParentSequence>10</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>11</Sequence>
+                    <Annotations />
+                    <GlobalId>9ce027ec-4e97-4687-9848-d5590ea605f9</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Minimum reimbursement</ControlLabel>
+                    <ControlLabelId>@SYS246305131255</ControlLabelId>
+                    <FormId>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <BoundDataSource>CustParameters</BoundDataSource>
+                    <BoundProperty>MinRefund</BoundProperty>
+                    <ControlName>Customer_MinRefund</ControlName>
+                    <ControlType>Real</ControlType>
+                    <IsReference>false</IsReference>
+                    <LabelId i:nil="true" />
+                    <PropertyName>Value</PropertyName>
+                    <UserActionType>Input</UserActionType>
+                    <Value>10.00</Value>
+                    <ValueLabel i:nil="true" />
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>Customer_MinRefund_Value</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+              <Node z:Id="i10" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>1926Value_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>14</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>15</Sequence>
+                <Children>
+                  <Node z:Id="i11" i:type="PropertyUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>In the Period of validity field, enter a number.</Description>
+                    <Id>1926Value_796a8368-1a95-4f48-ba82-2ffd9788b567x16</Id>
+                    <Parent z:Ref="i10" />
+                    <ParentSequence>15</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>16</Sequence>
+                    <Annotations />
+                    <GlobalId>42e2c8bd-6337-4c3f-8435-3f5a9a427f89</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Period of validity</ControlLabel>
+                    <ControlLabelId>@SYS29148</ControlLabelId>
+                    <FormId>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <BoundDataSource>SalesParameters</BoundDataSource>
+                    <BoundProperty>ValidDays</BoundProperty>
+                    <ControlName>DefaultValues_ValidDays</ControlName>
+                    <ControlType>Integer</ControlType>
+                    <IsReference>false</IsReference>
+                    <LabelId i:nil="true" />
+                    <PropertyName>Value</PropertyName>
+                    <UserActionType>Input</UserActionType>
+                    <Value>20</Value>
+                    <ValueLabel i:nil="true" />
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>DefaultValues_ValidDays_Value</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+              <Node z:Id="i12" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>2020ActivateTab_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>17</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>18</Sequence>
+                <Children>
+                  <Node z:Id="i13" i:type="CommandUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>Click the Updates tab.</Description>
+                    <Id>2020ActivateTab_796a8368-1a95-4f48-ba82-2ffd9788b567x19</Id>
+                    <Parent z:Ref="i12" />
+                    <ParentSequence>18</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>19</Sequence>
+                    <Annotations />
+                    <GlobalId>cd21a7f1-1743-47ea-adbf-895aa381c66d</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Updates</ControlLabel>
+                    <ControlLabelId>@SYS13869</ControlLabelId>
+                    <FormId>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <Arguments>
+                      <CommandArgument>
+                        <IsReference>false</IsReference>
+                        <Value>true</Value>
+                      </CommandArgument>
+                    </Arguments>
+                    <CommandName>ActivateTab</CommandName>
+                    <ControlName>TabUpdates</ControlName>
+                    <ControlType>PivotItem</ControlType>
+                    <LabelId></LabelId>
+                    <ReturnType>Void</ReturnType>
+                    <ReturnValue i:nil="true" />
+                    <TaskId i:nil="true" />
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>TabUpdates_ActivateTab</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+              <Node z:Id="i14" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>2066Value_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>20</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>21</Sequence>
+                <Children>
+                  <Node z:Id="i15" i:type="PropertyUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>Select Yes in the Keep CTP as line delivery date control when delivery date is recalculated from header update field.</Description>
+                    <Id>2066Value_796a8368-1a95-4f48-ba82-2ffd9788b567x22</Id>
+                    <Parent z:Ref="i14" />
+                    <ParentSequence>21</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>22</Sequence>
+                    <Annotations />
+                    <GlobalId>6e16fd0c-ea8b-4647-8ce5-39b6855f28ab</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Keep CTP as line delivery date control when delivery date is recalculated from header update</ControlLabel>
+                    <ControlLabelId>@SCM:DeliveryDateCTPRecalculateOnUpdate</ControlLabelId>
+                    <FormId>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <BoundDataSource>SalesParameters</BoundDataSource>
+                    <BoundProperty>DeliveryDateCTPRecalculateOnUpdate</BoundProperty>
+                    <ControlName>GroupUpdates_DeliveryDateCTPRecalculateOnUpdate</ControlName>
+                    <ControlType>CheckBox</ControlType>
+                    <IsReference>false</IsReference>
+                    <LabelId>@SysTaskRecorder:Slider_SetValue</LabelId>
+                    <PropertyName>Value</PropertyName>
+                    <UserActionType>Input</UserActionType>
+                    <Value>True</Value>
+                    <ValueLabel>@SysTaskRecorder:Yes</ValueLabel>
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>GroupUpdates_DeliveryDateCTPRecalculateOnUpdate_Value</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+              <Node z:Id="i16" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>2068ExpandedChanged_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>23</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>24</Sequence>
+                <Children>
+                  <Node z:Id="i17" i:type="CommandUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>Expand the Picking list section.</Description>
+                    <Id>2068ExpandedChanged_796a8368-1a95-4f48-ba82-2ffd9788b567x25</Id>
+                    <Parent z:Ref="i16" />
+                    <ParentSequence>24</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>25</Sequence>
+                    <Annotations />
+                    <GlobalId>c74b65d4-839d-4710-bb2d-c4c38040f52e</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Picking list</ControlLabel>
+                    <ControlLabelId>@SYS11791</ControlLabelId>
+                    <FormId>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <Arguments>
+                      <CommandArgument>
+                        <IsReference>false</IsReference>
+                        <Value>0</Value>
+                      </CommandArgument>
+                    </Arguments>
+                    <CommandName>ExpandedChanged</CommandName>
+                    <ControlName>UpdatePackingListFastTab</ControlName>
+                    <ControlType>SectionPage</ControlType>
+                    <LabelId>@SysTaskRecorder:SectionPage_ExpandedChanged_Expand</LabelId>
+                    <ReturnType>Void</ReturnType>
+                    <ReturnValue i:nil="true" />
+                    <TaskId i:nil="true" />
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>UpdatePackingListFastTab_ExpandedChanged</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+              <Node z:Id="i18" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>2088Value_796a8368-1a95-4f48-ba82-2ffd9788b567</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>26</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>27</Sequence>
+                <Children>
+                  <Node z:Id="i19" i:type="PropertyUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>In the Picking route status field, select an option.</Description>
+                    <Id>2088Value_796a8368-1a95-4f48-ba82-2ffd9788b567x28</Id>
+                    <Parent z:Ref="i18" />
+                    <ParentSequence>27</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>28</Sequence>
+                    <Annotations />
+                    <GlobalId>10b0431e-003e-4899-ba3c-96e54568228e</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Picking route status</ControlLabel>
+                    <ControlLabelId>@SYS103896</ControlLabelId>
+                    <FormId>1486_CustParameters_796a8368-1a95-4f48-ba82-2ffd9788b567</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <BoundDataSource>SalesParameters</BoundDataSource>
+                    <BoundProperty>PickRouteStatusOnUpdate</BoundProperty>
+                    <ControlName>PickingList_PickRouteStatusOnUpdate</ControlName>
+                    <ControlType>ComboBox</ControlType>
+                    <IsReference>false</IsReference>
+                    <LabelId i:nil="true" />
+                    <PropertyName>Value</PropertyName>
+                    <UserActionType>Input</UserActionType>
+                    <Value>2</Value>
+                    <ValueLabel>@SYS111310</ValueLabel>
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>PickingList_PickRouteStatusOnUpdate_Value</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+            </Children>
+            <IsForm>true</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>CustParameters</Name>
+            <ScopeType>Public</ScopeType>
+          </Node>
+        </Children>
+        <IsForm>false</IsForm>
+        <IsStepGroup>false</IsStepGroup>
+        <Name>MenuItem_custparameters</Name>
+        <ScopeType>Private</ScopeType>
+      </Node>
+    </Children>
+    <IsForm>false</IsForm>
+    <IsStepGroup>false</IsStepGroup>
+    <Name>Accounts receivable parameters</Name>
+    <ScopeType>Public</ScopeType>
+  </RootScope>
+  <UserActions xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:anyType z:Ref="i4" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i6" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i9" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i11" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i13" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i15" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i17" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i19" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+  </UserActions>
+  <Version>1</Version>
+</Recording>

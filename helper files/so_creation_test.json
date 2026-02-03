@@ -1,0 +1,104 @@
+{
+  "id": "1769806395871",
+  "name": "so creation test",
+  "description": "",
+  "steps": [
+    {
+      "id": "1769806395871_5_rphmb",
+      "displayText": "New",
+      "controlName": "SystemDefinedNewButton",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    },
+    {
+      "id": "1769806395871_11_fgb2h",
+      "displayText": "Customer account",
+      "controlName": "SalesTable_CustAccount",
+      "fieldMapping": "",
+      "waitUntilVisible": true,
+      "waitUntilHidden": false,
+      "type": "input",
+      "value": "1230002",
+      "fieldType": {
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true,
+        "allowFreetext": true
+      }
+    },
+    {
+      "id": "1769806395871_15_y7e5i",
+      "displayText": "OK",
+      "controlName": "OK",
+      "fieldMapping": "",
+      "waitUntilVisible": true,
+      "waitUntilHidden": true,
+      "type": "click",
+      "value": ""
+    },
+    {
+      "id": "1769806395871_47_9lszb",
+      "displayText": "Quantity",
+      "controlName": "SalesLine_SalesQty",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "grid-input",
+      "value": "100.00"
+    },
+    {
+      "id": "1769806395871_50_0spdi",
+      "displayText": "Add line",
+      "controlName": "LineStripNew",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    },
+    {
+      "id": "1769806395871_72_r9sxb",
+      "displayText": "Quantity",
+      "controlName": "SalesLine_SalesQty",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "grid-input",
+      "value": "200.00"
+    },
+    {
+      "id": "1769806395871_76_p6hx2",
+      "displayText": "Save",
+      "controlName": "SystemDefinedSaveButton",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    }
+  ],
+  "dataSources": {
+    "primary": {
+      "type": "none",
+      "data": null,
+      "fields": []
+    },
+    "details": [],
+    "relationships": []
+  },
+  "settings": {
+    "delayAfterClick": 800,
+    "delayAfterInput": 400,
+    "delayAfterSave": 1000,
+    "maxRetries": 3,
+    "logVerbose": false,
+    "pauseOnError": false,
+    "suppressLookupWarnings": true,
+    "comboSelectMode": "method3"
+  },
+  "importedFrom": "TaskRecorder",
+  "importDate": "2026-01-30T20:53:15.871Z"
+}

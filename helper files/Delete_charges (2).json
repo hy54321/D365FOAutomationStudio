@@ -1,0 +1,92 @@
+{
+  "dataSources": {
+    "details": [],
+    "primary": {
+      "data": [
+        {
+          "Charge code": "V50101023"
+        },
+        {
+          "Charge code": "WIT0556660"
+        },
+        {
+          "Charge code": "WIT0555651"
+        },
+        {
+          "Charge code": "WIT0555464"
+        },
+        {
+          "Charge code": "WIT0555379"
+        }
+      ],
+      "fields": [
+        "Charge code"
+      ],
+      "type": "csv"
+    },
+    "relationships": []
+  },
+  "id": "1769630918147",
+  "name": "Delete charges",
+  "settings": {
+    "comboSelectMode": "method3",
+    "delayAfterClick": 800,
+    "delayAfterInput": 400,
+    "delayAfterSave": 1000,
+    "logVerbose": false,
+    "maxRetries": 3,
+    "pauseOnError": false,
+    "suppressLookupWarnings": true
+  },
+  "steps": [
+    {
+      "controlName": "",
+      "fieldMapping": "",
+      "id": "1769631368543",
+      "iterationLimit": 0,
+      "loopDataSource": "primary",
+      "loopName": "Main Loop",
+      "type": "loop-start",
+      "value": ""
+    },
+    {
+      "controlName": "GridReadOnlyMarkupTable_MarkupCode",
+      "displayText": "GridReadOnlyMarkupTable_MarkupCode",
+      "fieldMapping": "Charge code",
+      "fieldType": {
+        "controlType": null,
+        "inputType": "text"
+      },
+      "filterMethod": "is exactly",
+      "id": "1769631499603",
+      "type": "filter",
+      "value": ""
+    },
+    {
+      "controlName": "SystemDefinedDeleteButton",
+      "displayText": "(Alt+Del)        Delete",
+      "fieldMapping": "",
+      "id": "1769630984947",
+      "type": "click",
+      "value": ""
+    },
+    {
+      "controlName": "Yes",
+      "displayText": "Yes",
+      "fieldMapping": "",
+      "id": "1769631274434",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": true,
+      "waitUntilVisible": true
+    },
+    {
+      "controlName": "",
+      "fieldMapping": "",
+      "id": "1769631400979",
+      "loopRef": "1769631368543",
+      "type": "loop-end",
+      "value": ""
+    }
+  ]
+}

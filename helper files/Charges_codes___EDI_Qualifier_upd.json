@@ -1,0 +1,74 @@
+{
+  "dataSources": {
+    "details": [],
+    "primary": {
+      "data": null,
+      "fields": [],
+      "type": "none"
+    },
+    "relationships": []
+  },
+  "description": "",
+  "id": "1769814532474",
+  "importDate": "2026-01-30T23:08:52.474Z",
+  "importedFrom": "TaskRecorder",
+  "name": "Charges codes - EDI Qualifier upd",
+  "settings": {
+    "comboSelectMode": "method3",
+    "delayAfterClick": 800,
+    "delayAfterInput": 400,
+    "delayAfterSave": 1000,
+    "logVerbose": false,
+    "maxRetries": 3,
+    "pauseOnError": false,
+    "suppressLookupWarnings": true
+  },
+  "steps": [
+    {
+      "controlName": "SystemDefinedFilterManager",
+      "displayText": "Open Charges code column filter.",
+      "fieldMapping": "",
+      "id": "1769814532474_5_l5cgw",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SystemDefinedFilterManager",
+      "displayText": "Enter a filter value of \"AUF-EU\" on the \"Charges code\" field using the \"is exactly\" filter operator.",
+      "fieldMapping": "",
+      "id": "1769814532474_7_62drz",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "MarkupTable_HSOEDIQualifier",
+      "displayText": "EDI Qualifier",
+      "fieldMapping": "",
+      "fieldType": {
+        "allowFreetext": true,
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true
+      },
+      "id": "1769814532474_10_7ldqh",
+      "type": "input",
+      "value": "AA",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SystemDefinedSaveButton",
+      "displayText": "Save",
+      "fieldMapping": "",
+      "id": "1769814532474_13_htyhh",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    }
+  ]
+}

@@ -1,0 +1,265 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Recording xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Microsoft.Dynamics.Client.ServerForm.TaskRecording">
+  <CanonicalId>04028093-4ec8-4bf6-a6fd-dce7bcf381bf</CanonicalId>
+  <CurrentSequence>13</CurrentSequence>
+  <Description></Description>
+  <FormContexts xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>204_MarkupTable_86238de9-437a-4385-8253-96db421fdd1a</d2p1:Key>
+      <d2p1:Value>
+        <Annotations>
+          <Annotation i:type="FormAnnotation">
+            <ConfigurationOwnerName>MarkupTable</ConfigurationOwnerName>
+            <ConfigurationScope>41</ConfigurationScope>
+            <FilterCommandName>ApplyFilters</FilterCommandName>
+            <FilterControlName>SystemDefinedFilterPane</FilterControlName>
+            <FormViewOptionType>0</FormViewOptionType>
+            <MenuItemLabel>Charges code</MenuItemLabel>
+            <MenuItemName>MarkupTable_Cust</MenuItemName>
+            <MenuItemType>Display</MenuItemType>
+            <PublishedFromConfiguration>0</PublishedFromConfiguration>
+          </Annotation>
+        </Annotations>
+        <FormID>204_MarkupTable_86238de9-437a-4385-8253-96db421fdd1a</FormID>
+        <FormName>MarkupTable</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>MarkupTable</RecordingName>
+        <Sequence>1</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+  </FormContexts>
+  <Name>Charges codes - EDI Qualifier upd</Name>
+  <RootScope z:Id="i1" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/">
+    <CustomDescription i:nil="true" />
+    <Description i:nil="true" />
+    <Id>86238de9-437a-4385-8253-96db421fdd1a</Id>
+    <Parent i:nil="true" />
+    <ParentSequence>0</ParentSequence>
+    <ScreenshotUri i:nil="true" />
+    <Sequence>0</Sequence>
+    <Children>
+      <Node z:Id="i2" i:type="Scope">
+        <CustomDescription i:nil="true" />
+        <Description></Description>
+        <Id>204_MarkupTable_86238de9-437a-4385-8253-96db421fdd1a</Id>
+        <Parent z:Ref="i1" />
+        <ParentSequence>0</ParentSequence>
+        <ScreenshotUri i:nil="true" />
+        <Sequence>2</Sequence>
+        <Children>
+          <Node z:Id="i3" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>SystemDefinedFilterManager_GetFilters_86238de9-437a-4385-8253-96db421fdd1a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>3</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>4</Sequence>
+            <Children>
+              <Node z:Id="i4" i:type="CommandUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>Open Charges code column filter.</Description>
+                <Id>SystemDefinedFilterManager_GetFilters_86238de9-437a-4385-8253-96db421fdd1ax5</Id>
+                <Parent z:Ref="i3" />
+                <ParentSequence>4</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>5</Sequence>
+                <Annotations />
+                <GlobalId>68627d89-6f9e-4b2f-92c4-35bdc358b30b</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel></ControlLabel>
+                <ControlLabelId></ControlLabelId>
+                <FormId>204_MarkupTable_86238de9-437a-4385-8253-96db421fdd1a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <Arguments>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>[{"Capability":null,"DataSourceName":"","FieldArrayIndex":1,"FieldName":"MarkupCode","FormDataSourceName":"MarkupTable","IsEditable":"Yes","IsQueryFilter":"Yes","MasterFormDataSourceName":"","Operator":"Matches","RecordingReferences":[],"SFKReplacementFieldBinding":"","TableId":0,"Values":[""],"Version":2}]</Value>
+                  </CommandArgument>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>GridReadOnlyMarkupTable_MarkupCode</Value>
+                  </CommandArgument>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>Charges code</Value>
+                  </CommandArgument>
+                </Arguments>
+                <CommandName>GetFilters</CommandName>
+                <ControlName>SystemDefinedFilterManager</ControlName>
+                <ControlType>FilterManager</ControlType>
+                <LabelId i:nil="true" />
+                <ReturnType>Void</ReturnType>
+                <ReturnValue></ReturnValue>
+                <TaskId i:nil="true" />
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>SystemDefinedFilterManager_GetFilters</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+          <Node z:Id="i5" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>SystemDefinedFilterManager_ApplyFiltersForTaskRecorder_86238de9-437a-4385-8253-96db421fdd1a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>3</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>6</Sequence>
+            <Children>
+              <Node z:Id="i6" i:type="CommandUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>Enter a filter value of "AUF-EU" on the "Charges code" field using the "is exactly" filter operator.</Description>
+                <Id>SystemDefinedFilterManager_ApplyFiltersForTaskRecorder_86238de9-437a-4385-8253-96db421fdd1ax7</Id>
+                <Parent z:Ref="i5" />
+                <ParentSequence>6</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>7</Sequence>
+                <Annotations />
+                <GlobalId>d3549967-3027-42c5-a54c-f4f33f19b0fa</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel></ControlLabel>
+                <ControlLabelId></ControlLabelId>
+                <FormId>204_MarkupTable_86238de9-437a-4385-8253-96db421fdd1a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <Arguments>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>[{"Capability":{"DisplayDataType":"String","DomainValues":null,"FieldId":0,"FieldLabel":"Charges code","FieldName":"","RelationLabel":"","SFKReplacementFieldBinding":"","ShowLookup":false,"TableId":0,"Version":2},"DataSourceName":"MarkupTable","FieldArrayIndex":1,"FieldName":"MarkupCode","FormDataSourceName":"MarkupTable","IsEditable":"Yes","IsQueryFilter":"Yes","MasterFormDataSourceName":"MarkupTable","Operator":"Is","RecordingReferences":[],"SFKReplacementFieldBinding":"","TableId":9112,"Values":["AUF-EU"],"Version":2}]</Value>
+                  </CommandArgument>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>1</Value>
+                  </CommandArgument>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>28</Value>
+                  </CommandArgument>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>Enter a filter value of "AUF-EU" on the "Charges code" field using the "is exactly" filter operator.</Value>
+                  </CommandArgument>
+                  <CommandArgument>
+                    <IsReference>false</IsReference>
+                    <Value>[{"FieldLabel":"Charges code","OperatorLabel":"is exactly","Values":"AUF-EU"}]</Value>
+                  </CommandArgument>
+                </Arguments>
+                <CommandName>ApplyFiltersForTaskRecorder</CommandName>
+                <ControlName>SystemDefinedFilterManager</ControlName>
+                <ControlType>FilterManager</ControlType>
+                <LabelId i:nil="true" />
+                <ReturnType>Void</ReturnType>
+                <ReturnValue></ReturnValue>
+                <TaskId i:nil="true" />
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>SystemDefinedFilterManager_ApplyFiltersForTaskRecorder</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+          <Node z:Id="i7" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>453Value_86238de9-437a-4385-8253-96db421fdd1a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>8</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>9</Sequence>
+            <Children>
+              <Node z:Id="i8" i:type="PropertyUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>In the EDI Qualifier field, type a value.</Description>
+                <Id>453Value_86238de9-437a-4385-8253-96db421fdd1ax10</Id>
+                <Parent z:Ref="i7" />
+                <ParentSequence>9</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>10</Sequence>
+                <Annotations />
+                <GlobalId>94acc49e-0f24-426b-9b1c-1cdfdfd170a4</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>EDI Qualifier</ControlLabel>
+                <ControlLabelId>@HSO_IDD0008:EDIQualifier</ControlLabelId>
+                <FormId>204_MarkupTable_86238de9-437a-4385-8253-96db421fdd1a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <BoundDataSource>MarkupTable</BoundDataSource>
+                <BoundProperty>HSOEDIQualifier</BoundProperty>
+                <ControlName>MarkupTable_HSOEDIQualifier</ControlName>
+                <ControlType>Input</ControlType>
+                <IsReference>false</IsReference>
+                <LabelId i:nil="true" />
+                <PropertyName>Value</PropertyName>
+                <UserActionType>Input</UserActionType>
+                <Value>AA</Value>
+                <ValueLabel i:nil="true" />
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>MarkupTable_HSOEDIQualifier_Value</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+          <Node z:Id="i9" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>556_0Click_86238de9-437a-4385-8253-96db421fdd1a</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>11</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>12</Sequence>
+            <Children>
+              <Node z:Id="i10" i:type="CommandUserAction">
+                <CustomDescription i:nil="true" />
+                <Description>Click Save.</Description>
+                <Id>556_0Click_86238de9-437a-4385-8253-96db421fdd1ax13</Id>
+                <Parent z:Ref="i9" />
+                <ParentSequence>12</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>13</Sequence>
+                <Annotations />
+                <GlobalId>dc54544c-1e4e-486b-8664-c0d36b7a740b</GlobalId>
+                <SystemGenerated>false</SystemGenerated>
+                <ControlLabel>Save</ControlLabel>
+                <ControlLabelId></ControlLabelId>
+                <FormId>204_MarkupTable_86238de9-437a-4385-8253-96db421fdd1a</FormId>
+                <ListContext i:nil="true" />
+                <RowIndex i:nil="true" />
+                <Arguments />
+                <CommandName>Click</CommandName>
+                <ControlName>SystemDefinedSaveButton</ControlName>
+                <ControlType>CommandButton</ControlType>
+                <LabelId i:nil="true" />
+                <ReturnType>Void</ReturnType>
+                <ReturnValue i:nil="true" />
+                <TaskId>272</TaskId>
+              </Node>
+            </Children>
+            <IsForm>false</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>SystemDefinedSaveButton_Click</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+        </Children>
+        <IsForm>true</IsForm>
+        <IsStepGroup>false</IsStepGroup>
+        <Name>MarkupTable</Name>
+        <ScopeType>Public</ScopeType>
+      </Node>
+    </Children>
+    <IsForm>false</IsForm>
+    <IsStepGroup>false</IsStepGroup>
+    <Name>Charges codes - EDI Qualifier upd</Name>
+    <ScopeType>Public</ScopeType>
+  </RootScope>
+  <UserActions xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:anyType z:Ref="i4" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i6" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i8" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i10" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+  </UserActions>
+  <Version>1</Version>
+</Recording>

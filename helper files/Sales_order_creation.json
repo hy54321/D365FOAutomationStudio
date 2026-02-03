@@ -1,0 +1,153 @@
+{
+  "dataSources": {
+    "details": [],
+    "primary": {
+      "data": null,
+      "fields": [],
+      "type": "none"
+    },
+    "relationships": []
+  },
+  "id": "1769718807250",
+  "name": "Sales order creation",
+  "settings": {
+    "comboSelectMode": "method3",
+    "delayAfterClick": 800,
+    "delayAfterInput": 400,
+    "delayAfterSave": 1000,
+    "logVerbose": false,
+    "maxRetries": 3,
+    "pauseOnError": false,
+    "suppressLookupWarnings": true
+  },
+  "steps": [
+    {
+      "controlName": "SystemDefinedNewButton",
+      "displayText": "(Alt+N)        New",
+      "fieldMapping": "",
+      "id": "1769718823162",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SalesTable_CustAccount",
+      "displayText": "",
+      "fieldMapping": "",
+      "fieldType": {
+        "allowFreetext": true,
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true
+      },
+      "id": "1769718905998",
+      "type": "input",
+      "value": "1230002",
+      "waitUntilHidden": false,
+      "waitUntilVisible": true
+    },
+    {
+      "controlName": "OK",
+      "displayText": "(Alt+Enter)        OK",
+      "fieldMapping": "",
+      "id": "1769719269763",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": true,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SalesLine_ItemId",
+      "displayText": "Item number",
+      "fieldMapping": "",
+      "id": "1769722010785",
+      "type": "grid-input",
+      "value": "00598",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SalesLine_SalesQty",
+      "displayText": "Quantity",
+      "fieldMapping": "",
+      "id": "1769722074659",
+      "type": "grid-input",
+      "value": "100",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "LineStripNew",
+      "displayText": "Add line",
+      "fieldMapping": "",
+      "id": "1769722867288",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SalesLine_ItemId",
+      "displayText": "Item number",
+      "fieldMapping": "",
+      "id": "1769722902269",
+      "type": "grid-input",
+      "value": "00599",
+      "waitForValidation": false,
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SalesLine_SalesQty",
+      "displayText": "Quantity",
+      "fieldMapping": "",
+      "id": "1769722944087",
+      "type": "grid-input",
+      "value": "200",
+      "waitForValidation": false,
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SystemDefinedSaveButton",
+      "displayText": "(Alt+S)        Save",
+      "fieldMapping": "",
+      "id": "1769722110129",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SystemDefinedRefreshButton",
+      "displayText": "Refresh",
+      "fieldMapping": "",
+      "id": "1769723077460",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SystemDefinedCloseButton",
+      "displayText": "Back",
+      "fieldMapping": "",
+      "id": "1769723153359",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": false
+    },
+    {
+      "controlName": "SystemDefinedRefreshButton",
+      "displayText": "Refresh",
+      "fieldMapping": "",
+      "id": "1769723201896",
+      "type": "click",
+      "value": "",
+      "waitUntilHidden": false,
+      "waitUntilVisible": true
+    }
+  ]
+}

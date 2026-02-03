@@ -1,0 +1,1029 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Recording xmlns:i="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.datacontract.org/2004/07/Microsoft.Dynamics.Client.ServerForm.TaskRecording">
+  <CanonicalId>a1c4370f-72d3-477f-93f3-7746178688f6</CanonicalId>
+  <CurrentSequence>78</CurrentSequence>
+  <Description></Description>
+  <FormContexts xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormID>
+        <FormName>SysOperationTemplateForm</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>HSOOrderValidationAutoCompletionController_Dialog</RecordingName>
+        <Sequence>3</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormID>
+        <FormName>SysQueryForm</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>SysQueryForm</RecordingName>
+        <Sequence>12</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>2216_SysQueryFieldLookUp_69642864-3de1-4497-aa0c-ce6a76deaa7d</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>2216_SysQueryFieldLookUp_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormID>
+        <FormName>SysQueryFieldLookUp</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>SysQueryFieldLookUp</RecordingName>
+        <Sequence>22</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>2640_RangeValue_Lookup_69642864-3de1-4497-aa0c-ce6a76deaa7d</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>2640_RangeValue_Lookup_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormID>
+        <FormName></FormName>
+        <HasMetadata>false</HasMetadata>
+        <RecordingName>RangeValue_Lookup</RecordingName>
+        <Sequence>37</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+    <d2p1:KeyValueOfstringFormContextyaScvdpM>
+      <d2p1:Key>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</d2p1:Key>
+      <d2p1:Value>
+        <Annotations i:nil="true" />
+        <FormID>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormID>
+        <FormName>SysRecurrence</FormName>
+        <HasMetadata>true</HasMetadata>
+        <RecordingName>SysRecurrence</RecordingName>
+        <Sequence>56</Sequence>
+      </d2p1:Value>
+    </d2p1:KeyValueOfstringFormContextyaScvdpM>
+  </FormContexts>
+  <Name>automated order completion</Name>
+  <RootScope z:Id="i1" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/">
+    <CustomDescription i:nil="true" />
+    <Description i:nil="true" />
+    <Id>69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+    <Parent i:nil="true" />
+    <ParentSequence>0</ParentSequence>
+    <ScreenshotUri i:nil="true" />
+    <Sequence>0</Sequence>
+    <Children>
+      <Node z:Id="i2" i:type="Scope">
+        <CustomDescription i:nil="true" />
+        <Description></Description>
+        <Id>MenuItemhsoordervalidationautocompletionaction_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+        <Parent z:Ref="i1" />
+        <ParentSequence>0</ParentSequence>
+        <ScreenshotUri i:nil="true" />
+        <Sequence>1</Sequence>
+        <Children>
+          <Node z:Id="i3" i:type="MenuItemUserAction">
+            <CustomDescription i:nil="true" />
+            <Description>Go to Sales and marketing &gt; Periodic tasks &gt; Automated order completion.</Description>
+            <Id>MenuItemhsoordervalidationautocompletionaction_69642864-3de1-4497-aa0c-ce6a76deaa7dx2</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>1</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>2</Sequence>
+            <Annotations />
+            <GlobalId>549b0f9b-08c9-4e3e-9342-137690949e84</GlobalId>
+            <SystemGenerated>false</SystemGenerated>
+            <MenuItemName>hsoordervalidationautocompletionaction</MenuItemName>
+            <MenuItemType>Action</MenuItemType>
+            <NavigationPath xmlns:d7p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+              <d7p1:string>mainmenu</d7p1:string>
+              <d7p1:string>SalesAndMarketing</d7p1:string>
+              <d7p1:string>PeriodicTasks</d7p1:string>
+            </NavigationPath>
+          </Node>
+          <Node z:Id="i4" i:type="Scope">
+            <CustomDescription i:nil="true" />
+            <Description></Description>
+            <Id>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+            <Parent z:Ref="i2" />
+            <ParentSequence>1</ParentSequence>
+            <ScreenshotUri i:nil="true" />
+            <Sequence>4</Sequence>
+            <Children>
+              <Node z:Id="i5" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>2117ExpandedChanged_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                <Parent z:Ref="i4" />
+                <ParentSequence>5</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>6</Sequence>
+                <Children>
+                  <Node z:Id="i6" i:type="CommandUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>Expand the Records to include section.</Description>
+                    <Id>2117ExpandedChanged_69642864-3de1-4497-aa0c-ce6a76deaa7dx7</Id>
+                    <Parent z:Ref="i5" />
+                    <ParentSequence>6</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>7</Sequence>
+                    <Annotations />
+                    <GlobalId>0a91426a-1a26-4de9-a55d-4a5e10fcf723</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Records to include</ControlLabel>
+                    <ControlLabelId></ControlLabelId>
+                    <FormId>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <Arguments>
+                      <CommandArgument>
+                        <IsReference>false</IsReference>
+                        <Value>0</Value>
+                      </CommandArgument>
+                    </Arguments>
+                    <CommandName>ExpandedChanged</CommandName>
+                    <ControlName>Query</ControlName>
+                    <ControlType>SectionPage</ControlType>
+                    <LabelId>@SysTaskRecorder:SectionPage_ExpandedChanged_Expand</LabelId>
+                    <ReturnType>Void</ReturnType>
+                    <ReturnValue i:nil="true" />
+                    <TaskId i:nil="true" />
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>Query_ExpandedChanged</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+              <Node z:Id="i7" i:type="Scope">
+                <CustomDescription i:nil="true" />
+                <Description></Description>
+                <Id>2143_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                <Parent z:Ref="i4" />
+                <ParentSequence>8</ParentSequence>
+                <ScreenshotUri i:nil="true" />
+                <Sequence>9</Sequence>
+                <Children>
+                  <Node z:Id="i8" i:type="CommandUserAction">
+                    <CustomDescription i:nil="true" />
+                    <Description>Click Filter.</Description>
+                    <Id>2143_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7dx10</Id>
+                    <Parent z:Ref="i7" />
+                    <ParentSequence>9</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>10</Sequence>
+                    <Annotations />
+                    <GlobalId>2ca74514-1d1d-4063-87f5-fe59ffd30426</GlobalId>
+                    <SystemGenerated>false</SystemGenerated>
+                    <ControlLabel>Filter</ControlLabel>
+                    <ControlLabelId></ControlLabelId>
+                    <FormId>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                    <ListContext i:nil="true" />
+                    <RowIndex i:nil="true" />
+                    <Arguments />
+                    <CommandName>Click</CommandName>
+                    <ControlName>QuerySelectButton</ControlName>
+                    <ControlType>Button</ControlType>
+                    <LabelId i:nil="true" />
+                    <ReturnType>Void</ReturnType>
+                    <ReturnValue i:nil="true" />
+                    <TaskId></TaskId>
+                  </Node>
+                  <Node z:Id="i9" i:type="Scope">
+                    <CustomDescription i:nil="true" />
+                    <Description></Description>
+                    <Id>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                    <Parent z:Ref="i7" />
+                    <ParentSequence>9</ParentSequence>
+                    <ScreenshotUri i:nil="true" />
+                    <Sequence>11</Sequence>
+                    <Children>
+                      <Node z:Id="i10" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>2190_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                        <Parent z:Ref="i9" />
+                        <ParentSequence>13</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>14</Sequence>
+                        <Children>
+                          <Node z:Id="i11" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>Click Add.</Description>
+                            <Id>2190_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7dx15</Id>
+                            <Parent z:Ref="i10" />
+                            <ParentSequence>14</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>15</Sequence>
+                            <Annotations />
+                            <GlobalId>ed0196fe-db8a-41b1-8db7-814f5c32a862</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Add</ControlLabel>
+                            <ControlLabelId>@SYS124603</ControlLabelId>
+                            <FormId>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                            <ListContext i:nil="true" />
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>Click</CommandName>
+                            <ControlName>RangeAdd</ControlName>
+                            <ControlType>CommandButton</ControlType>
+                            <LabelId i:nil="true" />
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId>260</TaskId>
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>RangeAdd_Click</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i12" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>2192MarkActiveRow_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                        <Parent z:Ref="i9" />
+                        <ParentSequence>16</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>17</Sequence>
+                        <Children>
+                          <Node z:Id="i13" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the list, mark the selected row.</Description>
+                            <Id>2192MarkActiveRow_69642864-3de1-4497-aa0c-ce6a76deaa7dx18</Id>
+                            <Parent z:Ref="i12" />
+                            <ParentSequence>17</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>18</Sequence>
+                            <Annotations />
+                            <GlobalId>e2f1cd86-9863-4f46-94fa-33f0789f37f5</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel></ControlLabel>
+                            <ControlLabelId></ControlLabelId>
+                            <FormId>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                            <ListContext>RangeGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>MarkActiveRow</CommandName>
+                            <ControlName>RangeGrid</ControlName>
+                            <ControlType>Grid</ControlType>
+                            <LabelId></LabelId>
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>RangeGrid_MarkActiveRow</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i14" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description i:nil="true" />
+                        <Id>2197RequestPopup_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                        <Parent z:Ref="i9" />
+                        <ParentSequence>19</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>20</Sequence>
+                        <Children>
+                          <Node z:Id="i15" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the Field field, enter or select a value.</Description>
+                            <Id>2197RequestPopup_69642864-3de1-4497-aa0c-ce6a76deaa7dx21</Id>
+                            <Parent z:Ref="i14" />
+                            <ParentSequence>20</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>21</Sequence>
+                            <Annotations>
+                              <Annotation i:type="CanonicalActionAnnotation">
+                                <CanonicalUserAction z:Id="i16" i:type="PropertyUserAction">
+                                  <CustomDescription i:nil="true" />
+                                  <Description i:nil="true" />
+                                  <Id i:nil="true" />
+                                  <Parent i:nil="true" />
+                                  <ParentSequence>0</ParentSequence>
+                                  <ScreenshotUri i:nil="true" />
+                                  <Sequence>0</Sequence>
+                                  <Annotations>
+                                    <Annotation i:type="LookupAnnotation">
+                                      <ParentFormName>SysQueryForm</ParentFormName>
+                                      <ReferenceDataSource i:nil="true" />
+                                      <TableName>TmpSysQuery</TableName>
+                                    </Annotation>
+                                  </Annotations>
+                                  <GlobalId>44b43ce6-ad13-4cf7-b843-86b7215aff8f</GlobalId>
+                                  <SystemGenerated>false</SystemGenerated>
+                                  <ControlLabel>Field</ControlLabel>
+                                  <ControlLabelId>@SYS8498</ControlLabelId>
+                                  <FormId>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                  <ListContext i:nil="true" />
+                                  <RowIndex i:nil="true" />
+                                  <BoundDataSource>Range</BoundDataSource>
+                                  <BoundProperty>FieldLabel</BoundProperty>
+                                  <ControlName>RangeField</ControlName>
+                                  <ControlType>Input</ControlType>
+                                  <IsReference>false</IsReference>
+                                  <LabelId i:nil="true" />
+                                  <PropertyName>Value</PropertyName>
+                                  <UserActionType>Input</UserActionType>
+                                  <Value>Sales order</Value>
+                                  <ValueLabel i:nil="true" />
+                                </CanonicalUserAction>
+                              </Annotation>
+                            </Annotations>
+                            <GlobalId>d5d7a46e-cdb1-4898-8d9e-c0d06b5bdb3a</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Field</ControlLabel>
+                            <ControlLabelId>@SYS8498</ControlLabelId>
+                            <FormId>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                            <ListContext>RangeGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>RequestPopup</CommandName>
+                            <ControlName>RangeField</ControlName>
+                            <ControlType>Input</ControlType>
+                            <LabelId>@SysTaskRecorder:SetValueFromLookUp</LabelId>
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId i:nil="true" />
+                          </Node>
+                          <Node z:Id="i17" i:type="Scope">
+                            <CustomDescription i:nil="true" />
+                            <Description></Description>
+                            <Id>2216_SysQueryFieldLookUp_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                            <Parent z:Ref="i14" />
+                            <ParentSequence>20</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>23</Sequence>
+                            <Children>
+                              <Node z:Id="i18" i:type="Scope">
+                                <CustomDescription i:nil="true" />
+                                <Description></Description>
+                                <Id>2276NavigationAction_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                <Parent z:Ref="i17" />
+                                <ParentSequence>31</ParentSequence>
+                                <ScreenshotUri i:nil="true" />
+                                <Sequence>32</Sequence>
+                                <Children>
+                                  <Node z:Id="i19" i:type="CommandUserAction">
+                                    <CustomDescription i:nil="true" />
+                                    <Description>In the list, click the link in the selected row.</Description>
+                                    <Id>2276NavigationAction_69642864-3de1-4497-aa0c-ce6a76deaa7dx33</Id>
+                                    <Parent z:Ref="i18" />
+                                    <ParentSequence>32</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>33</Sequence>
+                                    <Annotations>
+                                      <Annotation i:type="TaskGuideAnnotation">
+                                        <Description i:nil="true" />
+                                        <ExampleText i:nil="true" />
+                                        <GlobalId i:nil="true" />
+                                        <Hidden>true</Hidden>
+                                        <RecordingValueType>Preferred</RecordingValueType>
+                                        <Title i:nil="true" />
+                                      </Annotation>
+                                    </Annotations>
+                                    <GlobalId>fa96eb5d-4b24-4c90-b042-c0879aef998a</GlobalId>
+                                    <SystemGenerated>false</SystemGenerated>
+                                    <ControlLabel></ControlLabel>
+                                    <ControlLabelId></ControlLabelId>
+                                    <FormId>2216_SysQueryFieldLookUp_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                    <ListContext>MainGrid</ListContext>
+                                    <RowIndex i:nil="true" />
+                                    <Arguments />
+                                    <CommandName>NavigationAction</CommandName>
+                                    <ControlName>MainGrid</ControlName>
+                                    <ControlType>Grid</ControlType>
+                                    <LabelId></LabelId>
+                                    <ReturnType>Void</ReturnType>
+                                    <ReturnValue i:nil="true" />
+                                    <TaskId i:nil="true" />
+                                  </Node>
+                                </Children>
+                                <IsForm>false</IsForm>
+                                <IsStepGroup>false</IsStepGroup>
+                                <Name>MainGrid_NavigationAction</Name>
+                                <ScopeType>Private</ScopeType>
+                              </Node>
+                            </Children>
+                            <IsForm>true</IsForm>
+                            <IsStepGroup>false</IsStepGroup>
+                            <Name>SysQueryFieldLookUp</Name>
+                            <ScopeType>Private</ScopeType>
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>true</IsStepGroup>
+                        <Name>RangeField_RequestPopup</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i20" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description i:nil="true" />
+                        <Id>2198RequestPopup_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                        <Parent z:Ref="i9" />
+                        <ParentSequence>34</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>35</Sequence>
+                        <Children>
+                          <Node z:Id="i21" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the Criteria field, enter or select a value.</Description>
+                            <Id>2198RequestPopup_69642864-3de1-4497-aa0c-ce6a76deaa7dx36</Id>
+                            <Parent z:Ref="i20" />
+                            <ParentSequence>35</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>36</Sequence>
+                            <Annotations />
+                            <GlobalId>5dcd8a96-6920-44ef-936d-43160f697725</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Criteria</ControlLabel>
+                            <ControlLabelId>@SYS8815</ControlLabelId>
+                            <FormId>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                            <ListContext>RangeGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>RequestPopup</CommandName>
+                            <ControlName>RangeValue</ControlName>
+                            <ControlType>Input</ControlType>
+                            <LabelId>@SysTaskRecorder:SetValueFromLookUp</LabelId>
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId i:nil="true" />
+                          </Node>
+                          <Node z:Id="i22" i:type="Scope">
+                            <CustomDescription i:nil="true" />
+                            <Description></Description>
+                            <Id>2640_RangeValue_Lookup_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                            <Parent z:Ref="i20" />
+                            <ParentSequence>35</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>38</Sequence>
+                            <Children>
+                              <Node z:Id="i23" i:type="Scope">
+                                <CustomDescription i:nil="true" />
+                                <Description></Description>
+                                <Id>2640RequestClose_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                <Parent z:Ref="i22" />
+                                <ParentSequence>38</ParentSequence>
+                                <ScreenshotUri i:nil="true" />
+                                <Sequence>42</Sequence>
+                                <Children>
+                                  <Node z:Id="i24" i:type="CommandUserAction">
+                                    <CustomDescription i:nil="true" />
+                                    <Description>Close the page.</Description>
+                                    <Id>2640RequestClose_69642864-3de1-4497-aa0c-ce6a76deaa7dx43</Id>
+                                    <Parent z:Ref="i23" />
+                                    <ParentSequence>42</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>43</Sequence>
+                                    <Annotations>
+                                      <Annotation i:type="TaskGuideAnnotation">
+                                        <Description i:nil="true" />
+                                        <ExampleText i:nil="true" />
+                                        <GlobalId i:nil="true" />
+                                        <Hidden>true</Hidden>
+                                        <RecordingValueType>Preferred</RecordingValueType>
+                                        <Title i:nil="true" />
+                                      </Annotation>
+                                    </Annotations>
+                                    <GlobalId>13832c6f-1425-4dbd-8e17-248957abb24c</GlobalId>
+                                    <SystemGenerated>false</SystemGenerated>
+                                    <ControlLabel></ControlLabel>
+                                    <ControlLabelId></ControlLabelId>
+                                    <FormId>2640_RangeValue_Lookup_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                    <ListContext i:nil="true" />
+                                    <RowIndex i:nil="true" />
+                                    <Arguments />
+                                    <CommandName>RequestClose</CommandName>
+                                    <ControlName></ControlName>
+                                    <ControlType></ControlType>
+                                    <LabelId>@SysTaskRecorder:CloseForm</LabelId>
+                                    <ReturnType>Void</ReturnType>
+                                    <ReturnValue i:nil="true" />
+                                    <TaskId i:nil="true" />
+                                  </Node>
+                                </Children>
+                                <IsForm>false</IsForm>
+                                <IsStepGroup>false</IsStepGroup>
+                                <Name>RequestClose</Name>
+                                <ScopeType>Private</ScopeType>
+                              </Node>
+                            </Children>
+                            <IsForm>true</IsForm>
+                            <IsStepGroup>false</IsStepGroup>
+                            <Name>RangeValue_Lookup</Name>
+                            <ScopeType>Private</ScopeType>
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>true</IsStepGroup>
+                        <Name>RangeValue_RequestPopup</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i25" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>2198Value_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                        <Parent z:Ref="i9" />
+                        <ParentSequence>34</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>44</Sequence>
+                        <Children>
+                          <Node z:Id="i26" i:type="PropertyUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>In the Criteria field, type a value.</Description>
+                            <Id>2198Value_69642864-3de1-4497-aa0c-ce6a76deaa7dx45</Id>
+                            <Parent z:Ref="i25" />
+                            <ParentSequence>44</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>45</Sequence>
+                            <Annotations />
+                            <GlobalId>9f63b488-59d0-4e75-891f-64506a720f6b</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>Criteria</ControlLabel>
+                            <ControlLabelId>@SYS8815</ControlLabelId>
+                            <FormId>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                            <ListContext>RangeGrid</ListContext>
+                            <RowIndex i:nil="true" />
+                            <BoundDataSource>Range</BoundDataSource>
+                            <BoundProperty>RangeValue</BoundProperty>
+                            <ControlName>RangeValue</ControlName>
+                            <ControlType>Input</ControlType>
+                            <IsReference>false</IsReference>
+                            <LabelId i:nil="true" />
+                            <PropertyName>Value</PropertyName>
+                            <UserActionType>Input</UserActionType>
+                            <Value>S*</Value>
+                            <ValueLabel i:nil="true" />
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>RangeValue_Value</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i27" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>2204_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                        <Parent z:Ref="i9" />
+                        <ParentSequence>46</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>47</Sequence>
+                        <Children>
+                          <Node z:Id="i28" i:type="CommandUserAction">
+                            <CustomDescription i:nil="true" />
+                            <Description>Click OK.</Description>
+                            <Id>2204_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7dx48</Id>
+                            <Parent z:Ref="i27" />
+                            <ParentSequence>47</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>48</Sequence>
+                            <Annotations />
+                            <GlobalId>76c8224e-2f9a-4a62-a152-8a568021ad61</GlobalId>
+                            <SystemGenerated>false</SystemGenerated>
+                            <ControlLabel>OK</ControlLabel>
+                            <ControlLabelId></ControlLabelId>
+                            <FormId>2152_SysQueryForm_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                            <ListContext i:nil="true" />
+                            <RowIndex i:nil="true" />
+                            <Arguments />
+                            <CommandName>Click</CommandName>
+                            <ControlName>OkButton</ControlName>
+                            <ControlType>CommandButton</ControlType>
+                            <LabelId i:nil="true" />
+                            <ReturnType>Void</ReturnType>
+                            <ReturnValue i:nil="true" />
+                            <TaskId>263</TaskId>
+                          </Node>
+                        </Children>
+                        <IsForm>false</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>OkButton_Click</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                      <Node z:Id="i29" i:type="Scope">
+                        <CustomDescription i:nil="true" />
+                        <Description></Description>
+                        <Id>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                        <Parent z:Ref="i9" />
+                        <ParentSequence>11</ParentSequence>
+                        <ScreenshotUri i:nil="true" />
+                        <Sequence>51</Sequence>
+                        <Children>
+                          <Node z:Id="i30" i:type="Scope">
+                            <CustomDescription i:nil="true" />
+                            <Description></Description>
+                            <Id>2123Click_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                            <Parent z:Ref="i29" />
+                            <ParentSequence>52</ParentSequence>
+                            <ScreenshotUri i:nil="true" />
+                            <Sequence>53</Sequence>
+                            <Children>
+                              <Node z:Id="i31" i:type="CommandUserAction">
+                                <CustomDescription i:nil="true" />
+                                <Description>Click Recurrence.</Description>
+                                <Id>2123Click_69642864-3de1-4497-aa0c-ce6a76deaa7dx54</Id>
+                                <Parent z:Ref="i30" />
+                                <ParentSequence>53</ParentSequence>
+                                <ScreenshotUri i:nil="true" />
+                                <Sequence>54</Sequence>
+                                <Annotations />
+                                <GlobalId>9943892c-12e5-4ef8-b853-d17fbe6c0531</GlobalId>
+                                <SystemGenerated>false</SystemGenerated>
+                                <ControlLabel>Recurrence</ControlLabel>
+                                <ControlLabelId>@SYS70583</ControlLabelId>
+                                <FormId>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                <ListContext i:nil="true" />
+                                <RowIndex i:nil="true" />
+                                <Arguments />
+                                <CommandName>Click</CommandName>
+                                <ControlName>MnuItm_1</ControlName>
+                                <ControlType>MenuItemButton</ControlType>
+                                <LabelId></LabelId>
+                                <ReturnType>Void</ReturnType>
+                                <ReturnValue i:nil="true" />
+                                <TaskId i:nil="true" />
+                              </Node>
+                              <Node z:Id="i32" i:type="Scope">
+                                <CustomDescription i:nil="true" />
+                                <Description></Description>
+                                <Id>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                <Parent z:Ref="i30" />
+                                <ParentSequence>53</ParentSequence>
+                                <ScreenshotUri i:nil="true" />
+                                <Sequence>55</Sequence>
+                                <Children>
+                                  <Node z:Id="i33" i:type="Scope">
+                                    <CustomDescription i:nil="true" />
+                                    <Description></Description>
+                                    <Id>2741Value_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                    <Parent z:Ref="i32" />
+                                    <ParentSequence>57</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>58</Sequence>
+                                    <Children>
+                                      <Node z:Id="i34" i:type="PropertyUserAction">
+                                        <CustomDescription i:nil="true" />
+                                        <Description>In the PatternUnit field, select an option.</Description>
+                                        <Id>2741Value_69642864-3de1-4497-aa0c-ce6a76deaa7dx59</Id>
+                                        <Parent z:Ref="i33" />
+                                        <ParentSequence>58</ParentSequence>
+                                        <ScreenshotUri i:nil="true" />
+                                        <Sequence>59</Sequence>
+                                        <Annotations />
+                                        <GlobalId>043d056d-f1e3-4ebe-add3-0456b1c107b8</GlobalId>
+                                        <SystemGenerated>false</SystemGenerated>
+                                        <ControlLabel></ControlLabel>
+                                        <ControlLabelId></ControlLabelId>
+                                        <FormId>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                        <ListContext i:nil="true" />
+                                        <RowIndex i:nil="true" />
+                                        <BoundDataSource></BoundDataSource>
+                                        <BoundProperty></BoundProperty>
+                                        <ControlName>PatternUnit</ControlName>
+                                        <ControlType>RadioButton</ControlType>
+                                        <IsReference>false</IsReference>
+                                        <LabelId i:nil="true" />
+                                        <PropertyName>Value</PropertyName>
+                                        <UserActionType>Input</UserActionType>
+                                        <Value>1</Value>
+                                        <ValueLabel>Hours</ValueLabel>
+                                      </Node>
+                                    </Children>
+                                    <IsForm>false</IsForm>
+                                    <IsStepGroup>false</IsStepGroup>
+                                    <Name>PatternUnit_Value</Name>
+                                    <ScopeType>Private</ScopeType>
+                                  </Node>
+                                  <Node z:Id="i35" i:type="Scope">
+                                    <CustomDescription i:nil="true" />
+                                    <Description></Description>
+                                    <Id>2756Value_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                    <Parent z:Ref="i32" />
+                                    <ParentSequence>60</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>61</Sequence>
+                                    <Children>
+                                      <Node z:Id="i36" i:type="PropertyUserAction">
+                                        <CustomDescription i:nil="true" />
+                                        <Description>In the Count field, enter a number.</Description>
+                                        <Id>2756Value_69642864-3de1-4497-aa0c-ce6a76deaa7dx62</Id>
+                                        <Parent z:Ref="i35" />
+                                        <ParentSequence>61</ParentSequence>
+                                        <ScreenshotUri i:nil="true" />
+                                        <Sequence>62</Sequence>
+                                        <Annotations />
+                                        <GlobalId>8a4b553c-3cb5-487b-b289-d9e00a07fb54</GlobalId>
+                                        <SystemGenerated>false</SystemGenerated>
+                                        <ControlLabel>Count</ControlLabel>
+                                        <ControlLabelId></ControlLabelId>
+                                        <FormId>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                        <ListContext i:nil="true" />
+                                        <RowIndex i:nil="true" />
+                                        <BoundDataSource></BoundDataSource>
+                                        <BoundProperty></BoundProperty>
+                                        <ControlName>HourInt</ControlName>
+                                        <ControlType>Integer</ControlType>
+                                        <IsReference>false</IsReference>
+                                        <LabelId i:nil="true" />
+                                        <PropertyName>Value</PropertyName>
+                                        <UserActionType>Input</UserActionType>
+                                        <Value>4</Value>
+                                        <ValueLabel i:nil="true" />
+                                      </Node>
+                                    </Children>
+                                    <IsForm>false</IsForm>
+                                    <IsStepGroup>false</IsStepGroup>
+                                    <Name>HourInt_Value</Name>
+                                    <ScopeType>Private</ScopeType>
+                                  </Node>
+                                  <Node z:Id="i37" i:type="Scope">
+                                    <CustomDescription i:nil="true" />
+                                    <Description></Description>
+                                    <Id>2735FrameOptionValueChanged_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                    <Parent z:Ref="i32" />
+                                    <ParentSequence>63</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>64</Sequence>
+                                    <Children>
+                                      <Node z:Id="i38" i:type="CommandUserAction">
+                                        <CustomDescription i:nil="true" />
+                                        <Description>Select the No end date option.</Description>
+                                        <Id>2735FrameOptionValueChanged_69642864-3de1-4497-aa0c-ce6a76deaa7dx65</Id>
+                                        <Parent z:Ref="i37" />
+                                        <ParentSequence>64</ParentSequence>
+                                        <ScreenshotUri i:nil="true" />
+                                        <Sequence>65</Sequence>
+                                        <Annotations />
+                                        <GlobalId>fa63e8a0-472e-4cd7-9574-bdf080e4c2f9</GlobalId>
+                                        <SystemGenerated>false</SystemGenerated>
+                                        <ControlLabel>No end date</ControlLabel>
+                                        <ControlLabelId></ControlLabelId>
+                                        <FormId>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                        <ListContext i:nil="true" />
+                                        <RowIndex i:nil="true" />
+                                        <Arguments />
+                                        <CommandName>FrameOptionValueChanged</CommandName>
+                                        <ControlName>EndDate1</ControlName>
+                                        <ControlType>Group</ControlType>
+                                        <LabelId>@SysTaskRecorder:Group_RadioButton_FrameOptionValueChanged</LabelId>
+                                        <ReturnType>Void</ReturnType>
+                                        <ReturnValue i:nil="true" />
+                                        <TaskId i:nil="true" />
+                                      </Node>
+                                    </Children>
+                                    <IsForm>false</IsForm>
+                                    <IsStepGroup>false</IsStepGroup>
+                                    <Name>EndDate1_FrameOptionValueChanged</Name>
+                                    <ScopeType>Private</ScopeType>
+                                  </Node>
+                                  <Node z:Id="i39" i:type="Scope">
+                                    <CustomDescription i:nil="true" />
+                                    <Description></Description>
+                                    <Id>2730Value_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                    <Parent z:Ref="i32" />
+                                    <ParentSequence>66</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>67</Sequence>
+                                    <Children>
+                                      <Node z:Id="i40" i:type="PropertyUserAction">
+                                        <CustomDescription i:nil="true" />
+                                        <Description>In the Start date field, enter a date.</Description>
+                                        <Id>2730Value_69642864-3de1-4497-aa0c-ce6a76deaa7dx68</Id>
+                                        <Parent z:Ref="i39" />
+                                        <ParentSequence>67</ParentSequence>
+                                        <ScreenshotUri i:nil="true" />
+                                        <Sequence>68</Sequence>
+                                        <Annotations />
+                                        <GlobalId>06a12ca1-de33-42a9-8c68-03d974f131bf</GlobalId>
+                                        <SystemGenerated>false</SystemGenerated>
+                                        <ControlLabel>Start date</ControlLabel>
+                                        <ControlLabelId></ControlLabelId>
+                                        <FormId>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                        <ListContext i:nil="true" />
+                                        <RowIndex i:nil="true" />
+                                        <BoundDataSource></BoundDataSource>
+                                        <BoundProperty></BoundProperty>
+                                        <ControlName>StartDate</ControlName>
+                                        <ControlType>Date</ControlType>
+                                        <IsReference>false</IsReference>
+                                        <LabelId i:nil="true" />
+                                        <PropertyName>Value</PropertyName>
+                                        <UserActionType>Input</UserActionType>
+                                        <Value>2026-01-28</Value>
+                                        <ValueLabel i:nil="true" />
+                                      </Node>
+                                    </Children>
+                                    <IsForm>false</IsForm>
+                                    <IsStepGroup>false</IsStepGroup>
+                                    <Name>StartDate_Value</Name>
+                                    <ScopeType>Private</ScopeType>
+                                  </Node>
+                                  <Node z:Id="i41" i:type="Scope">
+                                    <CustomDescription i:nil="true" />
+                                    <Description></Description>
+                                    <Id>2731Value_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                    <Parent z:Ref="i32" />
+                                    <ParentSequence>69</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>70</Sequence>
+                                    <Children>
+                                      <Node z:Id="i42" i:type="PropertyUserAction">
+                                        <CustomDescription i:nil="true" />
+                                        <Description>In the Start time field, enter a time.</Description>
+                                        <Id>2731Value_69642864-3de1-4497-aa0c-ce6a76deaa7dx71</Id>
+                                        <Parent z:Ref="i41" />
+                                        <ParentSequence>70</ParentSequence>
+                                        <ScreenshotUri i:nil="true" />
+                                        <Sequence>71</Sequence>
+                                        <Annotations />
+                                        <GlobalId>d8859c57-0bb9-45be-bc2b-f59f6af3b55d</GlobalId>
+                                        <SystemGenerated>false</SystemGenerated>
+                                        <ControlLabel>Start time</ControlLabel>
+                                        <ControlLabelId></ControlLabelId>
+                                        <FormId>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                        <ListContext i:nil="true" />
+                                        <RowIndex i:nil="true" />
+                                        <BoundDataSource></BoundDataSource>
+                                        <BoundProperty></BoundProperty>
+                                        <ControlName>StartTime</ControlName>
+                                        <ControlType>Time</ControlType>
+                                        <IsReference>false</IsReference>
+                                        <LabelId i:nil="true" />
+                                        <PropertyName>Value</PropertyName>
+                                        <UserActionType>Input</UserActionType>
+                                        <Value>78537</Value>
+                                        <ValueLabel>21:48:57</ValueLabel>
+                                      </Node>
+                                    </Children>
+                                    <IsForm>false</IsForm>
+                                    <IsStepGroup>false</IsStepGroup>
+                                    <Name>StartTime_Value</Name>
+                                    <ScopeType>Private</ScopeType>
+                                  </Node>
+                                  <Node z:Id="i43" i:type="Scope">
+                                    <CustomDescription i:nil="true" />
+                                    <Description></Description>
+                                    <Id>2749_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                    <Parent z:Ref="i32" />
+                                    <ParentSequence>72</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>73</Sequence>
+                                    <Children>
+                                      <Node z:Id="i44" i:type="CommandUserAction">
+                                        <CustomDescription i:nil="true" />
+                                        <Description>Click OK.</Description>
+                                        <Id>2749_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7dx74</Id>
+                                        <Parent z:Ref="i43" />
+                                        <ParentSequence>73</ParentSequence>
+                                        <ScreenshotUri i:nil="true" />
+                                        <Sequence>74</Sequence>
+                                        <Annotations />
+                                        <GlobalId>4cd306b7-dfbf-454b-bbe1-cc96cbcc8baa</GlobalId>
+                                        <SystemGenerated>false</SystemGenerated>
+                                        <ControlLabel>OK</ControlLabel>
+                                        <ControlLabelId></ControlLabelId>
+                                        <FormId>2721_SysRecurrence_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                        <ListContext i:nil="true" />
+                                        <RowIndex i:nil="true" />
+                                        <Arguments />
+                                        <CommandName>Click</CommandName>
+                                        <ControlName>CommandButtonOk</ControlName>
+                                        <ControlType>CommandButton</ControlType>
+                                        <LabelId i:nil="true" />
+                                        <ReturnType>Void</ReturnType>
+                                        <ReturnValue i:nil="true" />
+                                        <TaskId>263</TaskId>
+                                      </Node>
+                                    </Children>
+                                    <IsForm>false</IsForm>
+                                    <IsStepGroup>false</IsStepGroup>
+                                    <Name>CommandButtonOk_Click</Name>
+                                    <ScopeType>Private</ScopeType>
+                                  </Node>
+                                  <Node z:Id="i45" i:type="Scope">
+                                    <CustomDescription i:nil="true" />
+                                    <Description></Description>
+                                    <Id>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                    <Parent z:Ref="i32" />
+                                    <ParentSequence>55</ParentSequence>
+                                    <ScreenshotUri i:nil="true" />
+                                    <Sequence>75</Sequence>
+                                    <Children>
+                                      <Node z:Id="i46" i:type="Scope">
+                                        <CustomDescription i:nil="true" />
+                                        <Description></Description>
+                                        <Id>2136_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7d</Id>
+                                        <Parent z:Ref="i45" />
+                                        <ParentSequence>76</ParentSequence>
+                                        <ScreenshotUri i:nil="true" />
+                                        <Sequence>77</Sequence>
+                                        <Children>
+                                          <Node z:Id="i47" i:type="CommandUserAction">
+                                            <CustomDescription i:nil="true" />
+                                            <Description>Click OK.</Description>
+                                            <Id>2136_0Click_69642864-3de1-4497-aa0c-ce6a76deaa7dx78</Id>
+                                            <Parent z:Ref="i46" />
+                                            <ParentSequence>77</ParentSequence>
+                                            <ScreenshotUri i:nil="true" />
+                                            <Sequence>78</Sequence>
+                                            <Annotations />
+                                            <GlobalId>c8ff0f3c-d1e4-4e23-9f36-c1013930adfc</GlobalId>
+                                            <SystemGenerated>false</SystemGenerated>
+                                            <ControlLabel>OK</ControlLabel>
+                                            <ControlLabelId></ControlLabelId>
+                                            <FormId>2111_HSOOrderValidationAutoCompletionController_Dialog_69642864-3de1-4497-aa0c-ce6a76deaa7d</FormId>
+                                            <ListContext i:nil="true" />
+                                            <RowIndex i:nil="true" />
+                                            <Arguments />
+                                            <CommandName>Click</CommandName>
+                                            <ControlName>CommandButton</ControlName>
+                                            <ControlType>CommandButton</ControlType>
+                                            <LabelId i:nil="true" />
+                                            <ReturnType>Void</ReturnType>
+                                            <ReturnValue i:nil="true" />
+                                            <TaskId>263</TaskId>
+                                          </Node>
+                                        </Children>
+                                        <IsForm>false</IsForm>
+                                        <IsStepGroup>false</IsStepGroup>
+                                        <Name>CommandButton_Click</Name>
+                                        <ScopeType>Private</ScopeType>
+                                      </Node>
+                                    </Children>
+                                    <IsForm>true</IsForm>
+                                    <IsStepGroup>false</IsStepGroup>
+                                    <Name>HSOOrderValidationAutoCompletionController_Dialog</Name>
+                                    <ScopeType>Private</ScopeType>
+                                  </Node>
+                                </Children>
+                                <IsForm>true</IsForm>
+                                <IsStepGroup>false</IsStepGroup>
+                                <Name>SysRecurrence</Name>
+                                <ScopeType>Public</ScopeType>
+                              </Node>
+                            </Children>
+                            <IsForm>false</IsForm>
+                            <IsStepGroup>false</IsStepGroup>
+                            <Name>MnuItm_1_Click</Name>
+                            <ScopeType>Private</ScopeType>
+                          </Node>
+                        </Children>
+                        <IsForm>true</IsForm>
+                        <IsStepGroup>false</IsStepGroup>
+                        <Name>HSOOrderValidationAutoCompletionController_Dialog</Name>
+                        <ScopeType>Private</ScopeType>
+                      </Node>
+                    </Children>
+                    <IsForm>true</IsForm>
+                    <IsStepGroup>false</IsStepGroup>
+                    <Name>SysQueryForm</Name>
+                    <ScopeType>Public</ScopeType>
+                  </Node>
+                </Children>
+                <IsForm>false</IsForm>
+                <IsStepGroup>false</IsStepGroup>
+                <Name>QuerySelectButton_Click</Name>
+                <ScopeType>Private</ScopeType>
+              </Node>
+            </Children>
+            <IsForm>true</IsForm>
+            <IsStepGroup>false</IsStepGroup>
+            <Name>HSOOrderValidationAutoCompletionController_Dialog</Name>
+            <ScopeType>Private</ScopeType>
+          </Node>
+        </Children>
+        <IsForm>false</IsForm>
+        <IsStepGroup>false</IsStepGroup>
+        <Name>MenuItem_hsoordervalidationautocompletionaction</Name>
+        <ScopeType>Private</ScopeType>
+      </Node>
+    </Children>
+    <IsForm>false</IsForm>
+    <IsStepGroup>false</IsStepGroup>
+    <Name>automated order completion</Name>
+    <ScopeType>Public</ScopeType>
+  </RootScope>
+  <UserActions xmlns:d2p1="http://schemas.microsoft.com/2003/10/Serialization/Arrays">
+    <d2p1:anyType z:Ref="i3" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i6" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i8" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i11" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i13" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i15" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i19" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i21" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i24" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i26" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i28" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i31" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i34" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i36" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i38" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i40" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i42" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i44" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+    <d2p1:anyType z:Ref="i47" xmlns:z="http://schemas.microsoft.com/2003/10/Serialization/" />
+  </UserActions>
+  <Version>1</Version>
+</Recording>

@@ -1,0 +1,140 @@
+{
+  "id": "1769807186587",
+  "name": "so creation test2",
+  "description": "",
+  "steps": [
+    {
+      "id": "1769807186586_5_rypi7",
+      "displayText": "New",
+      "controlName": "SystemDefinedNewButton",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    },
+    {
+      "id": "1769807186587_11_blbhv",
+      "displayText": "Customer account",
+      "controlName": "SalesTable_CustAccount",
+      "fieldMapping": "",
+      "waitUntilVisible": true,
+      "waitUntilHidden": false,
+      "type": "input",
+      "value": "1230002",
+      "fieldType": {
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true,
+        "allowFreetext": true
+      }
+    },
+    {
+      "id": "1769807186587_15_bv1c6",
+      "displayText": "OK",
+      "controlName": "OK",
+      "fieldMapping": "",
+      "waitUntilVisible": true,
+      "waitUntilHidden": true,
+      "type": "click",
+      "value": ""
+    },
+    {
+      "id": "1769807186587_30_cbmm4",
+      "displayText": "Item number",
+      "controlName": "SalesLine_ItemId",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "grid-input",
+      "value": "00598",
+      "needsValue": true,
+      "fieldType": {
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true,
+        "allowFreetext": true
+      },
+      "waitForValidation": true
+    },
+    {
+      "id": "1769807186587_47_h1khw",
+      "displayText": "Quantity",
+      "controlName": "SalesLine_SalesQty",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "grid-input",
+      "value": "100.00"
+    },
+    {
+      "id": "1769807186587_50_wmk4t",
+      "displayText": "Add line",
+      "controlName": "LineStripNew",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    },
+    {
+      "id": "1769807186587_58_gm7de",
+      "displayText": "Item number",
+      "controlName": "SalesLine_ItemId",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "grid-input",
+      "value": "00599",
+      "needsValue": true,
+      "fieldType": {
+        "controlType": "Input",
+        "inputType": "lookup",
+        "isLookup": true,
+        "allowFreetext": true
+      },
+      "waitForValidation": true
+    },
+    {
+      "id": "1769807186587_72_tkdcd",
+      "displayText": "Quantity",
+      "controlName": "SalesLine_SalesQty",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "grid-input",
+      "value": "200.00"
+    },
+    {
+      "id": "1769807186587_76_cviwy",
+      "displayText": "Save",
+      "controlName": "SystemDefinedSaveButton",
+      "fieldMapping": "",
+      "waitUntilVisible": false,
+      "waitUntilHidden": false,
+      "type": "click",
+      "value": ""
+    }
+  ],
+  "dataSources": {
+    "primary": {
+      "type": "none",
+      "data": null,
+      "fields": []
+    },
+    "details": [],
+    "relationships": []
+  },
+  "settings": {
+    "delayAfterClick": 800,
+    "delayAfterInput": 400,
+    "delayAfterSave": 1000,
+    "maxRetries": 3,
+    "logVerbose": false,
+    "pauseOnError": false,
+    "suppressLookupWarnings": true,
+    "comboSelectMode": "method3"
+  },
+  "importedFrom": "TaskRecorder",
+  "importDate": "2026-01-30T21:06:26.587Z"
+}
