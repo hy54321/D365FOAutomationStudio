@@ -901,6 +901,36 @@ header h1 {
     border-top: 1px solid #eee;
 }
 
+.param-table {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.param-row {
+    display: grid;
+    grid-template-columns: 1fr 140px 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.param-row .btn-icon {
+    font-size: 12px;
+    padding: 4px;
+}
+
+.param-value-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.param-clipboard-note {
+    font-size: 10px;
+    color: #888;
+}
+
 /* Data Sources Panel */
 .data-sources-panel {
     border: 1px solid #e0e0e0;

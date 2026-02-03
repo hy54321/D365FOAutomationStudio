@@ -270,6 +270,256 @@ export const workflowMethods = {
         this.renderRelationships();
     },
 
+    workflowHasLoops(workflow) {
+        return (workflow?.steps || []).some(step => step.type === 'loop-start' || step.type === 'loop-end');
+    },
+
+    normalizeParamName(name) {
+        return (name || '').trim().toLowerCase();
+    },
+
+    getParamNamesFromString(text) {
+        const params = new Set();
+        if (typeof text !== 'string') return params;
+        const regex = /\$\{([A-Za-z0-9_]+)\}/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            const startIndex = match.index;
+            if (startIndex > 0 && text[startIndex - 1] === '\\') continue;
+            params.add(this.normalizeParamName(match[1]));
+        }
+        return params;
+    },
+
+    extractRequiredParamsFromObject(obj, params) {
+        if (!obj) return;
+        if (typeof obj === 'string') {
+            for (const name of this.getParamNamesFromString(obj)) {
+                params.add(name);
+            }
+            return;
+        }
+        if (Array.isArray(obj)) {
+            obj.forEach(item => this.extractRequiredParamsFromObject(item, params));
+            return;
+        }
+        if (typeof obj === 'object') {
+            Object.values(obj).forEach(value => this.extractRequiredParamsFromObject(value, params));
+        }
+    },
+
+    extractRequiredParamsFromWorkflow(workflow) {
+        const params = new Set();
+        (workflow?.steps || []).forEach(step => {
+            this.extractRequiredParamsFromObject(step, params);
+        });
+        return Array.from(params);
+    },
+
+    normalizeBindingValue(value) {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            const source = value.valueSource || 'static';
+            if (source === 'data') {
+                return { valueSource: 'data', fieldMapping: value.fieldMapping || '' };
+            }
+            if (source === 'clipboard') {
+                return { valueSource: 'clipboard' };
+            }
+            return { valueSource: 'static', value: value.value ?? '' };
+        }
+        return { valueSource: 'static', value: value ?? '' };
+    },
+
+    buildNormalizedBindings(bindings) {
+        const normalized = {};
+        Object.entries(bindings || {}).forEach(([key, value]) => {
+            const name = this.normalizeParamName(key);
+            if (!name) return;
+            normalized[name] = this.normalizeBindingValue(value);
+        });
+        return normalized;
+    },
+
+    substituteParamsInString(text, bindings, warnings, contextLabel) {
+        if (typeof text !== 'string') return text;
+        return text.replace(/\\?\$\{([A-Za-z0-9_]+)\}/g, (match, name) => {
+            if (match.startsWith('\\')) {
+                return match.slice(1);
+            }
+            const key = this.normalizeParamName(name);
+            if (!Object.prototype.hasOwnProperty.call(bindings, key)) {
+                warnings?.push(`Missing parameter "${name}" while expanding ${contextLabel}.`);
+                return '';
+            }
+            const binding = bindings[key];
+            if (binding?.valueSource && binding.valueSource !== 'static') {
+                warnings?.push(`Parameter "${name}" requires ${binding.valueSource} source but was used in text in ${contextLabel}.`);
+                return '';
+            }
+            const valueStr = binding?.value ?? '';
+            if (valueStr === '') {
+                warnings?.push(`Parameter "${name}" resolved to empty value in ${contextLabel}.`);
+            }
+            return valueStr;
+        });
+    },
+
+    applyParamBindingToValueField(rawValue, step, bindings, warnings, contextLabel) {
+        const exactMatch = rawValue.match(/^\$\{([A-Za-z0-9_]+)\}$/);
+        if (!exactMatch) return null;
+        const name = exactMatch[1];
+        const key = this.normalizeParamName(name);
+        const binding = bindings[key];
+        if (!binding) {
+            warnings?.push(`Missing parameter "${name}" while expanding ${contextLabel}.`);
+            return { value: '' };
+        }
+
+        const stepType = step?.type || '';
+        const supportsValueSource = ['input', 'select', 'lookupSelect', 'grid-input', 'filter', 'query-filter'].includes(stepType);
+        if (!supportsValueSource && binding.valueSource !== 'static') {
+            warnings?.push(`Parameter "${name}" uses ${binding.valueSource} but step type "${stepType}" does not support it in ${contextLabel}.`);
+            return { value: '' };
+        }
+
+        if (binding.valueSource === 'data') {
+            return {
+                value: '',
+                valueSource: 'data',
+                fieldMapping: binding.fieldMapping || ''
+            };
+        }
+
+        if (binding.valueSource === 'clipboard') {
+            return {
+                value: '',
+                valueSource: 'clipboard',
+                fieldMapping: ''
+            };
+        }
+
+        const valueStr = binding.value ?? '';
+        if (valueStr === '') {
+            warnings?.push(`Parameter "${name}" resolved to empty value in ${contextLabel}.`);
+        }
+        return {
+            value: valueStr,
+            valueSource: 'static'
+        };
+    },
+
+    substituteParamsInObject(obj, bindings, warnings, contextLabel) {
+        if (obj === null || obj === undefined) return obj;
+        if (typeof obj === 'string') {
+            return this.substituteParamsInString(obj, bindings, warnings, contextLabel);
+        }
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.substituteParamsInObject(item, bindings, warnings, contextLabel));
+        }
+        if (typeof obj === 'object') {
+            const result = { ...obj };
+            const overrideKeys = new Set();
+            Object.entries(obj).forEach(([key, value]) => {
+                if (key === 'value' && typeof value === 'string') {
+                    const applied = this.applyParamBindingToValueField(value, obj, bindings, warnings, contextLabel);
+                    if (applied) {
+                        result.value = applied.value;
+                        if (applied.valueSource !== undefined) {
+                            result.valueSource = applied.valueSource;
+                            overrideKeys.add('valueSource');
+                        }
+                        if (applied.fieldMapping !== undefined) {
+                            result.fieldMapping = applied.fieldMapping;
+                            overrideKeys.add('fieldMapping');
+                        }
+                        return;
+                    }
+                }
+
+                if (overrideKeys.has(key)) return;
+                result[key] = this.substituteParamsInObject(value, bindings, warnings, contextLabel);
+            });
+            return result;
+        }
+        return obj;
+    },
+
+    resolveBindingMap(rawBindings, parentBindings, warnings, contextLabel) {
+        const normalized = this.buildNormalizedBindings(rawBindings);
+        const resolved = {};
+        Object.entries(normalized).forEach(([key, binding]) => {
+            if (binding.valueSource === 'static') {
+                const resolvedValue = this.substituteParamsInString(String(binding.value ?? ''), parentBindings, warnings, contextLabel);
+                resolved[key] = { valueSource: 'static', value: resolvedValue };
+            } else if (binding.valueSource === 'data') {
+                const resolvedField = this.substituteParamsInString(String(binding.fieldMapping ?? ''), parentBindings, warnings, contextLabel);
+                resolved[key] = { valueSource: 'data', fieldMapping: resolvedField };
+            } else if (binding.valueSource === 'clipboard') {
+                resolved[key] = { valueSource: 'clipboard' };
+            } else {
+                resolved[key] = { valueSource: 'static', value: '' };
+            }
+        });
+        return resolved;
+    },
+
+    expandWorkflowForExecution(rootWorkflow) {
+        const warnings = [];
+        const expand = (workflow, bindings, stack) => {
+            if (!workflow || !Array.isArray(workflow.steps)) {
+                throw new Error('Invalid workflow structure.');
+            }
+
+            const workflowId = workflow.id || workflow.name || 'workflow';
+            if (stack.includes(workflowId)) {
+                const cycle = [...stack, workflowId].join(' -> ');
+                throw new Error(`Subworkflow cycle detected: ${cycle}`);
+            }
+
+            const requiredParams = this.extractRequiredParamsFromWorkflow(workflow);
+            const missing = requiredParams.filter(name => !Object.prototype.hasOwnProperty.call(bindings, name));
+            if (missing.length) {
+                const wfName = workflow.name || workflow.id || 'workflow';
+                throw new Error(`Missing parameters for workflow "${wfName}": ${missing.join(', ')}`);
+            }
+
+            const nextStack = [...stack, workflowId];
+            const expandedSteps = [];
+
+            for (const step of workflow.steps) {
+                if (step?.type === 'subworkflow') {
+                    const subId = step.subworkflowId;
+                    if (!subId) {
+                        throw new Error(`Subworkflow step missing target in "${workflow.name || workflow.id}".`);
+                    }
+                    const subWorkflow = (this.workflows || []).find(w => w.id === subId);
+                    if (!subWorkflow) {
+                        throw new Error(`Subworkflow not found: ${subId}`);
+                    }
+                    if (this.workflowHasLoops(subWorkflow)) {
+                        const subName = subWorkflow.name || subWorkflow.id || 'workflow';
+                        throw new Error(`Subworkflow "${subName}" contains loops and cannot be used.`);
+                    }
+
+                    const resolvedBindings = this.resolveBindingMap(step.paramBindings || {}, bindings, warnings, `subworkflow "${subWorkflow.name || subWorkflow.id}"`);
+                    const expandedSub = expand(subWorkflow, resolvedBindings, nextStack);
+                    expandedSteps.push(...expandedSub.steps);
+                } else {
+                    const substituted = this.substituteParamsInObject(step, bindings, warnings, `workflow "${workflow.name || workflow.id}"`);
+                    expandedSteps.push(substituted);
+                }
+            }
+
+            return {
+                ...workflow,
+                steps: expandedSteps
+            };
+        };
+
+        const expanded = expand(rootWorkflow, {}, []);
+        return { workflow: expanded, warnings };
+    },
+
     async executeWorkflow(workflow) {
         // Show run options modal first
         this.showRunOptionsModal(workflow);
@@ -277,6 +527,18 @@ export const workflowMethods = {
 
     async executeWorkflowWithOptions(workflow, runOptions) {
         try {
+            let workflowToExecute = workflow;
+            let expansionWarnings = [];
+            try {
+                const expansion = this.expandWorkflowForExecution(workflow);
+                workflowToExecute = expansion.workflow;
+                expansionWarnings = expansion.warnings || [];
+            } catch (expansionError) {
+                this.showNotification(expansionError.message || 'Failed to expand workflow', 'error');
+                this.addLog('error', expansionError.message || 'Failed to expand workflow');
+                return;
+            }
+
             // Use linked tab if available
             let tab;
             if (this.linkedTabId) {
@@ -305,7 +567,7 @@ export const workflowMethods = {
             }
 
             // Initialize execution state
-            const totalDataRows = workflow.dataSources?.primary?.data?.length || 0;
+            const totalDataRows = workflowToExecute.dataSources?.primary?.data?.length || 0;
             let effectiveRowCount = totalDataRows;
 
             // Calculate how many rows will actually be processed
@@ -318,17 +580,17 @@ export const workflowMethods = {
 
             this.executionState.isRunning = true;
             this.executionState.isPaused = false;
-            this.executionState.currentWorkflowId = workflow.id;
+            this.executionState.currentWorkflowId = workflowToExecute.id;
             this.executionState.currentStepIndex = 0;
-            this.executionState.totalSteps = workflow.steps.length;
+            this.executionState.totalSteps = workflowToExecute.steps.length;
             this.executionState.currentRow = 0;
             this.executionState.totalRows = totalDataRows;
             this.executionState.runOptions = runOptions;
-            this.lastRunOptionsByWorkflow[workflow.id] = { ...runOptions };
+            this.lastRunOptionsByWorkflow[workflowToExecute.id] = { ...runOptions };
 
             this.clearStepStatuses();
             this.updateExecutionBar();
-            this.markWorkflowAsRunning(workflow.id);
+            this.markWorkflowAsRunning(workflowToExecute.id);
 
             // Clear and open logs if dry run
             if (runOptions.dryRun) {
@@ -337,7 +599,7 @@ export const workflowMethods = {
                 this.setLogsPanelOpen(true);
             }
 
-            this.addLog('info', `Starting workflow: ${workflow.name}`);
+            this.addLog('info', `Starting workflow: ${workflowToExecute.name}`);
             if (runOptions.skipRows > 0) {
                 this.addLog('info', `Skipping first ${runOptions.skipRows} rows`);
             }
@@ -345,12 +607,16 @@ export const workflowMethods = {
                 this.addLog('info', `Limiting to ${runOptions.limitRows} rows`);
             }
 
-            this.showNotification(`Running workflow: ${workflow.name}${runOptions.dryRun ? ' (DRY RUN)' : ''}...`, 'info');
+            if (expansionWarnings.length) {
+                expansionWarnings.forEach(message => this.addLog('warning', message));
+            }
+
+            this.showNotification(`Running workflow: ${workflowToExecute.name}${runOptions.dryRun ? ' (DRY RUN)' : ''}...`, 'info');
 
             // Send workflow to content script for execution
             try {
                 // Merge current UI settings into the workflow before executing
-                const workflowToSend = JSON.parse(JSON.stringify(workflow));
+                const workflowToSend = JSON.parse(JSON.stringify(workflowToExecute));
                 workflowToSend.settings = { ...(workflowToSend.settings || {}), ...(this.settings || {}) };
                 workflowToSend.runOptions = runOptions;
 

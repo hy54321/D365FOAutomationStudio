@@ -218,6 +218,136 @@ export const stepMethods = {
         return ['click', 'input', 'select', 'lookupSelect', 'checkbox', 'grid-input'].includes(stepType);
     },
 
+    workflowHasLoops(workflow) {
+        return (workflow?.steps || []).some(step => step.type === 'loop-start' || step.type === 'loop-end');
+    },
+
+    normalizeParamBinding(binding) {
+        if (binding && typeof binding === 'object' && !Array.isArray(binding)) {
+            return {
+                valueSource: binding.valueSource || 'static',
+                value: binding.value ?? '',
+                fieldMapping: binding.fieldMapping ?? ''
+            };
+        }
+        return {
+            valueSource: 'static',
+            value: binding ?? '',
+            fieldMapping: ''
+        };
+    },
+
+    renderParamFieldMappingDropdown(currentValue) {
+        return `
+            <select class="form-control param-field">
+                <option value="">Select data field</option>
+                ${(this.dataSources?.primary?.fields || []).map(field =>
+                    `<option value="${field}" ${currentValue === field ? 'selected' : ''}>${field}</option>`
+                ).join('')}
+            </select>
+        `;
+    },
+
+    renderSubworkflowParamRows(paramBindings, orderedNames = []) {
+        const entries = Object.entries(paramBindings || {});
+        const ordered = orderedNames.length
+            ? orderedNames.map(name => [name, (paramBindings || {})[name]]).filter(([name]) => name)
+            : entries;
+
+        if (ordered.length === 0) {
+            return `
+                <div class="param-row">
+                    <input type="text" class="form-control param-name" placeholder="Parameter name">
+                    <select class="form-control param-source">
+                        <option value="static" selected>Static Value</option>
+                        <option value="data">From Data Field</option>
+                        <option value="clipboard">Clipboard</option>
+                    </select>
+                    <div class="param-value-group">
+                        <input type="text" class="form-control param-value" placeholder="Value">
+                        <div class="param-field-group is-hidden">
+                            ${this.renderParamFieldMappingDropdown('')}
+                        </div>
+                        <div class="param-clipboard-note is-hidden">Uses clipboard when the step runs.</div>
+                    </div>
+                    <button type="button" class="btn-icon param-remove" title="Remove">✕</button>
+                </div>
+            `;
+        }
+
+        return ordered.map(([name, binding]) => {
+            const normalized = this.normalizeParamBinding(binding);
+            const isStatic = normalized.valueSource === 'static';
+            const isData = normalized.valueSource === 'data';
+            const isClipboard = normalized.valueSource === 'clipboard';
+            return `
+                <div class="param-row">
+                    <input type="text" class="form-control param-name" value="${name}" placeholder="Parameter name">
+                    <select class="form-control param-source">
+                        <option value="static" ${isStatic ? 'selected' : ''}>Static Value</option>
+                        <option value="data" ${isData ? 'selected' : ''}>From Data Field</option>
+                        <option value="clipboard" ${isClipboard ? 'selected' : ''}>Clipboard</option>
+                    </select>
+                    <div class="param-value-group">
+                        <input type="text" class="form-control param-value ${isStatic ? '' : 'is-hidden'}" value="${normalized.value ?? ''}" placeholder="Value">
+                        <div class="param-field-group ${isData ? '' : 'is-hidden'}">
+                            ${this.renderParamFieldMappingDropdown(normalized.fieldMapping)}
+                        </div>
+                        <div class="param-clipboard-note ${isClipboard ? '' : 'is-hidden'}">Uses clipboard when the step runs.</div>
+                    </div>
+                    <button type="button" class="btn-icon param-remove" title="Remove">✕</button>
+                </div>
+            `;
+        }).join('');
+    },
+
+    addSubworkflowParamRow(name = '', value = '') {
+        const container = document.getElementById('subworkflowParamsTable');
+        if (!container) return;
+        const row = document.createElement('div');
+        row.className = 'param-row';
+        const normalized = this.normalizeParamBinding({ valueSource: 'static', value, fieldMapping: '' });
+        row.innerHTML = `
+            <input type="text" class="form-control param-name" value="${name}" placeholder="Parameter name">
+            <select class="form-control param-source">
+                <option value="static" selected>Static Value</option>
+                <option value="data">From Data Field</option>
+                <option value="clipboard">Clipboard</option>
+            </select>
+            <div class="param-value-group">
+                <input type="text" class="form-control param-value" value="${normalized.value ?? ''}" placeholder="Value">
+                <div class="param-field-group is-hidden">
+                    ${this.renderParamFieldMappingDropdown('')}
+                </div>
+                <div class="param-clipboard-note is-hidden">Uses clipboard when the step runs.</div>
+            </div>
+            <button type="button" class="btn-icon param-remove" title="Remove">✕</button>
+        `;
+        container.appendChild(row);
+        this.setupAutoSaveListeners();
+    },
+
+    collectSubworkflowParamBindings() {
+        const container = document.getElementById('subworkflowParamsTable');
+        if (!container) return {};
+        const bindings = {};
+        container.querySelectorAll('.param-row').forEach(row => {
+            const name = row.querySelector('.param-name')?.value?.trim() || '';
+            const valueSource = row.querySelector('.param-source')?.value || 'static';
+            const value = row.querySelector('.param-value')?.value ?? '';
+            const fieldMapping = row.querySelector('.param-field')?.value ?? '';
+            if (!name) return;
+            if (valueSource === 'data') {
+                bindings[name] = { valueSource, fieldMapping };
+            } else if (valueSource === 'clipboard') {
+                bindings[name] = { valueSource };
+            } else {
+                bindings[name] = { valueSource: 'static', value };
+            }
+        });
+        return bindings;
+    },
+
     renderWaitOptions() {
         const waitVisible = this.currentStep?.waitUntilVisible ? 'checked' : '';
         const waitHidden = this.currentStep?.waitUntilHidden ? 'checked' : '';
@@ -390,6 +520,95 @@ export const stepMethods = {
                     <small style="color: #666; font-size: 11px;">Select which loop this ends</small>
                 </div>
             `;
+        } else if (stepType === 'subworkflow') {
+            const currentId = this.currentWorkflow?.id;
+            const eligible = (this.workflows || []).filter(w => w.id !== currentId && !this.workflowHasLoops(w));
+            const selectedId = this.currentStep?.subworkflowId || (eligible[0]?.id || '');
+            const options = eligible.length
+                ? eligible.map(w => `<option value="${w.id}" ${w.id === selectedId ? 'selected' : ''}>${w.name || 'Untitled Workflow'}</option>`).join('')
+                : '<option value="">No eligible workflows</option>';
+
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Subworkflow</label>
+                    <select id="stepSubworkflowId" class="form-control" ${eligible.length ? '' : 'disabled'}>
+                        ${options}
+                    </select>
+                    <small style="color: #666; font-size: 11px;">Workflows with loops cannot be used as subworkflows.</small>
+                </div>
+                <div class="form-group">
+                    <label>Parameters</label>
+                    <div class="param-table" id="subworkflowParamsTable">
+                        ${this.renderSubworkflowParamRows(this.currentStep?.paramBindings)}
+                    </div>
+                    <button type="button" id="addSubworkflowParam" class="btn btn-secondary btn-sm">Add parameter</button>
+                    <small style="color: #666; font-size: 11px;">Use \${ParameterName} inside subworkflow fields. Parameter names are case-insensitive.</small>
+                </div>
+            `;
+
+            setTimeout(() => {
+                document.getElementById('addSubworkflowParam')?.addEventListener('click', () => {
+                    this.addSubworkflowParamRow();
+                });
+
+                const table = document.getElementById('subworkflowParamsTable');
+                table?.addEventListener('click', (e) => {
+                    if (e.target?.classList?.contains('param-remove')) {
+                        e.target.closest('.param-row')?.remove();
+                        this.autoSaveStep();
+                    }
+                });
+
+                table?.addEventListener('change', (e) => {
+                    if (e.target?.classList?.contains('param-source')) {
+                        const row = e.target.closest('.param-row');
+                        if (!row) return;
+                        const source = e.target.value;
+                        row.querySelector('.param-value')?.classList.toggle('is-hidden', source !== 'static');
+                        row.querySelector('.param-field-group')?.classList.toggle('is-hidden', source !== 'data');
+                        row.querySelector('.param-clipboard-note')?.classList.toggle('is-hidden', source !== 'clipboard');
+                        this.autoSaveStep();
+                    }
+                });
+
+                document.getElementById('stepSubworkflowId')?.addEventListener('change', (e) => {
+                    const newId = e.target.value;
+                    const selectedWorkflow = (this.workflows || []).find(w => w.id === newId);
+                    if (!selectedWorkflow) return;
+                    const required = (this.extractRequiredParamsFromWorkflow?.(selectedWorkflow) || []);
+                    const existing = this.collectSubworkflowParamBindings();
+                    const normalizedExisting = {};
+                    Object.entries(existing).forEach(([key, value]) => {
+                        normalizedExisting[(key || '').toLowerCase()] = { name: key, value };
+                    });
+
+                    const orderedNames = [];
+                    const merged = {};
+                    required.forEach(name => {
+                        const key = (name || '').toLowerCase();
+                        orderedNames.push(name);
+                        if (normalizedExisting[key]) {
+                            merged[name] = normalizedExisting[key].value;
+                        } else {
+                            merged[name] = { valueSource: 'static', value: '' };
+                        }
+                    });
+
+                    Object.entries(existing).forEach(([key, value]) => {
+                        const normalized = (key || '').toLowerCase();
+                        if (required.map(n => n.toLowerCase()).includes(normalized)) return;
+                        orderedNames.push(key);
+                        merged[key] = value;
+                    });
+
+                    const paramTable = document.getElementById('subworkflowParamsTable');
+                    if (paramTable) {
+                        paramTable.innerHTML = this.renderSubworkflowParamRows(merged, orderedNames);
+                    }
+                    this.setupAutoSaveListeners();
+                    this.autoSaveStep();
+                });
+            }, 0);
         } else if (stepType === 'filter') {
             const hasFieldMapping = this.currentStep?.fieldMapping && this.currentStep.fieldMapping !== '';
             const valueSource = this.currentStep?.valueSource || (hasFieldMapping ? 'data' : 'static');
@@ -1114,6 +1333,9 @@ export const stepMethods = {
             this.currentStep.iterationLimit = parseInt(document.getElementById('stepIterationLimit')?.value) || 0;
         } else if (this.currentStep.type === 'loop-end') {
             this.currentStep.loopRef = document.getElementById('stepLoopRef')?.value || '';
+        } else if (this.currentStep.type === 'subworkflow') {
+            this.currentStep.subworkflowId = document.getElementById('stepSubworkflowId')?.value || '';
+            this.currentStep.paramBindings = this.collectSubworkflowParamBindings();
         } else if (this.currentStep.type === 'filter') {
             this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
@@ -1340,6 +1562,13 @@ export const stepMethods = {
                 stepIcon = 'LOOP';
                 const refLoop = this.currentWorkflow.steps.find(s => s.id === step.loopRef);
                 stepDesc = `<span class="loop-indicator">LOOP END:</span> ${refLoop?.loopName || 'Loop'}`;
+            } else if (step.type === 'subworkflow') {
+                stepIcon = 'SUB';
+                const sub = (this.workflows || []).find(w => w.id === step.subworkflowId);
+                const subName = sub?.name || 'Unknown Workflow';
+                const paramCount = Object.keys(step.paramBindings || {}).length;
+                const paramLabel = paramCount > 0 ? ` (${paramCount} param${paramCount > 1 ? 's' : ''})` : '';
+                stepDesc = `Call subworkflow "${subName}"${paramLabel}`;
             } else if (step.type === 'filter') {
                 stepIcon = 'FLT';
                 const method = step.filterMethod || 'is exactly';
