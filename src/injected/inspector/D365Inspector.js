@@ -214,6 +214,37 @@ export default class D365Inspector {
             });
         });
 
+        // Find action pane tabs (AppBar tabs)
+        document.querySelectorAll('[data-dyn-role="AppBarTab"], .appBarTab, [role="tab"][data-dyn-controlname]').forEach(el => {
+            const controlName = el.getAttribute('data-dyn-controlname');
+            if (!controlName) return;
+            if (elements.some(e => e.controlName === controlName)) return;
+
+            // Skip tabs inside dialogs/flyouts
+            if (el.closest('.dialog-content, [data-dyn-role="Dialog"], .dialog-container, .flyout-container, [role="dialog"]')) {
+                return;
+            }
+
+            const formName = this.getElementFormName(el);
+            if (activeFormOnly && activeForm && formName !== activeForm) return;
+
+            const text = this.getElementText(el);
+            const isActive = el.getAttribute('aria-selected') === 'true' ||
+                el.classList.contains('active') ||
+                el.classList.contains('selected');
+
+            elements.push({
+                type: 'action-pane-tab',
+                controlName: controlName,
+                displayText: text,
+                visible: this.isElementVisible(el),
+                isActive: isActive,
+                selector: `[data-dyn-controlname="${controlName}"]`,
+                formName: formName,
+                element: el
+            });
+        });
+
         // Find all traditional D365 grids/tables
         document.querySelectorAll('[data-dyn-role="Grid"]').forEach(el => {
             const controlName = el.getAttribute('data-dyn-controlname');

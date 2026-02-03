@@ -3,7 +3,7 @@ import { logStep, sendLog } from './utils/logging.js';
 import { sleep } from './utils/async.js';
 import { coerceBoolean, normalizeText } from './utils/text.js';
 import { NavigationInterruptError } from './runtime/errors.js';
-import { clickElement, applyGridFilter, waitUntilCondition, setInputValue, setGridCellValue, setLookupSelectValue, setCheckboxValue, navigateToForm, activateTab, expandOrCollapseSection, configureQueryFilter, configureBatchProcessing, closeDialog, configureRecurrence } from './steps/actions.js';
+import { clickElement, applyGridFilter, waitUntilCondition, setInputValue, setGridCellValue, setLookupSelectValue, setCheckboxValue, navigateToForm, activateTab, activateActionPaneTab, expandOrCollapseSection, configureQueryFilter, configureBatchProcessing, closeDialog, configureRecurrence } from './steps/actions.js';
 
 
 window.D365Inspector = D365Inspector;
@@ -418,6 +418,9 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
                 break;
             case 'tabNavigate':
                 await activateTab(step.controlName);
+                break;
+            case 'actionPaneTab':
+                await activateActionPaneTab(step.controlName);
                 break;
 
             case 'expandSection':

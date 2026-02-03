@@ -971,6 +971,75 @@ export async function activateTab(controlName) {
     logStep(`Tab ${controlName} activated`);
 }
 
+export async function activateActionPaneTab(controlName) {
+    logStep(`Activating action pane tab: ${controlName}`);
+
+    let tabElement = findElementInActiveContext(controlName);
+
+    if (!tabElement) {
+        const selectors = [
+            `[data-dyn-controlname="${controlName}"]`,
+            `.appBarTab[data-dyn-controlname="${controlName}"]`,
+            `.appBarTab [data-dyn-controlname="${controlName}"]`,
+            `[role="tab"][data-dyn-controlname="${controlName}"]`
+        ];
+        for (const selector of selectors) {
+            tabElement = document.querySelector(selector);
+            if (tabElement) break;
+        }
+    }
+
+    if (!tabElement) {
+        throw new Error(`Action pane tab not found: ${controlName}`);
+    }
+
+    let clickTarget = tabElement;
+
+    const header = tabElement.querySelector?.('.appBarTab-header, .appBarTabHeader, .appBarTab_header');
+    if (header) {
+        clickTarget = header;
+    }
+
+    const focusSelector = tabElement.getAttribute?.('data-dyn-focus');
+    if (focusSelector) {
+        const focusTarget = tabElement.querySelector(focusSelector);
+        if (focusTarget) {
+            clickTarget = focusTarget;
+        }
+    }
+
+    if (tabElement.getAttribute?.('role') === 'tab') {
+        clickTarget = tabElement;
+    }
+
+    if (clickTarget === tabElement) {
+        const buttonish = tabElement.querySelector?.('button, a, [role="tab"]');
+        if (buttonish) clickTarget = buttonish;
+    }
+
+    if (clickTarget?.focus) clickTarget.focus();
+    await sleep(100);
+    dispatchClickSequence(clickTarget);
+
+    if (typeof $dyn !== 'undefined' && $dyn.controls) {
+        try {
+            const control = $dyn.controls[controlName];
+            if (control) {
+                if (typeof control.activate === 'function') {
+                    control.activate();
+                } else if (typeof control.select === 'function') {
+                    control.select();
+                }
+            }
+        } catch (e) {
+            logStep(`Action pane control method failed: ${e.message}`);
+        }
+    }
+
+    await sleep(600);
+    logStep(`Action pane tab ${controlName} activated`);
+}
+
 export async function expandOrCollapseSection(controlName, action) {
     logStep(`${action === 'expand' ? 'Expanding' : 'Collapsing'} section: ${controlName}`);
     

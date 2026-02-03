@@ -804,6 +804,25 @@ export const stepMethods = {
                            placeholder="e.g., Updates, General, Ledger and sales tax">
                 </div>
             `;
+        } else if (stepType === 'action-pane-tab') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Action Pane Tab Control Name</label>
+                    <input type="text" id="stepControlName" class="form-control" 
+                           value="${this.currentStep?.controlName || ''}" 
+                           placeholder="e.g., SystemDefinedOptions, EDI">
+                    <button id="pickElement" class="btn btn-secondary btn-block" style="margin-top: 8px;">
+                        Select from Inspector Tab
+                    </button>
+                    <small style="color: #666; font-size: 11px;">Select an Action Pane tab (AppBarTab). Use the Inspector to capture data-dyn-controlname.</small>
+                </div>
+                <div class="form-group">
+                    <label>Tab Label (for reference)</label>
+                    <input type="text" id="stepDisplayText" class="form-control" 
+                           value="${this.currentStep?.displayText || ''}" 
+                           placeholder="e.g., Options, EDI, Sell">
+                </div>
+            `;
         } else if (stepType === 'expand-section') {
             container.innerHTML = `
                 <div class="form-group">
@@ -1363,6 +1382,9 @@ export const stepMethods = {
         } else if (this.currentStep.type === 'tab-navigate') {
             this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+        } else if (this.currentStep.type === 'action-pane-tab') {
+            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
         } else if (this.currentStep.type === 'expand-section') {
             this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
@@ -1589,6 +1611,9 @@ export const stepMethods = {
             } else if (step.type === 'tab-navigate') {
                 stepIcon = '📑';
                 stepDesc = `Switch to tab "${step.displayText || step.controlName}"`;
+            } else if (step.type === 'action-pane-tab') {
+                stepIcon = 'AP';
+                stepDesc = `Switch action pane tab "${step.displayText || step.controlName}"`;
             } else if (step.type === 'expand-section') {
                 stepIcon = '📂';
                 const action = step.expandAction === 'collapse' ? 'Collapse' : 'Expand';
