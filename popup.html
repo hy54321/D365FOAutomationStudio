@@ -52,47 +52,63 @@
                     <button id="resumeBtn" class="btn btn-sm btn-success is-hidden" title="Resume">▶️ Resume</button>
                     <button id="stopBtn" class="btn btn-sm btn-danger" title="Stop">⏹️ Stop</button>
                 </div>
-            </div>
-
-            <!-- Workflows Tab -->
+            </div>            <!-- Workflows Tab -->
             <div class="tab-content active" id="workflows-tab">
-                <div class="toolbar">
-                    <button id="newWorkflow" class="btn btn-primary">
-                        <span>➕</span> New Workflow
-                    </button>
-                    <div class="import-dropdown">
-                        <button id="importWorkflow" class="btn btn-secondary">
-                            <span>📥</span> Import ▾
-                        </button>
-                        <div class="import-dropdown-menu" id="importDropdownMenu">
-                            <button class="import-option" data-import-type="json">
-                                <span>📄</span> Import JSON Workflow
+                <div class="workflows-shell">
+                    <aside class="workflow-tree-pane" id="workflowTreePane">
+                        <div class="workflow-tree-header">
+                            <button id="workflowTreeToggle" class="btn btn-secondary btn-sm tree-toggle-btn" title="Toggle tree pane" aria-label="Toggle tree pane">&#9776;</button>
+                            <button id="showAllWorkflows" class="btn btn-secondary btn-sm">All workflows</button>
+                        </div>
+
+                        <details class="tree-group" open>
+                            <summary>
+                                <span>Projects</span>
+                                <button id="addProjectQuick" class="tree-summary-action" title="Add project" aria-label="Add project">+</button>
+                            </summary>
+                            <div id="projectsTree" class="tree-list"></div>
+                            <select id="projectFilter" class="form-control form-control-sm is-hidden"></select>
+                        </details>
+
+                        <details class="tree-group" open>
+                            <summary>
+                                <span>Configurations</span>
+                                <button id="addConfigurationQuick" class="tree-summary-action" title="Add configuration" aria-label="Add configuration">+</button>
+                            </summary>
+                            <div class="projects-manager" id="configurationsManager">
+                                <div class="projects-manager-header">
+                                    <button id="runConfiguration" class="btn btn-primary btn-sm btn-block">Run selected configuration</button>
+                                </div>
+                            </div>
+                            <div id="configurationsTree" class="tree-list"></div>
+                            <select id="configurationFilter" class="form-control form-control-sm is-hidden"></select>
+                        </details>
+                    </aside>
+
+                    <div class="workflows-main">
+                        <div class="toolbar">
+                            <button id="newWorkflow" class="btn btn-primary">
+                                <span>➕</span> New Workflow
                             </button>
-                            <button class="import-option" data-import-type="xml">
-                                <span>🎬</span> Import Task Recording (XML)
-                            </button>
+                            <div class="import-dropdown">
+                                <button id="importWorkflow" class="btn btn-secondary">
+                                    <span>📥</span> Import ▾
+                                </button>
+                                <div class="import-dropdown-menu" id="importDropdownMenu">
+                                    <button class="import-option" data-import-type="json">
+                                        <span>📄</span> Import JSON Workflow
+                                    </button>
+                                    <button class="import-option" data-import-type="xml">
+                                        <span>🎬</span> Import Task Recording (XML)
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="workflowsList" class="workflows-list">
+                            <!-- Workflows will be listed here -->
                         </div>
                     </div>
-                                </div>
-
-                <div class="projects-bar">
-                    <div class="form-group">
-                        <label>Project filter</label>
-                        <select id="projectFilter" class="form-control form-control-sm"></select>
-                    </div>
-                    <button id="toggleProjectsManager" class="btn btn-secondary btn-sm">Manage projects</button>
-                </div>
-
-                <div class="projects-manager is-hidden" id="projectsManager">
-                    <div class="projects-manager-header">
-                        <input type="text" id="newProjectName" class="form-control form-control-sm" placeholder="New project name">
-                        <button id="createProject" class="btn btn-primary btn-sm">Add</button>
-                    </div>
-                    <div id="projectsList" class="projects-list"></div>
-                </div>
-
-                <div id="workflowsList" class="workflows-list">
-                    <!-- Workflows will be listed here -->
                 </div>
             </div>
 
@@ -106,12 +122,55 @@
                     </div>
                                 </div>
 
-                <div class="workflow-projects-panel">
-                    <div class="workflow-projects-header">
-                        <h3>Projects</h3>
-                        <span class="muted">Assign this workflow to one or more projects.</span>
+                <div class="builder-top-panels">
+                    <div class="workflow-projects-panel">
+                        <div class="workflow-projects-header">
+                            <h3>Configurations</h3>
+                            <span class="muted">Assign this workflow to one or more configurations.</span>
+                        </div>
+                        <div id="workflowConfigurationsList" class="workflow-projects-list"></div>
                     </div>
-                    <div id="workflowProjectsList" class="workflow-projects-list"></div>
+
+                    <div class="workflow-projects-panel">
+                        <div class="workflow-projects-header">
+                            <h3>Projects</h3>
+                            <span class="muted">Assign this workflow to one or more projects.</span>
+                        </div>
+                        <div id="workflowProjectsList" class="workflow-projects-list"></div>
+                    </div>
+
+                    <div class="workflow-defaults-panel">
+                        <div class="workflow-projects-header">
+                            <h3>Workflow Defaults</h3>
+                            <span class="muted">Default error handling and retries for this workflow.</span>
+                        </div>
+                        <div class="workflow-defaults-grid">
+                            <div class="form-group">
+                                <label>On Error (default)</label>
+                                <select id="workflowErrorDefaultMode" class="form-control">
+                                    <option value="fail">Fail workflow</option>
+                                    <option value="skip">Skip step</option>
+                                    <option value="goto">Go to label</option>
+                                    <option value="break-loop">Break loop</option>
+                                    <option value="continue-loop">Continue loop</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Retry Count</label>
+                                <input type="number" id="workflowErrorDefaultRetryCount" class="form-control" min="0">
+                            </div>
+                            <div class="form-group">
+                                <label>Retry Delay (ms)</label>
+                                <input type="number" id="workflowErrorDefaultRetryDelay" class="form-control" min="0">
+                            </div>
+                            <div class="form-group" id="workflowErrorDefaultGotoGroup">
+                                <label>Go To Label</label>
+                                <select id="workflowErrorDefaultGotoLabel" class="form-control">
+                                    <option value="">No labels defined</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Main Builder Area -->
@@ -126,7 +185,7 @@
                             </label>
                             <div class="steps-copy-controls">
                                 <select id="copyStepsTarget" class="form-control form-control-sm"></select>
-                                <button id="copyStepsButton" class="btn btn-secondary btn-sm" disabled>Copy selected</button>
+                                <button id="copyStepsButton" class="btn btn-secondary btn-sm" disabled>Copy from workflow</button>
                             </div>
                         </div>
                         <div id="stepsList" class="steps-list">
@@ -159,6 +218,13 @@
                                         <option value="tab-navigate">📑 Switch Tab</option>
                                         <option value="action-pane-tab">🎛️ Action Pane Tab</option>
                                         <option value="expand-section">📂 Expand/Collapse Section</option>
+                                    </optgroup>
+                                    <optgroup label="Control Flow">
+                                        <option value="if-start">🔀 If Condition</option>
+                                        <option value="else">↔️ Else</option>
+                                        <option value="if-end">✅ End If</option>
+                                        <option value="label">🏷️ Label</option>
+                                        <option value="goto">↪️ Go To Label</option>
                                     </optgroup>
                                     <optgroup label="Grid & Filtering">
                                         <option value="filter">🔍 Filter Grid Column</option>
@@ -215,6 +281,7 @@
                                 <textarea id="primaryDataInput" class="form-control" placeholder="Paste your primary/header data here..." rows="3"></textarea>
                                 <div class="data-source-actions">
                                     <button id="validatePrimaryData" class="btn btn-secondary btn-sm">Validate</button>
+                                    <button id="togglePrimaryDataSize" class="btn btn-secondary btn-sm">Maximize</button>
                                     <span id="primaryDataStatus" class="data-status"></span>
                                 </div>
                             </div>
@@ -342,6 +409,17 @@
                         <div class="form-group">
                             <label>Workflow</label>
                             <select id="navButtonWorkflowId" class="form-control"></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Parameters</label>
+                            <div class="param-table" id="navButtonParamsTable"></div>
+                            <button id="navButtonAddParam" class="btn btn-secondary btn-sm" type="button">Add parameter</button>
+                            <small>Use \${ParameterName} placeholders from the linked workflow. Names are case-insensitive.</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Group (optional)</label>
+                            <input type="text" id="navButtonGroup" class="form-control" placeholder="e.g., Master Data">
+                            <small>Buttons with the same group are collapsed under one expandable group in the dashboard.</small>
                         </div>
                         <div class="form-group">
                             <label>Menu items (comma-separated)</label>
@@ -517,9 +595,12 @@
             </div>
         </div>
 
+        <div id="treeContextMenu" class="tree-context-menu is-hidden"></div>
+
     <script type="module" src="popup.js"></script>
 </body>
 </html>
+
 
 
 

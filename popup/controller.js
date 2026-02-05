@@ -10,6 +10,7 @@ import { settingsMethods } from './modules/settings.js';
 import { xmlImportMethods } from './modules/xml-import.js';
 import { navButtonsMethods } from './modules/nav-buttons.js';
 import { projectMethods } from './modules/projects.js';
+import { configurationMethods } from './modules/configurations.js';
 
 class PopupController {
     constructor() {
@@ -32,6 +33,7 @@ class PopupController {
         // Execution state
         this.executionState = {
             isRunning: false,
+            isLaunching: false,
             isPaused: false,
             currentWorkflowId: null,
             currentStepIndex: 0,
@@ -55,6 +57,9 @@ class PopupController {
         this.currentMenuItem = '';
         this.projects = [];
         this.selectedProjectId = 'all';
+        this.configurations = [];
+        this.selectedConfigurationId = 'all';
+        this.configurationRunState = null;
 
         this.init();
     }
@@ -73,7 +78,8 @@ Object.assign(
     settingsMethods,
     xmlImportMethods,
     navButtonsMethods,
-    projectMethods
+    projectMethods,
+    configurationMethods
 );
 
 export { PopupController };

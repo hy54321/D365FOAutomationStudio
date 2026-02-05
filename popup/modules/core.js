@@ -11,6 +11,9 @@ export const coreMethods = {
         if (this.loadProjects) {
             await this.loadProjects();
         }
+        if (this.loadConfigurations) {
+            await this.loadConfigurations();
+        }
 
         // Load workflows from storage
         await this.loadWorkflows();
@@ -121,11 +124,23 @@ export const coreMethods = {
     },
 
     showNotification(message, type = 'info') {
+        const toastClass = 'd365-toast';
+        const baseTop = 60;
+        const gap = 10;
+
+        const stackToasts = () => {
+            const toasts = Array.from(document.querySelectorAll(`.${toastClass}`));
+            toasts.forEach((toast, index) => {
+                toast.style.top = `${baseTop + (index * (toast.offsetHeight + gap))}px`;
+            });
+        };
+
         // Create notification element
         const notification = document.createElement('div');
+        notification.classList.add(toastClass);
         notification.style.cssText = `
             position: fixed;
-            top: 60px;
+            top: ${baseTop}px;
             right: 20px;
             padding: 12px 20px;
             background: ${type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : '#2196f3'};
@@ -139,11 +154,15 @@ export const coreMethods = {
         notification.textContent = message;
 
         document.body.appendChild(notification);
+        stackToasts();
 
         // Remove after 3 seconds
         setTimeout(() => {
             notification.style.animation = 'slideOut 0.3s ease-in';
-            setTimeout(() => notification.remove(), 300);
+            setTimeout(() => {
+                notification.remove();
+                stackToasts();
+            }, 300);
         }, 3000);
     },
 
@@ -232,6 +251,19 @@ export const coreMethods = {
         if (this.setupProjectUI) {
             this.setupProjectUI();
         }
+        if (this.setupConfigurationUI) {
+            this.setupConfigurationUI();
+        }
+        document.getElementById('workflowTreeToggle')?.addEventListener('click', () => this.toggleWorkflowTreePane());
+        document.getElementById('showAllWorkflows')?.addEventListener('click', () => this.clearWorkflowFilters());
+        document.addEventListener('click', () => this.hideTreeContextMenu());
+        document.addEventListener('contextmenu', (e) => {
+            if (!e.target.closest('#projectsTree, #configurationsTree, #treeContextMenu')) {
+                this.hideTreeContextMenu();
+            }
+        });
+        document.addEventListener('scroll', () => this.hideTreeContextMenu(), true);
+        window.addEventListener('blur', () => this.hideTreeContextMenu());
 
         // Builder tab
         document.getElementById('addStep').addEventListener('click', () => this.addStep());
@@ -245,10 +277,15 @@ export const coreMethods = {
         document.getElementById('cancelStep').addEventListener('click', () => this.closeStepEditor());
         document.getElementById('closeEditor').addEventListener('click', () => this.closeStepEditor());
         document.getElementById('deleteStep').addEventListener('click', () => this.deleteCurrentStep());
+        document.getElementById('workflowErrorDefaultMode')?.addEventListener('change', (e) => {
+            const gotoGroup = document.getElementById('workflowErrorDefaultGotoGroup');
+            if (gotoGroup) gotoGroup.classList.toggle('is-hidden', e.target.value !== 'goto');
+        });
 
         // Data Sources
         document.getElementById('primaryDataSourceType').addEventListener('change', (e) => this.updatePrimaryDataSourceUI(e.target.value));
         document.getElementById('validatePrimaryData').addEventListener('click', () => this.validatePrimaryData());
+        document.getElementById('togglePrimaryDataSize')?.addEventListener('click', () => this.togglePrimaryDataEditorSize());
         document.getElementById('addDetailDataSource').addEventListener('click', () => this.addDetailDataSource());
 
         // Data Sources Panel Toggle
@@ -358,5 +395,57 @@ export const coreMethods = {
         // Fall back to active tab
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         return tab;
+    },
+
+    toggleWorkflowTreePane() {
+        const pane = document.getElementById('workflowTreePane');
+        if (!pane) return;
+        pane.classList.toggle('collapsed');
+    },
+
+    async clearWorkflowFilters() {
+        this.selectedProjectId = 'all';
+        this.selectedConfigurationId = 'all';
+        await chrome.storage.local.set({
+            selectedProjectId: this.selectedProjectId,
+            selectedConfigurationId: this.selectedConfigurationId
+        });
+        if (this.renderProjectFilter) this.renderProjectFilter();
+        if (this.renderConfigurationFilter) this.renderConfigurationFilter();
+        if (this.renderProjectTree) this.renderProjectTree();
+        if (this.renderConfigurationTree) this.renderConfigurationTree();
+        this.displayWorkflows();
+    },
+
+    showTreeContextMenu(items, x, y) {
+        const menu = document.getElementById('treeContextMenu');
+        if (!menu || !Array.isArray(items) || !items.length) return;
+
+        menu.innerHTML = '';
+        items.forEach(item => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'tree-context-item';
+            button.textContent = item.label;
+            button.addEventListener('click', async () => {
+                this.hideTreeContextMenu();
+                await item.action?.();
+            });
+            menu.appendChild(button);
+        });
+
+        menu.classList.remove('is-hidden');
+
+        const rect = menu.getBoundingClientRect();
+        const maxX = Math.max(4, window.innerWidth - rect.width - 4);
+        const maxY = Math.max(4, window.innerHeight - rect.height - 4);
+        menu.style.left = `${Math.min(Math.max(4, x), maxX)}px`;
+        menu.style.top = `${Math.min(Math.max(4, y), maxY)}px`;
+    },
+
+    hideTreeContextMenu() {
+        const menu = document.getElementById('treeContextMenu');
+        if (!menu) return;
+        menu.classList.add('is-hidden');
     }
 };

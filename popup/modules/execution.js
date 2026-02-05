@@ -37,11 +37,32 @@ export const executionMethods = {
     handleWorkflowComplete() {
         const workflowId = this.executionState.currentWorkflowId;
         this.executionState.isRunning = false;
+        this.executionState.isLaunching = false;
         this.executionState.isPaused = false;
         this.updateExecutionBar();
         this.markWorkflowAsNotRunning();
         this.showNotification('Workflow completed successfully!', 'success');
         this.addLog('success', 'Workflow completed successfully');
+
+        if (this.configurationRunState && this.activeRunContext?.origin === 'configuration') {
+            const state = this.configurationRunState;
+            const expectedEntry = state.workflowQueue?.[state.currentIndex];
+            const isExpectedRun =
+                !!expectedEntry &&
+                this.activeRunContext?.configurationRunId === state.runId &&
+                this.activeRunContext?.queueKey === expectedEntry.key;
+
+            if (isExpectedRun) {
+                this.configurationRunState.currentIndex += 1;
+                this.runNextWorkflowInConfiguration();
+            } else {
+                this.addLog('warning', 'Ignoring out-of-order workflow completion during configuration run');
+            }
+        } else {
+            this.configurationRunState = null;
+        }
+
+        this.activeRunContext = null;
 
         if (workflowId && this.resumeSkipByWorkflow?.[workflowId]) {
             delete this.resumeSkipByWorkflow[workflowId];
@@ -60,12 +81,22 @@ export const executionMethods = {
         const message = err.message || err.error || 'Workflow error';
 
         this.executionState.isRunning = false;
+        this.executionState.isLaunching = false;
         this.executionState.isPaused = false;
         this.updateExecutionBar();
         this.markWorkflowAsNotRunning();
 
         this.addLog('error', `Error: ${stepLabel ? `Step "${stepLabel}": ` : ''}${message}`);
         this.showNotification(stepLabel ? `Step failed (${stepLabel}): ${message}` : message, 'error');
+
+        if (this.configurationRunState) {
+            const failedWorkflow = (this.workflows || []).find(w => w.id === workflowId);
+            const workflowName = failedWorkflow?.name || workflowId || 'unknown workflow';
+            this.addLog('error', `Configuration run stopped because "${workflowName}" failed`);
+            this.configurationRunState = null;
+        }
+
+        this.activeRunContext = null;
 
         if (workflowId) {
             const resumeSkip = Math.max(0, this.executionState.currentRow);
@@ -186,7 +217,10 @@ export const executionMethods = {
         if (tab) {
             await chrome.tabs.sendMessage(tab.id, { action: 'stopWorkflow' });
             this.executionState.isRunning = false;
+            this.executionState.isLaunching = false;
             this.executionState.isPaused = false;
+            this.configurationRunState = null;
+            this.activeRunContext = null;
             this.updateExecutionBar();
             this.markWorkflowAsNotRunning();
             this.clearStepStatuses();
@@ -305,6 +339,7 @@ export const executionMethods = {
         // Set up execution state
         this.currentWorkflow = workflow;
         this.executionState.isRunning = true;
+        this.executionState.isLaunching = false;
         this.executionState.isPaused = false;
         this.executionState.currentStepIndex = nextStepIndex;
         this.executionState.currentRow = currentRowIndex || 0;

@@ -9,6 +9,9 @@ export const workflowMethods = {
             if (this.renderWorkflowProjects) {
                 this.renderWorkflowProjects();
             }
+            if (this.renderWorkflowConfigurations) {
+                this.renderWorkflowConfigurations();
+            }
             this.showNotification('Changes discarded', 'info');
         }
 
@@ -29,12 +32,19 @@ export const workflowMethods = {
             name: 'New Workflow',
             steps: [],
             projectIds: [],
+            configurationIds: [],
             dataSources: {
                 primary: { type: 'none', data: null, fields: [] },
                 details: [],
                 relationships: []
             },
-            settings: { ...this.settings }
+            settings: {
+                ...this.settings,
+                errorDefaultMode: 'fail',
+                errorDefaultRetryCount: this.settings?.maxRetries ?? 0,
+                errorDefaultRetryDelay: 1000,
+                errorDefaultGotoLabel: ''
+            }
         };
 
         // Reset data sources
@@ -48,7 +58,8 @@ export const workflowMethods = {
         this.originalWorkflowState = JSON.parse(JSON.stringify(this.currentWorkflow));
 
         document.getElementById('workflowName').value = this.currentWorkflow.name;
-        document.getElementById('stepsList').innerHTML = '';
+        this.displaySteps();
+        this.loadWorkflowDefaultsUI();
 
         // Reset data source UI
         document.getElementById('primaryDataSourceType').value = 'none';
@@ -59,6 +70,9 @@ export const workflowMethods = {
         document.getElementById('relationshipsSection').classList.add('is-hidden');
         if (this.renderWorkflowProjects) {
             this.renderWorkflowProjects();
+        }
+        if (this.renderWorkflowConfigurations) {
+            this.renderWorkflowConfigurations();
         }
 
         // Switch to builder tab
@@ -75,6 +89,9 @@ export const workflowMethods = {
         if (this.renderProjectsManager) {
             this.renderProjectsManager();
         }
+        if (this.renderConfigurationsManager) {
+            this.renderConfigurationsManager();
+        }
     },
 
     async loadResumeState() {
@@ -88,6 +105,11 @@ export const workflowMethods = {
         if (this.syncCurrentWorkflowProjectsFromUI) {
             this.syncCurrentWorkflowProjectsFromUI();
         }
+        if (this.syncCurrentWorkflowConfigurationsFromUI) {
+            this.syncCurrentWorkflowConfigurationsFromUI();
+        }
+
+        this.saveWorkflowDefaultsFromUI();
 
         // Save data sources with the workflow
         this.currentWorkflow.dataSources = JSON.parse(JSON.stringify(this.dataSources));
@@ -100,7 +122,13 @@ export const workflowMethods = {
             this.workflows.push(this.currentWorkflow);
         }
 
-        await chrome.storage.local.set({ workflows: this.workflows });
+        const configurationOrderChanged = this.syncConfigurationOrderForWorkflow
+            ? this.syncConfigurationOrderForWorkflow(this.currentWorkflow)
+            : false;
+
+        await chrome.storage.local.set(configurationOrderChanged
+            ? { workflows: this.workflows, configurations: this.configurations }
+            : { workflows: this.workflows });
         this.displayWorkflows();
         if (this.updateNavButtonsWorkflowOptions) {
             this.updateNavButtonsWorkflowOptions();
@@ -111,6 +139,20 @@ export const workflowMethods = {
         if (this.renderProjectsManager) {
             this.renderProjectsManager();
         }
+        if (this.renderConfigurationsManager) {
+            this.renderConfigurationsManager();
+        }
+
+        const steps = this.currentWorkflow.steps || [];
+        const hasOpenInNewTabWithFollowingSteps = steps.some((step, index) =>
+            step?.type === 'navigate' &&
+            !!step?.openInNewTab &&
+            index < (steps.length - 1)
+        );
+
+        if (hasOpenInNewTabWithFollowingSteps) {
+            this.showNotification('This workflow contains "Navigate to Form" steps with "Open in new tab". Following steps continue on the current tab.', 'warning');
+        }
 
         this.showNotification('Workflow saved successfully!', 'success');
     },
@@ -119,6 +161,7 @@ export const workflowMethods = {
         container.innerHTML = '';
 
         const workflows = this.getFilteredWorkflows ? this.getFilteredWorkflows() : this.workflows;
+        const isConfigOrderMode = !!(this.selectedConfigurationId && this.selectedConfigurationId !== 'all' && this.selectedConfigurationId !== 'unassigned');
 
         if (this.workflows.length === 0) {
             container.innerHTML = '<p class="empty-state">No workflows yet. Click "New Workflow" to get started!</p>';
@@ -126,25 +169,36 @@ export const workflowMethods = {
         }
 
         if (workflows.length === 0) {
-            const projectName = this.getSelectedProjectName ? this.getSelectedProjectName() : 'this project';
-            container.innerHTML = `<p class="empty-state">No workflows linked to ${projectName}.</p>`;
+            const parts = [];
+            if (this.getSelectedProjectName && this.selectedProjectId !== 'all') {
+                parts.push(this.getSelectedProjectName());
+            }
+            if (this.getSelectedConfigurationName && this.selectedConfigurationId !== 'all') {
+                parts.push(this.getSelectedConfigurationName());
+            }
+            const filterLabel = parts.length ? parts.join(' and ') : 'the selected filters';
+            container.innerHTML = `<p class="empty-state">No workflows linked to ${filterLabel}.</p>`;
             return;
         }
 
-        workflows.forEach(workflow => {
+        workflows.forEach((workflow, visibleIndex) => {
             const item = document.createElement('div');
             item.className = 'workflow-item';
+            item.draggable = true;
+            item.dataset.workflowId = workflow.id;
 
             // Count loop blocks
             const loopStarts = workflow.steps.filter(s => s.type === 'loop-start').length;
             const hasData = workflow.dataSources?.primary?.type !== 'none';
             const projectNames = this.getProjectNamesByIds ? this.getProjectNamesByIds(workflow.projectIds || []) : [];
+            const configurationNames = this.getConfigurationNamesByIds ? this.getConfigurationNamesByIds(workflow.configurationIds || []) : [];
 
             item.innerHTML = `
                 <div class="workflow-info">
-                    <h4>${workflow.name}</h4>
+                    <h4>${isConfigOrderMode ? `<span class="workflow-order-chip">${visibleIndex + 1}</span>` : ''}${workflow.name}</h4>
                     <p>${workflow.steps.length} steps${loopStarts > 0 ? `, ${loopStarts} loop(s)` : ''}${hasData ? ' &bull; Has data' : ''}</p>
                     ${projectNames.length ? `<div class="workflow-project-tags">${projectNames.map(name => `<span class="project-tag">${name}</span>`).join('')}</div>` : ''}
+                    ${configurationNames.length ? `<div class="workflow-project-tags">${configurationNames.map(name => `<span class="project-tag">${name}</span>`).join('')}</div>` : ''}
                 </div>
                 <div class="workflow-actions">
                     <button class="btn-icon" data-action="run" title="Run Workflow">&#9654;</button>
@@ -174,7 +228,21 @@ export const workflowMethods = {
                 e.stopPropagation();
                 if (confirm(`Delete workflow "${workflow.name}"?`)) {
                     this.workflows = this.workflows.filter(w => w.id !== workflow.id);
-                    await chrome.storage.local.set({ workflows: this.workflows });
+                    let configurationOrderChanged = false;
+                    if (Array.isArray(this.configurations)) {
+                        this.configurations.forEach(configuration => {
+                            if (!Array.isArray(configuration.workflowOrder)) return;
+                            const idx = configuration.workflowOrder.indexOf(workflow.id);
+                            if (idx !== -1) {
+                                configuration.workflowOrder.splice(idx, 1);
+                                configurationOrderChanged = true;
+                            }
+                        });
+                    }
+
+                    await chrome.storage.local.set(configurationOrderChanged
+                        ? { workflows: this.workflows, configurations: this.configurations }
+                        : { workflows: this.workflows });
                     this.displayWorkflows();
                     if (this.updateNavButtonsWorkflowOptions) {
                         this.updateNavButtonsWorkflowOptions();
@@ -185,9 +253,50 @@ export const workflowMethods = {
                     if (this.renderProjectsManager) {
                         this.renderProjectsManager();
                     }
+                    if (this.renderConfigurationsManager) {
+                        this.renderConfigurationsManager();
+                    }
                     this.showNotification('Workflow deleted', 'success');
                 }
             });
+
+            item.addEventListener('dragstart', (e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/workflow-id', workflow.id);
+                if (isConfigOrderMode) {
+                    e.dataTransfer.setData('text/config-workflow-id', workflow.id);
+                }
+                item.classList.add('dragging');
+            });
+
+            item.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+                document.querySelectorAll('.tree-node.drop-target').forEach(node => node.classList.remove('drop-target'));
+                document.querySelectorAll('.workflow-item.drop-target').forEach(node => node.classList.remove('drop-target'));
+            });
+
+            if (isConfigOrderMode) {
+                item.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    item.classList.add('drop-target');
+                });
+
+                item.addEventListener('dragleave', () => {
+                    item.classList.remove('drop-target');
+                });
+
+                item.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    item.classList.remove('drop-target');
+                    const sourceWorkflowId = e.dataTransfer?.getData('text/config-workflow-id') || e.dataTransfer?.getData('text/workflow-id');
+                    const targetWorkflowId = item.dataset.workflowId;
+                    if (!sourceWorkflowId || !targetWorkflowId || sourceWorkflowId === targetWorkflowId) return;
+                    if (this.reorderConfigurationWorkflow) {
+                        await this.reorderConfigurationWorkflow(this.selectedConfigurationId, sourceWorkflowId, targetWorkflowId);
+                        this.displayWorkflows();
+                    }
+                });
+            }
 
             container.appendChild(item);
         });
@@ -197,11 +306,15 @@ export const workflowMethods = {
         if (!this.currentWorkflow.projectIds) {
             this.currentWorkflow.projectIds = [];
         }
+        if (!this.currentWorkflow.configurationIds) {
+            this.currentWorkflow.configurationIds = [];
+        }
 
         // Store original state for cancel functionality
         this.originalWorkflowState = JSON.parse(JSON.stringify(workflow));
 
         document.getElementById('workflowName').value = workflow.name;
+        this.loadWorkflowDefaultsUI();
 
         // Load data sources
         this.loadDataSourcesFromWorkflow();
@@ -209,6 +322,9 @@ export const workflowMethods = {
         this.displaySteps();
         if (this.renderWorkflowProjects) {
             this.renderWorkflowProjects();
+        }
+        if (this.renderWorkflowConfigurations) {
+            this.renderWorkflowConfigurations();
         }
 
         // Switch to builder tab
@@ -268,6 +384,46 @@ export const workflowMethods = {
 
         // Relationships
         this.renderRelationships();
+
+        if (this.applyPrimaryDataEditorState) {
+            this.applyPrimaryDataEditorState();
+        }
+    },
+
+    loadWorkflowDefaultsUI() {
+        if (!this.currentWorkflow) return;
+        const settings = this.currentWorkflow.settings || {};
+        const mode = settings.errorDefaultMode || 'fail';
+        const retryCount = settings.errorDefaultRetryCount ?? (this.settings?.maxRetries ?? 0);
+        const retryDelay = settings.errorDefaultRetryDelay ?? 1000;
+        const gotoLabel = settings.errorDefaultGotoLabel || '';
+
+        const modeEl = document.getElementById('workflowErrorDefaultMode');
+        const retryCountEl = document.getElementById('workflowErrorDefaultRetryCount');
+        const retryDelayEl = document.getElementById('workflowErrorDefaultRetryDelay');
+        const gotoLabelEl = document.getElementById('workflowErrorDefaultGotoLabel');
+        const gotoGroup = document.getElementById('workflowErrorDefaultGotoGroup');
+
+        if (modeEl) modeEl.value = mode;
+        if (retryCountEl) retryCountEl.value = retryCount;
+        if (retryDelayEl) retryDelayEl.value = retryDelay;
+        if (gotoLabelEl) gotoLabelEl.value = gotoLabel;
+        if (gotoGroup) gotoGroup.classList.toggle('is-hidden', mode !== 'goto');
+    },
+
+    saveWorkflowDefaultsFromUI() {
+        if (!this.currentWorkflow) return;
+        this.currentWorkflow.settings = { ...(this.currentWorkflow.settings || {}) };
+
+        const modeEl = document.getElementById('workflowErrorDefaultMode');
+        const retryCountEl = document.getElementById('workflowErrorDefaultRetryCount');
+        const retryDelayEl = document.getElementById('workflowErrorDefaultRetryDelay');
+        const gotoLabelEl = document.getElementById('workflowErrorDefaultGotoLabel');
+
+        this.currentWorkflow.settings.errorDefaultMode = modeEl?.value || 'fail';
+        this.currentWorkflow.settings.errorDefaultRetryCount = parseInt(retryCountEl?.value) || 0;
+        this.currentWorkflow.settings.errorDefaultRetryDelay = parseInt(retryDelayEl?.value) || 1000;
+        this.currentWorkflow.settings.errorDefaultGotoLabel = gotoLabelEl?.value || '';
     },
 
     workflowHasLoops(workflow) {
@@ -308,10 +464,37 @@ export const workflowMethods = {
         }
     },
 
+    getStepForParamExtraction(step) {
+        if (!step || typeof step !== 'object') return step;
+
+        if (step.type === 'navigate') {
+            const method = step.navigateMethod || 'menuItem';
+            const normalized = { ...step };
+
+            if (method === 'url') {
+                delete normalized.menuItemName;
+                delete normalized.menuItemType;
+                delete normalized.hostRelativePath;
+            } else if (method === 'hostRelative') {
+                delete normalized.menuItemName;
+                delete normalized.menuItemType;
+                delete normalized.navigateUrl;
+            } else {
+                // menuItem (default)
+                delete normalized.navigateUrl;
+                delete normalized.hostRelativePath;
+            }
+
+            return normalized;
+        }
+
+        return step;
+    },
+
     extractRequiredParamsFromWorkflow(workflow) {
         const params = new Set();
         (workflow?.steps || []).forEach(step => {
-            this.extractRequiredParamsFromObject(step, params);
+            this.extractRequiredParamsFromObject(this.getStepForParamExtraction(step), params);
         });
         return Array.from(params);
     },
@@ -340,6 +523,18 @@ export const workflowMethods = {
         return normalized;
     },
 
+    serializeDynamicBindingToken(name, binding) {
+        const safeName = this.normalizeParamName(name).replace(/[^a-z0-9_]/g, '_') || 'param';
+        if (binding?.valueSource === 'clipboard') {
+            return `__D365_PARAM_CLIPBOARD_${safeName}__`;
+        }
+        if (binding?.valueSource === 'data') {
+            const field = encodeURIComponent(String(binding.fieldMapping || '').trim());
+            return `__D365_PARAM_DATA_${field}__`;
+        }
+        return '';
+    },
+
     substituteParamsInString(text, bindings, warnings, contextLabel) {
         if (typeof text !== 'string') return text;
         return text.replace(/\\?\$\{([A-Za-z0-9_]+)\}/g, (match, name) => {
@@ -353,8 +548,11 @@ export const workflowMethods = {
             }
             const binding = bindings[key];
             if (binding?.valueSource && binding.valueSource !== 'static') {
-                warnings?.push(`Parameter "${name}" requires ${binding.valueSource} source but was used in text in ${contextLabel}.`);
-                return '';
+                if (binding.valueSource === 'data' && !String(binding.fieldMapping || '').trim()) {
+                    warnings?.push(`Parameter "${name}" uses data source but has no mapped field in ${contextLabel}.`);
+                    return '';
+                }
+                return this.serializeDynamicBindingToken(name, binding);
             }
             const valueStr = binding?.value ?? '';
             if (valueStr === '') {
@@ -525,8 +723,28 @@ export const workflowMethods = {
         this.showRunOptionsModal(workflow);
     },
 
-    async executeWorkflowWithOptions(workflow, runOptions) {
+    async executeWorkflowWithOptions(workflow, runOptions, executionMeta = { origin: 'manual' }) {
         try {
+            if (this.executionState?.isRunning || this.executionState?.isLaunching) {
+                this.addLog('warning', 'A workflow run is already in progress');
+                return false;
+            }
+            this.executionState.isLaunching = true;
+
+            const runOrigin = executionMeta?.origin || 'manual';
+
+            // If a standalone run starts while stale configuration state exists,
+            // clear it so completion does not trigger queued configuration workflows.
+            if (runOrigin !== 'configuration' && this.configurationRunState) {
+                this.configurationRunState = null;
+            }
+
+            this.activeRunContext = {
+                origin: runOrigin,
+                configurationRunId: executionMeta?.configurationRunId || null,
+                queueKey: executionMeta?.queueKey || null
+            };
+
             let workflowToExecute = workflow;
             let expansionWarnings = [];
             try {
@@ -536,7 +754,8 @@ export const workflowMethods = {
             } catch (expansionError) {
                 this.showNotification(expansionError.message || 'Failed to expand workflow', 'error');
                 this.addLog('error', expansionError.message || 'Failed to expand workflow');
-                return;
+                this.executionState.isLaunching = false;
+                return false;
             }
 
             // Use linked tab if available
@@ -557,13 +776,15 @@ export const workflowMethods = {
 
             if (!tab) {
                 this.showNotification('No D365FO tab found. Please open D365FO and click the extension icon.', 'error');
-                return;
+                this.executionState.isLaunching = false;
+                return false;
             }
 
             // Check if we're on a valid URL
             if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
                 this.showNotification('Cannot run on Chrome internal pages', 'error');
-                return;
+                this.executionState.isLaunching = false;
+                return false;
             }
 
             // Initialize execution state
@@ -579,6 +800,7 @@ export const workflowMethods = {
             }
 
             this.executionState.isRunning = true;
+            this.executionState.isLaunching = false;
             this.executionState.isPaused = false;
             this.executionState.currentWorkflowId = workflowToExecute.id;
             this.executionState.currentStepIndex = 0;
@@ -631,20 +853,28 @@ export const workflowMethods = {
                 if (msgError.message.includes('Receiving end does not exist')) {
                     this.showNotification('Please refresh the D365FO page first, then try again', 'error');
                     this.executionState.isRunning = false;
+                    this.executionState.isLaunching = false;
+                    this.activeRunContext = null;
                     this.updateExecutionBar();
                     this.markWorkflowAsNotRunning();
+                    return false;
                 } else {
                     throw msgError;
                 }
             }
 
+            return true;
+
         } catch (error) {
             console.error('Error executing workflow:', error);
             this.showNotification('Failed to run workflow: ' + error.message, 'error');
             this.executionState.isRunning = false;
+            this.executionState.isLaunching = false;
+            this.activeRunContext = null;
             this.updateExecutionBar();
             this.markWorkflowAsNotRunning();
             this.addLog('error', `Failed to start workflow: ${error.message}`);
+            return false;
         }
     },
 
@@ -717,9 +947,16 @@ export const workflowMethods = {
                     // Generate new ID to avoid conflicts
                     workflow.id = Date.now().toString();
                     workflow.projectIds = workflow.projectIds || [];
+                    workflow.configurationIds = workflow.configurationIds || [];
 
                     this.workflows.push(workflow);
-                    await chrome.storage.local.set({ workflows: this.workflows });
+                    const configurationOrderChanged = this.syncConfigurationOrderForWorkflow
+                        ? this.syncConfigurationOrderForWorkflow(workflow)
+                        : false;
+
+                    await chrome.storage.local.set(configurationOrderChanged
+                        ? { workflows: this.workflows, configurations: this.configurations }
+                        : { workflows: this.workflows });
                     this.displayWorkflows();
                     if (this.updateNavButtonsWorkflowOptions) {
                         this.updateNavButtonsWorkflowOptions();
@@ -729,6 +966,9 @@ export const workflowMethods = {
                     }
                     if (this.renderProjectsManager) {
                         this.renderProjectsManager();
+                    }
+                    if (this.renderConfigurationsManager) {
+                        this.renderConfigurationsManager();
                     }
                     this.showNotification(`Workflow "${workflow.name}" imported successfully`, 'success');
                 } catch (error) {

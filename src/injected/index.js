@@ -4,6 +4,7 @@ import { sleep } from './utils/async.js';
 import { coerceBoolean, normalizeText } from './utils/text.js';
 import { NavigationInterruptError } from './runtime/errors.js';
 import { clickElement, applyGridFilter, waitUntilCondition, setInputValue, setGridCellValue, setLookupSelectValue, setCheckboxValue, navigateToForm, activateTab, activateActionPaneTab, expandOrCollapseSection, configureQueryFilter, configureBatchProcessing, closeDialog, configureRecurrence } from './steps/actions.js';
+import { findElementInActiveContext, isElementVisible } from './utils/dom.js';
 
 
 window.D365Inspector = D365Inspector;
@@ -94,6 +95,7 @@ if (window.d365InjectedScriptLoaded) {
 
     let pendingNavButtonsPayload = null;
     let navButtonsRetryTimer = null;
+    let navButtonsOutsideClickHandler = null;
 
     function updateNavButtons(payload) {
         pendingNavButtonsPayload = payload || null;
@@ -141,16 +143,22 @@ if (window.d365InjectedScriptLoaded) {
         container.style.alignItems = 'center';
         container.style.marginRight = '6px';
 
-        visibleButtons.forEach((buttonConfig) => {
-            const buttonWrapper = document.createElement('div');
-            buttonWrapper.className = 'navigationBar-company navigationBar-pinnedElement';
+        const runButtonWorkflow = async (buttonConfig) => {
+            const workflow = buttonConfig.workflow;
+            if (!workflow) {
+                sendLog('error', `Workflow not found for nav button: ${buttonConfig.name || buttonConfig.id}`);
+                return;
+            }
+            const data = workflow.dataSources?.primary?.data || workflow.dataSource?.data || [];
+            executeWorkflow(workflow, data);
+        };
 
+        const createStyledButton = (label, title = '') => {
             const buttonEl = document.createElement('button');
             buttonEl.type = 'button';
             buttonEl.className = 'navigationBar-search';
-            buttonEl.textContent = buttonConfig.name || buttonConfig.workflowName || 'Workflow';
-            buttonEl.title = buttonConfig.name || '';
-            buttonEl.setAttribute('data-d365-nav-button-id', buttonConfig.id || '');
+            buttonEl.textContent = label;
+            buttonEl.title = title;
             buttonEl.style.height = '24px';
             buttonEl.style.padding = '0 8px';
             buttonEl.style.borderRadius = '4px';
@@ -166,22 +174,148 @@ if (window.d365InjectedScriptLoaded) {
             buttonEl.style.alignItems = 'center';
             buttonEl.style.justifyContent = 'center';
             buttonEl.style.boxShadow = 'inset 0 0 0 1px rgba(255,255,255,0.08)';
+            return buttonEl;
+        };
 
-            buttonEl.addEventListener('click', async () => {
-                const workflow = buttonConfig.workflow;
-                if (!workflow) {
-                    sendLog('error', `Workflow not found for nav button: ${buttonConfig.name || buttonConfig.id}`);
-                    return;
-                }
-                const data = workflow.dataSources?.primary?.data || workflow.dataSource?.data || [];
-                executeWorkflow(workflow, data);
+        const closeAllGroupMenus = () => {
+            container.querySelectorAll('[data-d365-nav-group-menu]').forEach((menu) => {
+                menu.style.display = 'none';
             });
+        };
+
+        const standaloneButtons = [];
+        const groupedButtons = new Map();
+
+        visibleButtons.forEach((buttonConfig) => {
+            const groupName = (buttonConfig.group || '').trim();
+            if (!groupName) {
+                standaloneButtons.push(buttonConfig);
+                return;
+            }
+            if (!groupedButtons.has(groupName)) {
+                groupedButtons.set(groupName, []);
+            }
+            groupedButtons.get(groupName).push(buttonConfig);
+        });
+
+        standaloneButtons.forEach((buttonConfig) => {
+            const buttonWrapper = document.createElement('div');
+            buttonWrapper.className = 'navigationBar-company navigationBar-pinnedElement';
+
+            const buttonEl = createStyledButton(buttonConfig.name || buttonConfig.workflowName || 'Workflow', buttonConfig.name || '');
+            buttonEl.setAttribute('data-d365-nav-button-id', buttonConfig.id || '');
+            buttonEl.addEventListener('click', () => runButtonWorkflow(buttonConfig));
 
             buttonWrapper.appendChild(buttonEl);
             container.appendChild(buttonWrapper);
         });
 
+        Array.from(groupedButtons.entries())
+            .sort(([a], [b]) => a.localeCompare(b))
+            .forEach(([groupName, groupItems]) => {
+                const groupWrapper = document.createElement('div');
+                groupWrapper.className = 'navigationBar-company navigationBar-pinnedElement';
+                groupWrapper.style.position = 'relative';
+
+                const groupButton = createStyledButton(`${groupName} \u25BE`, groupName);
+                groupButton.setAttribute('data-d365-nav-group', groupName);
+                groupButton.style.borderColor = 'rgba(255,255,255,0.55)';
+                groupButton.style.background = 'rgba(255,255,255,0.2)';
+
+                const groupMenu = document.createElement('div');
+                groupMenu.setAttribute('data-d365-nav-group-menu', groupName);
+                groupMenu.style.position = 'absolute';
+                groupMenu.style.top = '28px';
+                groupMenu.style.left = '0';
+                groupMenu.style.minWidth = '230px';
+                groupMenu.style.maxWidth = '320px';
+                groupMenu.style.maxHeight = '320px';
+                groupMenu.style.overflowY = 'auto';
+                groupMenu.style.background = '#fcfdff';
+                groupMenu.style.border = '1px solid rgba(30,41,59,0.16)';
+                groupMenu.style.borderRadius = '10px';
+                groupMenu.style.boxShadow = '0 14px 28px rgba(0,0,0,0.28)';
+                groupMenu.style.padding = '8px';
+                groupMenu.style.display = 'none';
+                groupMenu.style.zIndex = '2147483000';
+
+                const groupHeader = document.createElement('div');
+                groupHeader.textContent = groupName;
+                groupHeader.style.fontSize = '11px';
+                groupHeader.style.fontWeight = '700';
+                groupHeader.style.color = '#475569';
+                groupHeader.style.margin = '0 2px 6px 2px';
+                groupHeader.style.paddingBottom = '6px';
+                groupHeader.style.borderBottom = '1px solid #e2e8f0';
+                groupMenu.appendChild(groupHeader);
+
+                groupItems
+                    .slice()
+                    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                    .forEach((buttonConfig) => {
+                        const itemButton = document.createElement('button');
+                        itemButton.type = 'button';
+                        itemButton.textContent = buttonConfig.name || buttonConfig.workflowName || 'Workflow';
+                        itemButton.title = buttonConfig.name || '';
+                        itemButton.style.display = 'block';
+                        itemButton.style.width = '100%';
+                        itemButton.style.textAlign = 'left';
+                        itemButton.style.border = 'none';
+                        itemButton.style.background = 'transparent';
+                        itemButton.style.color = '#1f2937';
+                        itemButton.style.borderRadius = '4px';
+                        itemButton.style.padding = '8px 9px';
+                        itemButton.style.fontSize = '12px';
+                        itemButton.style.fontWeight = '600';
+                        itemButton.style.lineHeight = '1.3';
+                        itemButton.style.marginBottom = '3px';
+                        itemButton.style.cursor = 'pointer';
+                        itemButton.style.transition = 'background .15s ease, color .15s ease';
+
+                        itemButton.addEventListener('mouseenter', () => {
+                            itemButton.style.background = '#e8edff';
+                            itemButton.style.color = '#1e3a8a';
+                        });
+                        itemButton.addEventListener('mouseleave', () => {
+                            itemButton.style.background = 'transparent';
+                            itemButton.style.color = '#1f2937';
+                        });
+
+                        itemButton.addEventListener('click', (event) => {
+                            event.stopPropagation();
+                            closeAllGroupMenus();
+                            runButtonWorkflow(buttonConfig);
+                        });
+
+                        groupMenu.appendChild(itemButton);
+                    });
+
+                groupButton.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    const isOpen = groupMenu.style.display === 'block';
+                    closeAllGroupMenus();
+                    groupMenu.style.display = isOpen ? 'none' : 'block';
+                    groupButton.style.background = isOpen ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.32)';
+                });
+
+                groupWrapper.appendChild(groupButton);
+                groupWrapper.appendChild(groupMenu);
+                container.appendChild(groupWrapper);
+            });
+
         navGroup.insertBefore(container, navGroup.firstChild);
+
+        if (navButtonsOutsideClickHandler) {
+            document.removeEventListener('click', navButtonsOutsideClickHandler, true);
+        }
+        navButtonsOutsideClickHandler = (event) => {
+            const active = document.getElementById('d365-nav-buttons-container');
+            if (!active || active.contains(event.target)) return;
+            active.querySelectorAll('[data-d365-nav-group-menu]').forEach((menu) => {
+                menu.style.display = 'none';
+            });
+        };
+        document.addEventListener('click', navButtonsOutsideClickHandler, true);
     }
 
     // Helper to check and wait for pause/stop
@@ -318,6 +452,114 @@ async function resolveStepValue(step, currentRow) {
     }
 
     return step?.value ?? '';
+}
+
+function extractRowValue(fieldMapping, currentRow) {
+    if (!currentRow || !fieldMapping) return '';
+    const fieldName = fieldMapping.includes(':') ? fieldMapping.split(':').pop() : fieldMapping;
+    const value = currentRow[fieldName];
+    return value === undefined || value === null ? '' : String(value);
+}
+
+function getElementTextForCondition(element) {
+    if (!element) return '';
+    const aria = element.getAttribute?.('aria-label');
+    if (aria) return aria.trim();
+    const text = element.textContent?.trim();
+    return text || '';
+}
+
+function getElementValueForCondition(element) {
+    if (!element) return '';
+    if ('value' in element && element.value !== undefined) {
+        return String(element.value ?? '');
+    }
+    return getElementTextForCondition(element);
+}
+
+function evaluateCondition(step, currentRow) {
+    const type = step?.conditionType || 'ui-visible';
+
+    if (type.startsWith('ui-')) {
+        const controlName = step?.conditionControlName || step?.controlName || '';
+        const element = controlName ? findElementInActiveContext(controlName) : null;
+
+        switch (type) {
+            case 'ui-visible':
+                return !!element && isElementVisible(element);
+            case 'ui-hidden':
+                return !element || !isElementVisible(element);
+            case 'ui-exists':
+                return !!element;
+            case 'ui-not-exists':
+                return !element;
+            case 'ui-text-equals': {
+                const actual = normalizeText(getElementTextForCondition(element));
+                const expected = normalizeText(step?.conditionValue || '');
+                return actual === expected;
+            }
+            case 'ui-text-contains': {
+                const actual = normalizeText(getElementTextForCondition(element));
+                const expected = normalizeText(step?.conditionValue || '');
+                return actual.includes(expected);
+            }
+            case 'ui-value-equals': {
+                const actual = normalizeText(getElementValueForCondition(element));
+                const expected = normalizeText(step?.conditionValue || '');
+                return actual === expected;
+            }
+            case 'ui-value-contains': {
+                const actual = normalizeText(getElementValueForCondition(element));
+                const expected = normalizeText(step?.conditionValue || '');
+                return actual.includes(expected);
+            }
+            default:
+                return false;
+        }
+    }
+
+    if (type.startsWith('data-')) {
+        const fieldMapping = step?.conditionFieldMapping || '';
+        const actualRaw = extractRowValue(fieldMapping, currentRow);
+        const actual = normalizeText(actualRaw);
+        const expected = normalizeText(step?.conditionValue || '');
+
+        switch (type) {
+            case 'data-equals':
+                return actual === expected;
+            case 'data-not-equals':
+                return actual !== expected;
+            case 'data-contains':
+                return actual.includes(expected);
+            case 'data-empty':
+                return actual === '';
+            case 'data-not-empty':
+                return actual !== '';
+            default:
+                return false;
+        }
+    }
+
+    return false;
+}
+
+function getWorkflowErrorDefaults(settings) {
+    return {
+        mode: settings?.errorDefaultMode || 'fail',
+        retryCount: Number.isFinite(settings?.errorDefaultRetryCount) ? settings.errorDefaultRetryCount : 0,
+        retryDelay: Number.isFinite(settings?.errorDefaultRetryDelay) ? settings.errorDefaultRetryDelay : 1000,
+        gotoLabel: settings?.errorDefaultGotoLabel || ''
+    };
+}
+
+function getStepErrorConfig(step, settings) {
+    const defaults = getWorkflowErrorDefaults(settings);
+    const mode = step?.onErrorMode && step.onErrorMode !== 'default' ? step.onErrorMode : defaults.mode;
+    const retryCount = Number.isFinite(step?.onErrorRetryCount) ? step.onErrorRetryCount : defaults.retryCount;
+    const retryDelay = Number.isFinite(step?.onErrorRetryDelay) ? step.onErrorRetryDelay : defaults.retryDelay;
+    const gotoLabel = step?.onErrorGotoLabel || defaults.gotoLabel;
+
+    return { mode, retryCount, retryDelay, gotoLabel };
 }
 
 // Execute a single step (maps step.type to action functions)
@@ -477,6 +719,13 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
     
     // Find loop structures
     const loopPairs = findLoopPairs(steps);
+    const ifPairs = findIfPairs(steps);
+    const labelMap = new Map();
+    steps.forEach((step, index) => {
+        if (step?.type === 'label' && step.labelName) {
+            labelMap.set(step.labelName, index);
+        }
+    });
 
     // Helper: find matching loop start/end pairs supporting nested loops and explicit loopRef linking
     function findLoopPairs(stepsList) {
@@ -531,6 +780,52 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
         return pairs;
     }
 
+    function findIfPairs(stepsList) {
+        const stack = [];
+        const ifToElse = new Map();
+        const ifToEnd = new Map();
+        const elseToEnd = new Map();
+
+        for (let i = 0; i < stepsList.length; i++) {
+            const s = stepsList[i];
+            if (!s || !s.type) continue;
+
+            if (s.type === 'if-start') {
+                stack.push({ ifIndex: i, elseIndex: null });
+            } else if (s.type === 'else') {
+                if (stack.length === 0) {
+                    sendLog('error', `Else without matching if-start at index ${i}`);
+                } else {
+                    const top = stack[stack.length - 1];
+                    if (top.elseIndex === null) {
+                        top.elseIndex = i;
+                    } else {
+                        sendLog('error', `Multiple else blocks for if-start at index ${top.ifIndex}`);
+                    }
+                }
+            } else if (s.type === 'if-end') {
+                const top = stack.pop();
+                if (!top) {
+                    sendLog('error', `If-end without matching if-start at index ${i}`);
+                } else {
+                    ifToEnd.set(top.ifIndex, i);
+                    if (top.elseIndex !== null) {
+                        ifToElse.set(top.ifIndex, top.elseIndex);
+                        elseToEnd.set(top.elseIndex, i);
+                    }
+                }
+            }
+        }
+
+        if (stack.length) {
+            for (const rem of stack) {
+                sendLog('error', `Unclosed if-start at index ${rem.ifIndex}`);
+            }
+        }
+
+        return { ifToElse, ifToEnd, elseToEnd };
+    }
+
     // If no loops, execute all steps for each primary data row (legacy behavior)
     if (loopPairs.length === 0) {
         for (let rowIndex = 0; rowIndex < primaryData.length; rowIndex++) {
@@ -552,9 +847,9 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
             sendLog('info', `Processing row ${displayRowNumber + 1}/${originalTotalRows}`);
             window.postMessage({ type: 'D365_WORKFLOW_PROGRESS', progress: rowProgress }, '*');
 
-            for (let stepIndex = 0; stepIndex < steps.length; stepIndex++) {
-                await checkExecutionControl(); // Check for pause/stop
-                await executeSingleStep(steps[stepIndex], stepIndex, row, {}, settings, dryRun);
+            const result = await executeRange(0, steps.length, row);
+            if (result?.signal === 'break-loop' || result?.signal === 'continue-loop') {
+                throw new Error('Loop control signal used outside of a loop');
             }
         }
         return;
@@ -583,7 +878,44 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
         return loopData;
     };
 
-    const executeRange = async (startIdx, endIdx, currentDataRow) => {
+    async function executeStepWithHandling(step, stepIndex, currentDataRow) {
+        const { mode, retryCount, retryDelay, gotoLabel } = getStepErrorConfig(step, settings);
+        let attempt = 0;
+
+        while (true) {
+            try {
+                await executeSingleStep(step, stepIndex, currentDataRow, detailSources, settings, dryRun);
+                return { signal: 'none' };
+            } catch (err) {
+                if (err && err.isNavigationInterrupt) throw err;
+
+                if (retryCount > 0 && attempt < retryCount) {
+                    attempt += 1;
+                    sendLog('warning', `Retrying step ${stepIndex + 1} (${attempt}/${retryCount}) after error: ${err?.message || String(err)}`);
+                    if (retryDelay > 0) {
+                        await sleep(retryDelay);
+                    }
+                    continue;
+                }
+
+                switch (mode) {
+                    case 'skip':
+                        return { signal: 'skip' };
+                    case 'goto':
+                        return { signal: 'goto', label: gotoLabel };
+                    case 'break-loop':
+                        return { signal: 'break-loop' };
+                    case 'continue-loop':
+                        return { signal: 'continue-loop' };
+                    case 'fail':
+                    default:
+                        throw err;
+                }
+            }
+        }
+    }
+
+    async function executeRange(startIdx, endIdx, currentDataRow) {
         if (currentDataRow) {
             executionControl.currentDataRow = currentDataRow;
         }
@@ -594,10 +926,116 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
 
             const step = steps[idx];
 
+            if (step.type === 'label') {
+                idx++;
+                continue;
+            }
+
+            if (step.type === 'goto') {
+                const targetIndex = labelMap.get(step.gotoLabel);
+                if (targetIndex === undefined) {
+                    throw new Error(`Goto label not found: ${step.gotoLabel || ''}`);
+                }
+                if (targetIndex < startIdx || targetIndex >= endIdx) {
+                    return { signal: 'goto', targetIndex };
+                }
+                idx = targetIndex;
+                continue;
+            }
+
+            if (step.type === 'if-start') {
+                const conditionMet = evaluateCondition(step, currentDataRow);
+                const endIndex = ifPairs.ifToEnd.get(idx);
+                const elseIndex = ifPairs.ifToElse.get(idx);
+                if (endIndex === undefined) {
+                    throw new Error(`If-start at index ${idx} has no matching if-end`);
+                }
+
+                if (conditionMet) {
+                    idx++;
+                    continue;
+                }
+
+                if (elseIndex !== undefined) {
+                    idx = elseIndex + 1;
+                } else {
+                    idx = endIndex + 1;
+                }
+                continue;
+            }
+
+            if (step.type === 'else') {
+                const endIndex = ifPairs.elseToEnd.get(idx);
+                if (endIndex !== undefined) {
+                    idx = endIndex + 1;
+                } else {
+                    idx++;
+                }
+                continue;
+            }
+
+            if (step.type === 'if-end') {
+                idx++;
+                continue;
+            }
+
             if (step.type === 'loop-start') {
                 const loopEndIdx = loopPairMap.get(idx);
                 if (loopEndIdx === undefined || loopEndIdx <= idx) {
                     throw new Error(`Loop start at index ${idx} has no matching end`);
+                }
+
+                const loopMode = step.loopMode || 'data';
+
+                if (loopMode === 'count') {
+                    const loopCount = Number(step.loopCount) || 0;
+                    sendLog('info', `Entering loop: ${step.loopName || 'Loop'} (count=${loopCount})`);
+                    for (let iterIndex = 0; iterIndex < loopCount; iterIndex++) {
+                        await checkExecutionControl();
+                        window.postMessage({
+                            type: 'D365_WORKFLOW_PROGRESS',
+                            progress: { phase: 'loopIteration', iteration: iterIndex + 1, total: loopCount, step: `Loop "${step.loopName || 'Loop'}": iteration ${iterIndex + 1}/${loopCount}` }
+                        }, '*');
+
+                        const result = await executeRange(idx + 1, loopEndIdx, currentDataRow);
+                        if (result?.signal === 'break-loop') break;
+                        if (result?.signal === 'continue-loop') continue;
+                        if (result?.signal === 'goto') return result;
+                    }
+
+                    idx = loopEndIdx + 1;
+                    continue;
+                }
+
+                if (loopMode === 'while') {
+                    const maxIterations = Number(step.loopMaxIterations) || 100;
+                    let iterIndex = 0;
+                    while (iterIndex < maxIterations) {
+                        await checkExecutionControl();
+                        if (!evaluateCondition(step, currentDataRow)) break;
+
+                        window.postMessage({
+                            type: 'D365_WORKFLOW_PROGRESS',
+                            progress: { phase: 'loopIteration', iteration: iterIndex + 1, total: maxIterations, step: `Loop "${step.loopName || 'Loop'}": iteration ${iterIndex + 1}/${maxIterations}` }
+                        }, '*');
+
+                        const result = await executeRange(idx + 1, loopEndIdx, currentDataRow);
+                        if (result?.signal === 'break-loop') break;
+                        if (result?.signal === 'continue-loop') {
+                            iterIndex++;
+                            continue;
+                        }
+                        if (result?.signal === 'goto') return result;
+
+                        iterIndex++;
+                    }
+
+                    if (iterIndex >= maxIterations) {
+                        sendLog('warning', `Loop "${step.loopName || 'Loop'}" hit max iterations (${maxIterations})`);
+                    }
+
+                    idx = loopEndIdx + 1;
+                    continue;
                 }
 
                 const loopDataSource = step.loopDataSource || 'primary';
@@ -633,7 +1071,10 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                     window.postMessage({ type: 'D365_WORKFLOW_PROGRESS', progress: { phase: 'loopIteration', iteration: iterIndex + 1, total: loopData.length, step: `Loop "${step.loopName || 'Loop'}": iteration ${iterIndex + 1}/${loopData.length}` } }, '*');
 
                     // Execute steps inside the loop (supports nested loops)
-                    await executeRange(idx + 1, loopEndIdx, iterRow);
+                    const result = await executeRange(idx + 1, loopEndIdx, iterRow);
+                    if (result?.signal === 'break-loop') break;
+                    if (result?.signal === 'continue-loop') continue;
+                    if (result?.signal === 'goto') return result;
                 }
 
                 idx = loopEndIdx + 1;
@@ -645,12 +1086,34 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                 continue;
             }
 
-            await executeSingleStep(step, idx, currentDataRow, detailSources, settings, executionControl.runOptions.dryRun);
+            const result = await executeStepWithHandling(step, idx, currentDataRow);
+            if (result?.signal === 'skip' || result?.signal === 'none') {
+                idx++;
+                continue;
+            }
+            if (result?.signal === 'goto') {
+                const targetIndex = labelMap.get(result.label);
+                if (targetIndex === undefined) {
+                    throw new Error(`Goto label not found: ${result.label || ''}`);
+                }
+                if (targetIndex < startIdx || targetIndex >= endIdx) {
+                    return { signal: 'goto', targetIndex };
+                }
+                idx = targetIndex;
+                continue;
+            }
+            if (result?.signal === 'break-loop' || result?.signal === 'continue-loop') {
+                return result;
+            }
             idx++;
         }
-    };
+        return { signal: 'none' };
+    }
 
-    await executeRange(0, steps.length, initialDataRow);
+    const finalResult = await executeRange(0, steps.length, initialDataRow);
+    if (finalResult?.signal === 'break-loop' || finalResult?.signal === 'continue-loop') {
+        throw new Error('Loop control signal used outside of a loop');
+    }
 }
 
 

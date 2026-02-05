@@ -1,7 +1,10 @@
 export const navButtonsMethods = {
     async loadNavButtons() {
         const result = await chrome.storage.local.get(['navButtons']);
-        this.navButtons = result.navButtons || [];
+        this.navButtons = (result.navButtons || []).map((button) => ({
+            ...button,
+            paramBindings: this.normalizeNavButtonParamBindings(button?.paramBindings || {})
+        }));
     },
 
     async saveNavButtonsToStorage() {
@@ -19,6 +22,8 @@ export const navButtonsMethods = {
         const editorDelete = document.getElementById('navButtonDelete');
         const useCurrentMenu = document.getElementById('navButtonUseCurrentMenu');
         const refreshContext = document.getElementById('navButtonRefreshContext');
+        const workflowSelect = document.getElementById('navButtonWorkflowId');
+        const addParam = document.getElementById('navButtonAddParam');
 
         if (newButton) {
             newButton.addEventListener('click', () => this.openNavButtonEditor());
@@ -49,6 +54,12 @@ export const navButtonsMethods = {
         }
         if (refreshContext) {
             refreshContext.addEventListener('click', () => this.refreshNavButtonsContext());
+        }
+        if (workflowSelect) {
+            workflowSelect.addEventListener('change', () => this.refreshNavButtonParamUI(workflowSelect.value, this.collectNavButtonParamBindings()));
+        }
+        if (addParam) {
+            addParam.addEventListener('click', () => this.addNavButtonParamRow());
         }
 
         this.updateNavButtonsWorkflowOptions();
@@ -142,7 +153,9 @@ export const navButtonsMethods = {
         document.getElementById('navButtonEditorTitle').textContent = navButton ? 'Edit Nav Button' : 'New Nav Button';
         document.getElementById('navButtonName').value = navButton?.name || '';
         document.getElementById('navButtonWorkflowId').value = navButton?.workflowId || '';
+        document.getElementById('navButtonGroup').value = navButton?.group || '';
         document.getElementById('navButtonMenuItems').value = (navButton?.menuItems || []).join(', ');
+        this.refreshNavButtonParamUI(navButton?.workflowId || '', navButton?.paramBindings || {});
 
         const deleteBtn = document.getElementById('navButtonDelete');
         if (deleteBtn) {
@@ -160,7 +173,9 @@ export const navButtonsMethods = {
         this.editingNavButtonId = null;
         document.getElementById('navButtonName').value = '';
         document.getElementById('navButtonWorkflowId').value = '';
+        document.getElementById('navButtonGroup').value = '';
         document.getElementById('navButtonMenuItems').value = '';
+        this.refreshNavButtonParamUI('', {});
     },
 
     addCurrentMenuItemToEditor() {
@@ -190,11 +205,173 @@ export const navButtonsMethods = {
         return workflow?.name || fallbackName || 'Missing workflow';
     },
 
+    normalizeNavButtonParamBindings(rawBindings) {
+        const normalized = {};
+        Object.entries(rawBindings || {}).forEach(([key, value]) => {
+            const name = (key || '').trim();
+            if (!name) return;
+            if (value && typeof value === 'object' && !Array.isArray(value)) {
+                const valueSource = value.valueSource || 'static';
+                if (valueSource === 'data') {
+                    normalized[name] = { valueSource: 'data', fieldMapping: value.fieldMapping || '' };
+                } else if (valueSource === 'clipboard') {
+                    normalized[name] = { valueSource: 'clipboard' };
+                } else {
+                    normalized[name] = { valueSource: 'static', value: value.value ?? '' };
+                }
+            } else {
+                normalized[name] = { valueSource: 'static', value: value ?? '' };
+            }
+        });
+        return normalized;
+    },
+
+    getRequiredParamsForWorkflow(workflowId) {
+        const workflow = (this.workflows || []).find((w) => w.id === workflowId);
+        if (!workflow || !this.extractRequiredParamsFromWorkflow) return [];
+        return this.extractRequiredParamsFromWorkflow(workflow);
+    },
+
+    renderNavButtonParamRows(paramBindings, orderedNames = []) {
+        const names = orderedNames.length
+            ? orderedNames
+            : Object.keys(paramBindings || {});
+
+        if (!names.length) {
+            return `
+                <div class="empty-state" style="margin: 0;">No parameters detected for this workflow.</div>
+            `;
+        }
+
+        return names.map((name) => {
+            const binding = paramBindings[name] || { valueSource: 'static', value: '' };
+            const valueSource = binding.valueSource || 'static';
+            const isStatic = valueSource === 'static';
+            const isData = valueSource === 'data';
+            const isClipboard = valueSource === 'clipboard';
+            return `
+                <div class="param-row">
+                    <input type="text" class="form-control nav-param-name" value="${name}" placeholder="Parameter name">
+                    <select class="form-control nav-param-source">
+                        <option value="static" ${isStatic ? 'selected' : ''}>Static Value</option>
+                        <option value="data" ${isData ? 'selected' : ''}>From Data Field</option>
+                        <option value="clipboard" ${isClipboard ? 'selected' : ''}>Clipboard</option>
+                    </select>
+                    <div class="param-value-group">
+                        <input type="text" class="form-control nav-param-value ${isStatic ? '' : 'is-hidden'}" value="${binding.value ?? ''}" placeholder="Value">
+                        <div class="nav-param-field-group ${isData ? '' : 'is-hidden'}">
+                            <select class="form-control nav-param-field">
+                                <option value="">Select data field</option>
+                                ${(this.dataSources?.primary?.fields || []).map((field) =>
+                                    `<option value="${field}" ${binding.fieldMapping === field ? 'selected' : ''}>${field}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div class="param-clipboard-note ${isClipboard ? '' : 'is-hidden'}">Uses clipboard when the button runs.</div>
+                    </div>
+                    <button type="button" class="btn-icon nav-param-remove" title="Remove">&#10005;</button>
+                </div>
+            `;
+        }).join('');
+    },
+
+    refreshNavButtonParamUI(workflowId, existingBindings = {}) {
+        const table = document.getElementById('navButtonParamsTable');
+        if (!table) return;
+
+        const required = this.getRequiredParamsForWorkflow(workflowId);
+        const normalizedExisting = this.normalizeNavButtonParamBindings(existingBindings);
+        const merged = { ...normalizedExisting };
+        required.forEach((name) => {
+            if (!Object.prototype.hasOwnProperty.call(merged, name)) {
+                merged[name] = { valueSource: 'static', value: '' };
+            }
+        });
+
+        table.innerHTML = this.renderNavButtonParamRows(merged, required.length ? required : Object.keys(merged));
+
+        table.querySelectorAll('.nav-param-row, .param-row').forEach((row) => {
+            row.querySelector('.nav-param-source')?.addEventListener('change', (e) => {
+                const source = e.target.value || 'static';
+                row.querySelector('.nav-param-value')?.classList.toggle('is-hidden', source !== 'static');
+                row.querySelector('.nav-param-field-group')?.classList.toggle('is-hidden', source !== 'data');
+                row.querySelector('.param-clipboard-note')?.classList.toggle('is-hidden', source !== 'clipboard');
+            });
+
+            row.querySelector('.nav-param-remove')?.addEventListener('click', () => {
+                row.remove();
+            });
+        });
+    },
+
+    addNavButtonParamRow() {
+        const table = document.getElementById('navButtonParamsTable');
+        if (!table) return;
+        const row = document.createElement('div');
+        row.className = 'param-row';
+        row.innerHTML = `
+            <input type="text" class="form-control nav-param-name" placeholder="Parameter name">
+            <select class="form-control nav-param-source">
+                <option value="static" selected>Static Value</option>
+                <option value="data">From Data Field</option>
+                <option value="clipboard">Clipboard</option>
+            </select>
+            <div class="param-value-group">
+                <input type="text" class="form-control nav-param-value" placeholder="Value">
+                <div class="nav-param-field-group is-hidden">
+                    <select class="form-control nav-param-field">
+                        <option value="">Select data field</option>
+                        ${(this.dataSources?.primary?.fields || []).map((field) =>
+                            `<option value="${field}">${field}</option>`
+                        ).join('')}
+                    </select>
+                </div>
+                <div class="param-clipboard-note is-hidden">Uses clipboard when the button runs.</div>
+            </div>
+            <button type="button" class="btn-icon nav-param-remove" title="Remove">&#10005;</button>
+        `;
+        table.appendChild(row);
+
+        row.querySelector('.nav-param-source')?.addEventListener('change', (e) => {
+            const source = e.target.value || 'static';
+            row.querySelector('.nav-param-value')?.classList.toggle('is-hidden', source !== 'static');
+            row.querySelector('.nav-param-field-group')?.classList.toggle('is-hidden', source !== 'data');
+            row.querySelector('.param-clipboard-note')?.classList.toggle('is-hidden', source !== 'clipboard');
+        });
+        row.querySelector('.nav-param-remove')?.addEventListener('click', () => row.remove());
+    },
+
+    collectNavButtonParamBindings() {
+        const table = document.getElementById('navButtonParamsTable');
+        const bindings = {};
+        if (!table) return bindings;
+
+        table.querySelectorAll('.param-row').forEach((row) => {
+            const name = row.querySelector('.nav-param-name')?.value?.trim() || '';
+            if (!name) return;
+            const source = row.querySelector('.nav-param-source')?.value || 'static';
+            const value = row.querySelector('.nav-param-value')?.value ?? '';
+            const fieldMapping = row.querySelector('.nav-param-field')?.value ?? '';
+
+            if (source === 'data') {
+                bindings[name] = { valueSource: 'data', fieldMapping };
+            } else if (source === 'clipboard') {
+                bindings[name] = { valueSource: 'clipboard' };
+            } else {
+                bindings[name] = { valueSource: 'static', value };
+            }
+        });
+
+        return bindings;
+    },
+
     async saveNavButtonFromEditor() {
         const name = document.getElementById('navButtonName').value.trim();
         const workflowId = document.getElementById('navButtonWorkflowId').value;
+        const group = document.getElementById('navButtonGroup').value.trim();
         const menuItemsRaw = document.getElementById('navButtonMenuItems').value;
         const menuItems = this.parseMenuItems(menuItemsRaw);
+        const paramBindings = this.collectNavButtonParamBindings();
 
         if (!name) {
             this.showNotification('Please enter a button name', 'error');
@@ -216,7 +393,9 @@ export const navButtonsMethods = {
                     name,
                     workflowId,
                     workflowName,
+                    group,
                     menuItems,
+                    paramBindings,
                     updatedAt: now
                 };
             }
@@ -226,7 +405,9 @@ export const navButtonsMethods = {
                 name,
                 workflowId,
                 workflowName,
+                group,
                 menuItems,
+                paramBindings,
                 createdAt: now,
                 updatedAt: now
             });
@@ -270,12 +451,14 @@ export const navButtonsMethods = {
 
         buttons = buttons.filter((btn) => {
             const name = (btn.name || '').toLowerCase();
+            const group = (btn.group || '').toLowerCase();
             const workflowName = this.getWorkflowNameById(btn.workflowId, btn.workflowName).toLowerCase();
             const menuItems = (btn.menuItems || []).map((item) => item.toLowerCase());
 
             if (searchValue) {
                 const matchesSearch =
                     name.includes(searchValue) ||
+                    group.includes(searchValue) ||
                     workflowName.includes(searchValue) ||
                     menuItems.some((item) => item.includes(searchValue));
                 if (!matchesSearch) return false;
@@ -311,6 +494,7 @@ export const navButtonsMethods = {
             item.className = 'nav-button-item';
 
             const menuItems = btn.menuItems || [];
+            const group = (btn.group || '').trim();
             const workflowName = this.getWorkflowNameById(btn.workflowId, btn.workflowName);
             const isRelevant = currentMenuItem && menuItems.some((mi) => mi.toLowerCase() === currentMenuItem);
 
@@ -324,13 +508,18 @@ export const navButtonsMethods = {
                         <span class="nav-meta-label">Workflow:</span>
                         <span class="nav-meta-value">${workflowName}</span>
                     </div>
+                    ${group ? `
+                    <div class="nav-button-meta">
+                        <span class="nav-meta-label">Group:</span>
+                        <span class="nav-meta-value">${group}</span>
+                    </div>` : ''}
                     <div class="nav-button-tags">
                         ${menuItems.length ? menuItems.map((mi) => `<span class="tag">${mi}</span>`).join('') : '<span class="tag muted">Global</span>'}
                     </div>
                 </div>
                 <div class="nav-button-actions">
-                    <button class="btn-icon" data-action="edit" title="Edit">Edit</button>
-                    <button class="btn-icon" data-action="delete" title="Delete">Delete</button>
+                    <button class="btn-icon" data-action="edit" title="Edit" aria-label="Edit">&#9998;</button>
+                    <button class="btn-icon" data-action="delete" title="Delete" aria-label="Delete">&#128465;</button>
                 </div>
             `;
 

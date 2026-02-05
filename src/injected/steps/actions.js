@@ -805,23 +805,94 @@ export async function closeDialog(formName, action = 'ok') {
     }
 }
 
+function getCurrentRowValue(fieldMapping) {
+    if (!fieldMapping) return '';
+    const row = window.d365ExecutionControl?.currentDataRow || {};
+    const direct = row[fieldMapping];
+    if (direct !== undefined && direct !== null) {
+        return String(direct);
+    }
+    const fieldName = fieldMapping.includes(':') ? fieldMapping.split(':').pop() : fieldMapping;
+    const value = row[fieldName];
+    return value === undefined || value === null ? '' : String(value);
+}
+
+async function resolveDynamicText(text) {
+    if (typeof text !== 'string' || !text) return text || '';
+
+    let resolved = text;
+    if (/__D365_PARAM_CLIPBOARD_[a-z0-9_]+__/i.test(resolved)) {
+        if (!navigator.clipboard?.readText) {
+            throw new Error('Clipboard API not available');
+        }
+        const clipboardText = await navigator.clipboard.readText();
+        resolved = resolved.replace(/__D365_PARAM_CLIPBOARD_[a-z0-9_]+__/gi, clipboardText ?? '');
+    }
+
+    resolved = resolved.replace(/__D365_PARAM_DATA_([A-Za-z0-9%._~-]*)__/g, (_, encodedField) => {
+        const field = decodeURIComponent(encodedField || '');
+        return getCurrentRowValue(field);
+    });
+
+    return resolved;
+}
+
 export async function navigateToForm(step) {
-    const { navigateMethod, menuItemName, menuItemType, navigateUrl, waitForLoad } = step;
-    
-    logStep(`Navigating to form: ${menuItemName || navigateUrl}`);
+    const { navigateMethod, menuItemName, menuItemType, navigateUrl, hostRelativePath, waitForLoad, openInNewTab } = step;
+
+    const resolvedMenuItemName = await resolveDynamicText(menuItemName || '');
+    const resolvedNavigateUrl = await resolveDynamicText(navigateUrl || '');
+    const resolvedHostRelativePath = await resolveDynamicText(hostRelativePath || '');
+
+    logStep(`Navigating to form: ${resolvedMenuItemName || resolvedNavigateUrl}`);
     
     let targetUrl;
     const baseUrl = window.location.origin + window.location.pathname;
     
-    if (navigateMethod === 'url' && navigateUrl) {
+    if (navigateMethod === 'url' && resolvedNavigateUrl) {
         // Use full URL path provided
-        targetUrl = navigateUrl.startsWith('http') ? navigateUrl : baseUrl + navigateUrl;
-    } else if (menuItemName) {
+        targetUrl = resolvedNavigateUrl.startsWith('http') ? resolvedNavigateUrl : baseUrl + resolvedNavigateUrl;
+    } else if (navigateMethod === 'hostRelative' && resolvedHostRelativePath) {
+        // Reuse current host dynamically, append provided path/query.
+        const relativePart = String(resolvedHostRelativePath).trim();
+        const normalized = relativePart.startsWith('/') || relativePart.startsWith('?')
+            ? relativePart
+            : `/${relativePart}`;
+        targetUrl = `${window.location.protocol}//${window.location.host}${normalized}`;
+    } else if (resolvedMenuItemName) {
         // Build URL from menu item name
         const params = new URLSearchParams(window.location.search);
         params.delete('q');
         const typePrefix = (menuItemType && menuItemType !== 'Display') ? `${menuItemType}:` : '';
-        params.set('mi', `${typePrefix}${menuItemName}`);
+        const rawMenuItem = String(resolvedMenuItemName).trim();
+
+        // Support extended input like:
+        // "SysTableBrowser&tableName=InventTable"
+        // so extra query params are appended as real URL params, not encoded into mi.
+        const separatorIndex = Math.min(
+            ...['?', '&']
+                .map(ch => rawMenuItem.indexOf(ch))
+                .filter(idx => idx >= 0)
+        );
+
+        let menuItemBase = rawMenuItem;
+        let extraQuery = '';
+
+        if (Number.isFinite(separatorIndex)) {
+            menuItemBase = rawMenuItem.slice(0, separatorIndex).trim();
+            extraQuery = rawMenuItem.slice(separatorIndex + 1).trim();
+        }
+
+        params.set('mi', `${typePrefix}${menuItemBase}`);
+
+        if (extraQuery) {
+            const extras = new URLSearchParams(extraQuery);
+            extras.forEach((value, key) => {
+                if (key && key !== 'mi') {
+                    params.set(key, value);
+                }
+            });
+        }
 
         targetUrl = baseUrl + '?' + params.toString();
     } else {
@@ -829,6 +900,13 @@ export async function navigateToForm(step) {
     }
     
     logStep(`Navigating to: ${targetUrl}`);
+
+    if (openInNewTab) {
+        window.open(targetUrl, '_blank', 'noopener');
+        logStep('Opened navigation target in a new tab');
+        await sleep(300);
+        return;
+    }
 
     // Save pending workflow state directly in sessionStorage before navigation
     try {

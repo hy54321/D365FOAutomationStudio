@@ -15,7 +15,7 @@ export const stepMethods = {
         });
 
         copyButton.addEventListener('click', () => {
-            this.copySelectedSteps();
+            this.copyFromWorkflow();
         });
     },
 
@@ -46,7 +46,7 @@ export const stepMethods = {
 
         const placeholder = document.createElement('option');
         placeholder.value = '';
-        placeholder.textContent = 'Select target workflow';
+        placeholder.textContent = 'Select source workflow';
         select.appendChild(placeholder);
 
         targets.forEach(workflow => {
@@ -76,9 +76,8 @@ export const stepMethods = {
         const targetSelect = document.getElementById('copyStepsTarget');
         if (!copyButton || !targetSelect) return;
 
-        const hasSelection = (this.selectedStepIds?.size || 0) > 0;
-        const hasTarget = !!targetSelect.value;
-        copyButton.disabled = !(hasSelection && hasTarget);
+        const hasSource = !!targetSelect.value;
+        copyButton.disabled = !hasSource;
     },
 
     toggleSelectAllSteps(isChecked) {
@@ -94,56 +93,30 @@ export const stepMethods = {
         this.displaySteps();
     },
 
-    async copySelectedSteps() {
+    async copyFromWorkflow() {
         if (!this.currentWorkflow) return;
-        this.ensureStepSelectionState();
 
-        const targetSelect = document.getElementById('copyStepsTarget');
-        const targetId = targetSelect?.value;
-        if (!targetId) {
-            this.showNotification('Select a target workflow first', 'error');
+        const sourceSelect = document.getElementById('copyStepsTarget');
+        const sourceId = sourceSelect?.value;
+        if (!sourceId) {
+            this.showNotification('Select a source workflow first', 'error');
             return;
         }
 
-        const targetWorkflow = (this.workflows || []).find(w => w.id === targetId);
-        if (!targetWorkflow) {
-            this.showNotification('Target workflow not found', 'error');
+        const sourceWorkflow = (this.workflows || []).find(w => w.id === sourceId);
+        if (!sourceWorkflow) {
+            this.showNotification('Source workflow not found', 'error');
             return;
         }
 
-        const selectedIds = new Set(this.selectedStepIds);
-        const sourceSteps = this.currentWorkflow.steps;
-        let autoAdded = 0;
-
-        // Ensure loop pairs are complete
-        sourceSteps.forEach(step => {
-            if (step.type === 'loop-end' && selectedIds.has(step.id)) {
-                const refId = step.loopRef;
-                if (refId && !selectedIds.has(refId)) {
-                    selectedIds.add(refId);
-                    autoAdded++;
-                }
-            }
-        });
-
-        sourceSteps.forEach(step => {
-            if (step.type === 'loop-start' && selectedIds.has(step.id)) {
-                const matchingEnd = sourceSteps.find(s => s.type === 'loop-end' && s.loopRef === step.id);
-                if (matchingEnd && !selectedIds.has(matchingEnd.id)) {
-                    selectedIds.add(matchingEnd.id);
-                    autoAdded++;
-                }
-            }
-        });
-
-        const orderedSteps = sourceSteps.filter(step => selectedIds.has(step.id));
-        if (orderedSteps.length === 0) {
-            this.showNotification('No steps selected', 'error');
+        const sourceSteps = sourceWorkflow.steps || [];
+        if (sourceSteps.length === 0) {
+            this.showNotification('Source workflow has no steps', 'warning');
             return;
         }
 
         const loopStartIdMap = new Map();
-        const copiedSteps = orderedSteps.map((step, index) => {
+        const copiedSteps = sourceSteps.map((step, index) => {
             const clone = JSON.parse(JSON.stringify(step));
             const newId = `${Date.now()}_${index}_${Math.random().toString(16).slice(2, 6)}`;
             if (step.type === 'loop-start') {
@@ -155,22 +128,15 @@ export const stepMethods = {
 
         copiedSteps.forEach((clone, index) => {
             if (clone.type !== 'loop-end') return;
-            const originalRef = orderedSteps[index]?.loopRef;
+            const originalRef = sourceSteps[index]?.loopRef;
             if (originalRef && loopStartIdMap.has(originalRef)) {
                 clone.loopRef = loopStartIdMap.get(originalRef);
             }
         });
 
-        targetWorkflow.steps = [...(targetWorkflow.steps || []), ...copiedSteps];
-
-        await chrome.storage.local.set({ workflows: this.workflows });
-        this.displayWorkflows();
-
-        this.selectedStepIds.clear();
+        this.currentWorkflow.steps = [...(this.currentWorkflow.steps || []), ...copiedSteps];
         this.displaySteps();
-
-        const extraInfo = autoAdded > 0 ? ` (auto-added ${autoAdded} loop step${autoAdded > 1 ? 's' : ''})` : '';
-        this.showNotification(`Copied ${copiedSteps.length} step${copiedSteps.length > 1 ? 's' : ''}${extraInfo}`, 'success');
+        this.showNotification(`Copied ${copiedSteps.length} step${copiedSteps.length > 1 ? 's' : ''} from "${sourceWorkflow.name || 'source workflow'}"`, 'success');
     },
 
     addStep() {
@@ -370,6 +336,116 @@ export const stepMethods = {
         `;
     },
 
+    renderLabelOptions(currentValue) {
+        const labels = (this.currentWorkflow?.steps || [])
+            .filter(step => step.type === 'label' && step.labelName)
+            .map(step => step.labelName);
+
+        const uniqueLabels = Array.from(new Set(labels)).sort();
+
+        if (uniqueLabels.length === 0) {
+            return `<option value="">No labels defined</option>`;
+        }
+
+        return uniqueLabels.map(label => 
+            `<option value="${label}" ${currentValue === label ? 'selected' : ''}>${label}</option>`
+        ).join('');
+    },
+
+    renderConditionFields(prefix = 'step') {
+        const type = this.currentStep?.conditionType || 'ui-visible';
+        const controlName = this.currentStep?.conditionControlName || '';
+        const value = this.currentStep?.conditionValue || '';
+        const fieldMapping = this.currentStep?.conditionFieldMapping || '';
+
+        const requiresControl = type.startsWith('ui-');
+        const requiresValue = ['ui-text-equals', 'ui-text-contains', 'ui-value-equals', 'ui-value-contains', 'data-equals', 'data-not-equals', 'data-contains'].includes(type);
+        const isDataCondition = type.startsWith('data-');
+        const isDataEmpty = ['data-empty', 'data-not-empty'].includes(type);
+
+        return `
+            <div class="form-group">
+                <label>Condition Type</label>
+                <select id="${prefix}ConditionType" class="form-control">
+                    <option value="ui-visible" ${type === 'ui-visible' ? 'selected' : ''}>Element is visible</option>
+                    <option value="ui-hidden" ${type === 'ui-hidden' ? 'selected' : ''}>Element is hidden</option>
+                    <option value="ui-exists" ${type === 'ui-exists' ? 'selected' : ''}>Element exists</option>
+                    <option value="ui-not-exists" ${type === 'ui-not-exists' ? 'selected' : ''}>Element does not exist</option>
+                    <option value="ui-text-equals" ${type === 'ui-text-equals' ? 'selected' : ''}>Element text equals</option>
+                    <option value="ui-text-contains" ${type === 'ui-text-contains' ? 'selected' : ''}>Element text contains</option>
+                    <option value="ui-value-equals" ${type === 'ui-value-equals' ? 'selected' : ''}>Element value equals</option>
+                    <option value="ui-value-contains" ${type === 'ui-value-contains' ? 'selected' : ''}>Element value contains</option>
+                    <option value="data-equals" ${type === 'data-equals' ? 'selected' : ''}>Data field equals</option>
+                    <option value="data-not-equals" ${type === 'data-not-equals' ? 'selected' : ''}>Data field not equals</option>
+                    <option value="data-contains" ${type === 'data-contains' ? 'selected' : ''}>Data field contains</option>
+                    <option value="data-empty" ${type === 'data-empty' ? 'selected' : ''}>Data field is empty</option>
+                    <option value="data-not-empty" ${type === 'data-not-empty' ? 'selected' : ''}>Data field is not empty</option>
+                </select>
+            </div>
+            <div class="form-group ${requiresControl ? '' : 'is-hidden'}" id="${prefix}ConditionControlGroup">
+                <label>Control Name</label>
+                <input type="text" id="${prefix}ConditionControlName" class="form-control" 
+                       value="${controlName}"
+                       placeholder="e.g., SystemDefinedOptions">
+                <button id="${prefix}PickConditionElement" class="btn btn-secondary btn-block" style="margin-top: 8px;">
+                    Select from Inspector Tab
+                </button>
+            </div>
+            <div class="form-group ${isDataCondition ? '' : 'is-hidden'}" id="${prefix}ConditionFieldGroup">
+                <label>Data Field</label>
+                ${this.renderFieldMappingDropdown(fieldMapping)}
+            </div>
+            <div class="form-group ${requiresValue && !isDataEmpty ? '' : 'is-hidden'}" id="${prefix}ConditionValueGroup">
+                <label>Expected Value</label>
+                <input type="text" id="${prefix}ConditionValue" class="form-control" 
+                       value="${value}"
+                       placeholder="Enter value">
+            </div>
+        `;
+    },
+
+    renderErrorHandlingOptions() {
+        const mode = this.currentStep?.onErrorMode || 'default';
+        const retryCount = this.currentStep?.onErrorRetryCount ?? '';
+        const retryDelay = this.currentStep?.onErrorRetryDelay ?? '';
+        const gotoLabel = this.currentStep?.onErrorGotoLabel || '';
+
+        return `
+            <div class="form-group">
+                <label>Error Handling</label>
+                <select id="stepOnErrorMode" class="form-control">
+                    <option value="default" ${mode === 'default' ? 'selected' : ''}>Use workflow defaults</option>
+                    <option value="fail" ${mode === 'fail' ? 'selected' : ''}>Fail workflow</option>
+                    <option value="skip" ${mode === 'skip' ? 'selected' : ''}>Skip step</option>
+                    <option value="goto" ${mode === 'goto' ? 'selected' : ''}>Go to label</option>
+                    <option value="break-loop" ${mode === 'break-loop' ? 'selected' : ''}>Break loop</option>
+                    <option value="continue-loop" ${mode === 'continue-loop' ? 'selected' : ''}>Continue loop</option>
+                </select>
+                <small style="color: #666; font-size: 11px;">Retries apply before this action if configured.</small>
+            </div>
+            <div class="form-group">
+                <label>Retry Count (override)</label>
+                <input type="number" id="stepOnErrorRetryCount" class="form-control"
+                       value="${retryCount}"
+                       placeholder="Leave empty for workflow default"
+                       min="0">
+            </div>
+            <div class="form-group">
+                <label>Retry Delay (ms)</label>
+                <input type="number" id="stepOnErrorRetryDelay" class="form-control"
+                       value="${retryDelay}"
+                       placeholder="Leave empty for workflow default"
+                       min="0">
+            </div>
+            <div class="form-group ${mode !== 'goto' ? 'is-hidden' : ''}" id="stepOnErrorGotoGroup">
+                <label>Go To Label</label>
+                <select id="stepOnErrorGotoLabel" class="form-control">
+                    ${this.renderLabelOptions(gotoLabel)}
+                </select>
+            </div>
+        `;
+    },
+
     getWaitOptionsFromUI() {
         return {
             waitUntilVisible: document.getElementById('stepWaitVisible')?.checked || false,
@@ -480,6 +556,7 @@ export const stepMethods = {
                 </div>
             `;
         } else if (stepType === 'loop-start') {
+            const loopMode = this.currentStep?.loopMode || 'data';
             container.innerHTML = `
                 <div class="form-group">
                     <label>Loop Name</label>
@@ -488,6 +565,14 @@ export const stepMethods = {
                            placeholder="e.g., Process Records">
                 </div>
                 <div class="form-group">
+                    <label>Loop Mode</label>
+                    <select id="stepLoopMode" class="form-control">
+                        <option value="data" ${loopMode === 'data' ? 'selected' : ''}>Data source rows</option>
+                        <option value="count" ${loopMode === 'count' ? 'selected' : ''}>Fixed number of times</option>
+                        <option value="while" ${loopMode === 'while' ? 'selected' : ''}>While condition is true</option>
+                    </select>
+                </div>
+                <div class="form-group ${loopMode !== 'data' ? 'is-hidden' : ''}">
                     <label>Data Source</label>
                     <select id="stepLoopDataSource" class="form-control">
                         <option value="primary" ${(this.currentStep?.loopDataSource || 'primary') === 'primary' ? 'selected' : ''}>Primary Data Source</option>
@@ -496,7 +581,7 @@ export const stepMethods = {
                         ).join('')}
                     </select>
                 </div>
-                <div class="form-group">
+                <div class="form-group ${loopMode !== 'data' ? 'is-hidden' : ''}">
                     <label>Iteration Limit (0 = unlimited)</label>
                     <input type="number" id="stepIterationLimit" class="form-control" 
                            value="${this.currentStep?.iterationLimit || 0}" 
@@ -504,7 +589,38 @@ export const stepMethods = {
                            placeholder="0 for all rows">
                     <small style="color: #666; font-size: 11px;">Set a limit for testing, or 0 to process all rows</small>
                 </div>
+                <div class="form-group ${loopMode !== 'count' ? 'is-hidden' : ''}" id="loopCountGroup">
+                    <label>Loop Count</label>
+                    <input type="number" id="stepLoopCount" class="form-control" 
+                           value="${this.currentStep?.loopCount || 1}" 
+                           min="0"
+                           placeholder="e.g., 5">
+                </div>
+                <div class="${loopMode !== 'while' ? 'is-hidden' : ''}" id="loopWhileGroup">
+                    <div class="form-group">
+                        <label>While Condition</label>
+                    </div>
+                    ${this.renderConditionFields('loop')}
+                    <div class="form-group">
+                        <label>Max Iterations (safety)</label>
+                        <input type="number" id="stepLoopMaxIterations" class="form-control" 
+                               value="${this.currentStep?.loopMaxIterations || 100}" 
+                               min="1"
+                               placeholder="100">
+                        <small style="color: #666; font-size: 11px;">Stops the loop after this many iterations to avoid infinite loops.</small>
+                    </div>
+                </div>
             `;
+            setTimeout(() => {
+                document.getElementById('stepLoopMode')?.addEventListener('change', (e) => {
+                    const mode = e.target.value;
+                    document.getElementById('stepLoopDataSource')?.closest('.form-group')?.classList.toggle('is-hidden', mode !== 'data');
+                    document.getElementById('stepIterationLimit')?.closest('.form-group')?.classList.toggle('is-hidden', mode !== 'data');
+                    document.getElementById('loopCountGroup')?.classList.toggle('is-hidden', mode !== 'count');
+                    document.getElementById('loopWhileGroup')?.classList.toggle('is-hidden', mode !== 'while');
+                    this.autoSaveStep();
+                });
+            }, 0);
         } else if (stepType === 'loop-end') {
             // Find available loop starts
             const loopStarts = this.currentWorkflow?.steps.filter(s => s.type === 'loop-start') || [];
@@ -518,6 +634,37 @@ export const stepMethods = {
                         ${loopStarts.length === 0 ? '<option value="">No loop starts found</option>' : ''}
                     </select>
                     <small style="color: #666; font-size: 11px;">Select which loop this ends</small>
+                </div>
+            `;
+        } else if (stepType === 'if-start') {
+            container.innerHTML = `
+                ${this.renderConditionFields('step')}
+            `;
+        } else if (stepType === 'else') {
+            container.innerHTML = `
+                <p style="color: #666; font-size: 12px;">Else block: runs when the previous If condition is false.</p>
+            `;
+        } else if (stepType === 'if-end') {
+            container.innerHTML = `
+                <p style="color: #666; font-size: 12px;">End of If block.</p>
+            `;
+        } else if (stepType === 'label') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Label Name</label>
+                    <input type="text" id="stepLabelName" class="form-control" 
+                           value="${this.currentStep?.labelName || ''}" 
+                           placeholder="e.g., retryBlock">
+                    <small style="color: #666; font-size: 11px;">Use labels with Go To steps or error handling.</small>
+                </div>
+            `;
+        } else if (stepType === 'goto') {
+            container.innerHTML = `
+                <div class="form-group">
+                    <label>Go To Label</label>
+                    <select id="stepGotoLabel" class="form-control">
+                        ${this.renderLabelOptions(this.currentStep?.gotoLabel || '')}
+                    </select>
                 </div>
             `;
         } else if (stepType === 'subworkflow') {
@@ -736,16 +883,17 @@ export const stepMethods = {
                     <select id="stepNavigateMethod" class="form-control">
                         <option value="menuItem" ${(this.currentStep?.navigateMethod || 'menuItem') === 'menuItem' ? 'selected' : ''}>Menu Item Name (URL parameter)</option>
                         <option value="url" ${this.currentStep?.navigateMethod === 'url' ? 'selected' : ''}>Full URL</option>
+                        <option value="hostRelative" ${this.currentStep?.navigateMethod === 'hostRelative' ? 'selected' : ''}>Current Host + Path</option>
                     </select>
                 </div>
-                <div class="form-group" id="menuItemGroup">
+                <div class="form-group ${this.currentStep?.navigateMethod === 'url' || this.currentStep?.navigateMethod === 'hostRelative' ? 'is-hidden' : ''}" id="menuItemGroup">
                     <label>Menu Item Name</label>
                     <input type="text" id="stepMenuItemName" class="form-control" 
                            value="${this.currentStep?.menuItemName || ''}" 
                            placeholder="e.g., MarkupTable_Cust, CustParameters, SalesTableListPage">
                     <small style="color: #666; font-size: 11px;">The D365 menu item name (mi parameter in URL). Found in task recordings as MenuItemName.</small>
                 </div>
-                <div class="form-group" id="menuItemTypeGroup">
+                <div class="form-group ${this.currentStep?.navigateMethod === 'url' || this.currentStep?.navigateMethod === 'hostRelative' ? 'is-hidden' : ''}" id="menuItemTypeGroup">
                     <label>Menu Item Type</label>
                     <select id="stepMenuItemType" class="form-control">
                         <option value="Display" ${(this.currentStep?.menuItemType || 'Display') === 'Display' ? 'selected' : ''}>Display (default)</option>
@@ -761,12 +909,26 @@ export const stepMethods = {
                            placeholder="e.g., ?mi=MarkupTable_Cust&q=...">
                     <small style="color: #666; font-size: 11px;">Relative URL path with query parameters</small>
                 </div>
+                <div class="form-group ${this.currentStep?.navigateMethod !== 'hostRelative' ? 'is-hidden' : ''}" id="hostRelativeGroup">
+                    <label>Path After Current Host</label>
+                    <input type="text" id="stepHostRelativePath" class="form-control" 
+                           value="${this.currentStep?.hostRelativePath || ''}" 
+                           placeholder="e.g., /data/CustomersV3?$filter=CustomerAccount eq '\${CustAccount}'">
+                    <small style="color: #666; font-size: 11px;">Uses current page host dynamically, then appends this path/query.</small>
+                </div>
                 <div class="form-group">
                     <label>Wait for Form Load (ms)</label>
                     <input type="number" id="stepWaitForLoad" class="form-control" 
                            value="${this.currentStep?.waitForLoad || 3000}" 
                            min="1000"
                            placeholder="3000">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="stepOpenInNewTab" ${this.currentStep?.openInNewTab ? 'checked' : ''}>
+                        Open in new tab
+                    </label>
+                    <small style="color: #666; font-size: 11px;">Opens the target page in a new tab and continues on the current tab.</small>
                 </div>
                 <div class="form-group">
                     <label>Display Text (for reference)</label>
@@ -778,10 +940,13 @@ export const stepMethods = {
 
             setTimeout(() => {
                 document.getElementById('stepNavigateMethod')?.addEventListener('change', (e) => {
-                    const isUrl = e.target.value === 'url';
-                    document.getElementById('menuItemGroup').classList.toggle('is-hidden', isUrl);
-                    document.getElementById('menuItemTypeGroup').classList.toggle('is-hidden', isUrl);
+                    const method = e.target.value;
+                    const isUrl = method === 'url';
+                    const isHostRelative = method === 'hostRelative';
+                    document.getElementById('menuItemGroup').classList.toggle('is-hidden', isUrl || isHostRelative);
+                    document.getElementById('menuItemTypeGroup').classList.toggle('is-hidden', isUrl || isHostRelative);
                     document.getElementById('urlGroup').classList.toggle('is-hidden', !isUrl);
+                    document.getElementById('hostRelativeGroup').classList.toggle('is-hidden', !isHostRelative);
                     this.autoSaveStep();
                 });
             }, 0);
@@ -1148,11 +1313,28 @@ export const stepMethods = {
         const waitOptions = this.renderWaitOptions();
         container.insertAdjacentHTML('beforeend', waitOptions);
 
+        const errorHandlingTypes = ['click', 'input', 'select', 'lookupSelect', 'checkbox', 'wait', 'navigate', 'tab-navigate', 'action-pane-tab', 'expand-section', 'close-dialog', 'query-filter', 'batch-processing', 'recurrence', 'wait-until', 'grid-input', 'filter'];
+        if (errorHandlingTypes.includes(stepType)) {
+            const errorOptions = this.renderErrorHandlingOptions();
+            container.insertAdjacentHTML('beforeend', errorOptions);
+        }
+
         // Add pick element listener
         setTimeout(() => {
             const pickBtn = document.getElementById('pickElement');
             if (pickBtn) {
-                pickBtn.addEventListener('click', () => this.switchToInspector());
+                pickBtn.addEventListener('click', () => {
+                    this.pickTarget = 'control';
+                    this.switchToInspector();
+                });
+            }
+
+            const conditionPickBtn = document.getElementById('stepPickConditionElement') || document.getElementById('loopPickConditionElement');
+            if (conditionPickBtn) {
+                conditionPickBtn.addEventListener('click', () => {
+                    this.pickTarget = 'condition';
+                    this.switchToInspector();
+                });
             }
 
             // Add auto-save listeners to all form fields
@@ -1180,6 +1362,26 @@ export const stepMethods = {
                     if (staticGroup) staticGroup.classList.toggle('is-hidden', source !== 'static');
                     if (dataGroup) dataGroup.classList.toggle('is-hidden', source !== 'data');
                     if (clipboardGroup) clipboardGroup.classList.toggle('is-hidden', source !== 'clipboard');
+                }
+                if (select.id.endsWith('ConditionType')) {
+                    const type = select.value;
+                    const prefix = select.id.replace('ConditionType', '');
+                    const controlGroup = document.getElementById(`${prefix}ConditionControlGroup`);
+                    const fieldGroup = document.getElementById(`${prefix}ConditionFieldGroup`);
+                    const valueGroup = document.getElementById(`${prefix}ConditionValueGroup`);
+
+                    const requiresControl = type.startsWith('ui-');
+                    const requiresValue = ['ui-text-equals', 'ui-text-contains', 'ui-value-equals', 'ui-value-contains', 'data-equals', 'data-not-equals', 'data-contains'].includes(type);
+                    const isDataCondition = type.startsWith('data-');
+                    const isDataEmpty = ['data-empty', 'data-not-empty'].includes(type);
+
+                    if (controlGroup) controlGroup.classList.toggle('is-hidden', !requiresControl);
+                    if (fieldGroup) fieldGroup.classList.toggle('is-hidden', !isDataCondition);
+                    if (valueGroup) valueGroup.classList.toggle('is-hidden', !requiresValue || isDataEmpty);
+                }
+                if (select.id === 'stepOnErrorMode') {
+                    const gotoGroup = document.getElementById('stepOnErrorGotoGroup');
+                    if (gotoGroup) gotoGroup.classList.toggle('is-hidden', select.value !== 'goto');
                 }
                 this.autoSaveStep();
             });
@@ -1270,9 +1472,14 @@ export const stepMethods = {
         console.log('Handling picked element:', element);
 
         if (this.currentStep) {
-            this.currentStep.controlName = element.controlName;
-            this.currentStep.displayText = element.displayText;
-            this.currentStep.role = element.role;
+            const pickTarget = this.pickTarget || 'control';
+            if (pickTarget === 'condition') {
+                this.currentStep.conditionControlName = element.controlName;
+            } else {
+                this.currentStep.controlName = element.controlName;
+                this.currentStep.displayText = element.displayText;
+                this.currentStep.role = element.role;
+            }
 
             if (element.fieldType) {
                 this.currentStep.fieldType = element.fieldType;
@@ -1280,22 +1487,32 @@ export const stepMethods = {
 
             // Update UI - with retry in case DOM isn't ready
             setTimeout(() => {
-                const controlNameInput = document.getElementById('stepControlName');
-                if (controlNameInput) {
-                    controlNameInput.value = element.controlName;
-                    console.log('Set controlName input:', element.controlName);
-                }
+                if (pickTarget === 'condition') {
+                    const conditionInput = document.getElementById('stepConditionControlName') || document.getElementById('loopConditionControlName');
+                    if (conditionInput) {
+                        conditionInput.value = element.controlName;
+                        console.log('Set condition controlName input:', element.controlName);
+                    }
+                } else {
+                    const controlNameInput = document.getElementById('stepControlName');
+                    if (controlNameInput) {
+                        controlNameInput.value = element.controlName;
+                        console.log('Set controlName input:', element.controlName);
+                    }
 
-                const displayTextInput = document.getElementById('stepDisplayText');
-                if (displayTextInput) {
-                    displayTextInput.value = element.displayText;
-                    console.log('Set displayText input:', element.displayText);
+                    const displayTextInput = document.getElementById('stepDisplayText');
+                    if (displayTextInput) {
+                        displayTextInput.value = element.displayText;
+                        console.log('Set displayText input:', element.displayText);
+                    }
                 }
 
                 // Auto-save after element pick
                 this.autoSaveStep();
             }, 50);
         }
+
+        this.pickTarget = null;
 
         // Clear the waiting flag
         await chrome.storage.local.remove(['waitingForPick', 'pickedElement', 'currentStepData', 'currentWorkflowData']);
@@ -1348,10 +1565,30 @@ export const stepMethods = {
             this.currentStep.duration = parseInt(document.getElementById('stepDuration')?.value) || 1000;
         } else if (this.currentStep.type === 'loop-start') {
             this.currentStep.loopName = document.getElementById('stepLoopName')?.value || '';
+            this.currentStep.loopMode = document.getElementById('stepLoopMode')?.value || 'data';
             this.currentStep.loopDataSource = document.getElementById('stepLoopDataSource')?.value || '';
             this.currentStep.iterationLimit = parseInt(document.getElementById('stepIterationLimit')?.value) || 0;
+            this.currentStep.loopCount = parseInt(document.getElementById('stepLoopCount')?.value) || 0;
+            this.currentStep.loopMaxIterations = parseInt(document.getElementById('stepLoopMaxIterations')?.value) || 100;
+            this.currentStep.conditionType = document.getElementById('loopConditionType')?.value || 'ui-visible';
+            this.currentStep.conditionControlName = document.getElementById('loopConditionControlName')?.value || '';
+            this.currentStep.conditionValue = document.getElementById('loopConditionValue')?.value || '';
+            this.currentStep.conditionFieldMapping = document.getElementById('stepFieldMapping')?.value || '';
         } else if (this.currentStep.type === 'loop-end') {
             this.currentStep.loopRef = document.getElementById('stepLoopRef')?.value || '';
+        } else if (this.currentStep.type === 'if-start') {
+            this.currentStep.conditionType = document.getElementById('stepConditionType')?.value || 'ui-visible';
+            this.currentStep.conditionControlName = document.getElementById('stepConditionControlName')?.value || '';
+            this.currentStep.conditionValue = document.getElementById('stepConditionValue')?.value || '';
+            this.currentStep.conditionFieldMapping = document.getElementById('stepFieldMapping')?.value || '';
+        } else if (this.currentStep.type === 'else') {
+            // No fields
+        } else if (this.currentStep.type === 'if-end') {
+            // No fields
+        } else if (this.currentStep.type === 'label') {
+            this.currentStep.labelName = document.getElementById('stepLabelName')?.value || '';
+        } else if (this.currentStep.type === 'goto') {
+            this.currentStep.gotoLabel = document.getElementById('stepGotoLabel')?.value || '';
         } else if (this.currentStep.type === 'subworkflow') {
             this.currentStep.subworkflowId = document.getElementById('stepSubworkflowId')?.value || '';
             this.currentStep.paramBindings = this.collectSubworkflowParamBindings();
@@ -1378,7 +1615,9 @@ export const stepMethods = {
             this.currentStep.menuItemName = document.getElementById('stepMenuItemName')?.value || '';
             this.currentStep.menuItemType = document.getElementById('stepMenuItemType')?.value || 'Display';
             this.currentStep.navigateUrl = document.getElementById('stepNavigateUrl')?.value || '';
+            this.currentStep.hostRelativePath = document.getElementById('stepHostRelativePath')?.value || '';
             this.currentStep.waitForLoad = parseInt(document.getElementById('stepWaitForLoad')?.value) || 3000;
+            this.currentStep.openInNewTab = !!document.getElementById('stepOpenInNewTab')?.checked;
         } else if (this.currentStep.type === 'tab-navigate') {
             this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
@@ -1464,6 +1703,29 @@ export const stepMethods = {
         } else {
             delete this.currentStep.waitUntilVisible;
             delete this.currentStep.waitUntilHidden;
+        }
+
+        const onErrorMode = document.getElementById('stepOnErrorMode')?.value || '';
+        if (onErrorMode) {
+            this.currentStep.onErrorMode = onErrorMode;
+            const retryCountRaw = document.getElementById('stepOnErrorRetryCount')?.value;
+            const retryDelayRaw = document.getElementById('stepOnErrorRetryDelay')?.value;
+            if (retryCountRaw !== '') {
+                this.currentStep.onErrorRetryCount = parseInt(retryCountRaw);
+            } else {
+                delete this.currentStep.onErrorRetryCount;
+            }
+            if (retryDelayRaw !== '') {
+                this.currentStep.onErrorRetryDelay = parseInt(retryDelayRaw);
+            } else {
+                delete this.currentStep.onErrorRetryDelay;
+            }
+            this.currentStep.onErrorGotoLabel = document.getElementById('stepOnErrorGotoLabel')?.value || '';
+        } else {
+            delete this.currentStep.onErrorMode;
+            delete this.currentStep.onErrorRetryCount;
+            delete this.currentStep.onErrorRetryDelay;
+            delete this.currentStep.onErrorGotoLabel;
         }
 
         // Add or update step in workflow
@@ -1578,12 +1840,34 @@ export const stepMethods = {
                 stepDesc = `Wait ${step.duration}ms`;
             } else if (step.type === 'loop-start') {
                 stepIcon = 'LOOP';
-                const limit = step.iterationLimit > 0 ? ` (max ${step.iterationLimit})` : ' (all rows)';
-                stepDesc = `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'}${limit}`;
+                const mode = step.loopMode || 'data';
+                if (mode === 'count') {
+                    stepDesc = `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'} (count ${step.loopCount || 0})`;
+                } else if (mode === 'while') {
+                    stepDesc = `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'} (while ${step.conditionType || 'condition'})`;
+                } else {
+                    const limit = step.iterationLimit > 0 ? ` (max ${step.iterationLimit})` : ' (all rows)';
+                    stepDesc = `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'}${limit}`;
+                }
             } else if (step.type === 'loop-end') {
                 stepIcon = 'LOOP';
                 const refLoop = this.currentWorkflow.steps.find(s => s.id === step.loopRef);
                 stepDesc = `<span class="loop-indicator">LOOP END:</span> ${refLoop?.loopName || 'Loop'}`;
+            } else if (step.type === 'if-start') {
+                stepIcon = 'IF';
+                stepDesc = `IF ${step.conditionType || 'condition'}`;
+            } else if (step.type === 'else') {
+                stepIcon = 'ELSE';
+                stepDesc = 'ELSE';
+            } else if (step.type === 'if-end') {
+                stepIcon = 'END';
+                stepDesc = 'END IF';
+            } else if (step.type === 'label') {
+                stepIcon = 'LBL';
+                stepDesc = `Label: ${step.labelName || 'unnamed'}`;
+            } else if (step.type === 'goto') {
+                stepIcon = 'GOTO';
+                stepDesc = `Go to: ${step.gotoLabel || 'label'}`;
             } else if (step.type === 'subworkflow') {
                 stepIcon = 'SUB';
                 const sub = (this.workflows || []).find(w => w.id === step.subworkflowId);
@@ -1606,8 +1890,8 @@ export const stepMethods = {
                 stepDesc = `Wait until "${step.displayText || step.controlName}" ${condition}`;
             } else if (step.type === 'navigate') {
                 stepIcon = '🧭';
-                const target = step.menuItemName || step.navigateUrl || 'form';
-                stepDesc = `Navigate to "${step.displayText || target}"`;
+                const target = step.menuItemName || step.navigateUrl || step.hostRelativePath || 'form';
+                stepDesc = `Navigate to "${step.displayText || target}"${step.openInNewTab ? ' (new tab)' : ''}`;
             } else if (step.type === 'tab-navigate') {
                 stepIcon = '📑';
                 stepDesc = `Switch to tab "${step.displayText || step.controlName}"`;
@@ -1724,9 +2008,33 @@ export const stepMethods = {
             container.appendChild(item);
         });
 
+        this.updateWorkflowLabelOptions();
         this.updateSelectAllState();
         this.populateCopyTargets();
         this.updateCopyButtonState();
+    },
+
+    updateWorkflowLabelOptions() {
+        const labelSelect = document.getElementById('workflowErrorDefaultGotoLabel');
+        if (labelSelect) {
+            const current = labelSelect.value;
+            labelSelect.innerHTML = this.renderLabelOptions(current);
+            if (current && !Array.from(labelSelect.options).some(opt => opt.value === current)) {
+                labelSelect.value = '';
+            }
+        }
+
+        const stepGotoSelect = document.getElementById('stepGotoLabel');
+        if (stepGotoSelect) {
+            const current = stepGotoSelect.value;
+            stepGotoSelect.innerHTML = this.renderLabelOptions(current);
+        }
+
+        const onErrorGotoSelect = document.getElementById('stepOnErrorGotoLabel');
+        if (onErrorGotoSelect) {
+            const current = onErrorGotoSelect.value;
+            onErrorGotoSelect.innerHTML = this.renderLabelOptions(current);
+        }
     },
 
     formatWaitFlags(step) {

@@ -1218,6 +1218,7 @@ export const xmlImportMethods = {
             // Parse XML and resolve labels (async)
             const workflow = await this.parseTaskRecorderXML(this._pendingXMLContent);
             workflow.projectIds = workflow.projectIds || [];
+            workflow.configurationIds = workflow.configurationIds || [];
             
             // Count how many labels were resolved
             const resolvedCount = workflow.steps.filter(s => 
@@ -1230,12 +1231,20 @@ export const xmlImportMethods = {
             
             // Add to workflows
             this.workflows.push(workflow);
-            await chrome.storage.local.set({ workflows: this.workflows });
+            const configurationOrderChanged = this.syncConfigurationOrderForWorkflow
+                ? this.syncConfigurationOrderForWorkflow(workflow)
+                : false;
+            await chrome.storage.local.set(configurationOrderChanged
+                ? { workflows: this.workflows, configurations: this.configurations }
+                : { workflows: this.workflows });
             
             // Update UI
             this.displayWorkflows();
             if (this.renderProjectsManager) {
                 this.renderProjectsManager();
+            }
+            if (this.renderConfigurationsManager) {
+                this.renderConfigurationsManager();
             }
             
             // Close modal

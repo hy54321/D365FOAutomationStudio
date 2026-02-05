@@ -1,4 +1,36 @@
 export const dataSourceMethods = {
+    getDataSourceEditorState() {
+        if (!this.dataSourceEditorState) {
+            this.dataSourceEditorState = {
+                primaryExpanded: false,
+                detailExpanded: {}
+            };
+        }
+        return this.dataSourceEditorState;
+    },
+
+    applyPrimaryDataEditorState() {
+        const state = this.getDataSourceEditorState();
+        const textarea = document.getElementById('primaryDataInput');
+        const toggleBtn = document.getElementById('togglePrimaryDataSize');
+        if (!textarea || !toggleBtn) return;
+
+        textarea.classList.toggle('editor-expanded', !!state.primaryExpanded);
+        toggleBtn.textContent = state.primaryExpanded ? 'Minimize' : 'Maximize';
+    },
+
+    togglePrimaryDataEditorSize() {
+        const state = this.getDataSourceEditorState();
+        state.primaryExpanded = !state.primaryExpanded;
+        this.applyPrimaryDataEditorState();
+    },
+
+    toggleDetailDataEditorSize(detailId) {
+        const state = this.getDataSourceEditorState();
+        state.detailExpanded[detailId] = !state.detailExpanded[detailId];
+        this.renderDetailDataSources();
+    },
+
     updatePrimaryDataSourceUI(type) {
         const inputContainer = document.getElementById('primaryDataSourceInput');
         const fieldsPreview = document.getElementById('primaryDataFields');
@@ -16,6 +48,7 @@ export const dataSourceMethods = {
 
             document.getElementById('primaryDataInput').placeholder = placeholder;
             this.dataSources.primary.type = type;
+            this.applyPrimaryDataEditorState();
         }
     },
 
@@ -82,13 +115,16 @@ export const dataSourceMethods = {
 
     renderDetailDataSources() {
         const container = document.getElementById('detailDataSources');
+        const editorState = this.getDataSourceEditorState();
 
         if (this.dataSources.details.length === 0) {
             container.innerHTML = '<p style="color: #999; font-size: 12px; text-align: center;">No detail data sources. Click "Add" to create one.</p>';
             return;
         }
 
-        container.innerHTML = this.dataSources.details.map((detail, index) => `
+        container.innerHTML = this.dataSources.details.map((detail, index) => {
+            const isExpanded = !!editorState.detailExpanded[detail.id];
+            return `
             <div class="detail-source-item" data-detail-id="${detail.id}">
                 <div class="source-header">
                     <input type="text" class="form-control form-control-sm detail-name" value="${detail.name}" style="width: 150px;">
@@ -100,15 +136,17 @@ export const dataSourceMethods = {
                     <button class="btn-remove" title="Remove">Remove</button>
                 </div>
                 <div class="detail-input ${detail.type === 'none' ? 'is-hidden' : ''}">
-                    <textarea class="form-control detail-data" rows="3" placeholder="Paste data here...">${detail.data ? (detail.type === 'json' ? JSON.stringify(detail.data, null, 2) : this.dataToCSV(detail.data)) : ''}</textarea>
+                    <textarea class="form-control detail-data ${isExpanded ? 'editor-expanded' : ''}" rows="3" placeholder="Paste data here...">${detail.data ? (detail.type === 'json' ? JSON.stringify(detail.data, null, 2) : this.dataToCSV(detail.data)) : ''}</textarea>
                     <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
                         <button class="btn btn-secondary btn-sm validate-detail">Validate</button>
+                        <button class="btn btn-secondary btn-sm toggle-detail-size">${isExpanded ? 'Minimize' : 'Maximize'}</button>
                         <span class="detail-status" style="font-size: 11px;">${detail.fields.length > 0 ? `OK ${detail.data?.length || 0} rows` : ''}</span>
                     </div>
                 </div>
                 <div class="detail-fields">${detail.fields.map(f => `<span class="field-tag">${f}</span>`).join('')}</div>
             </div>
-        `).join('');
+        `;
+        }).join('');
 
         // Add event listeners
         container.querySelectorAll('.detail-source-item').forEach(item => {
@@ -137,6 +175,10 @@ export const dataSourceMethods = {
 
             item.querySelector('.validate-detail')?.addEventListener('click', () => {
                 this.validateDetailData(detailId);
+            });
+
+            item.querySelector('.toggle-detail-size')?.addEventListener('click', () => {
+                this.toggleDetailDataEditorSize(detailId);
             });
         });
     },

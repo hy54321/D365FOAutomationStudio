@@ -491,12 +491,189 @@ header h1 {
 }
 
 /* Workflows List */
+.workflows-shell {
+    display: flex;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+}
+
+.workflow-tree-pane {
+    width: 280px;
+    min-width: 280px;
+    border: 1px solid #e3e7ec;
+    background: #f7f9fb;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+}
+
+.workflow-tree-pane.collapsed {
+    width: 46px;
+    min-width: 46px;
+    padding: 6px 4px;
+}
+
+.workflow-tree-pane.collapsed .tree-group,
+.workflow-tree-pane.collapsed #showAllWorkflows {
+    display: none;
+}
+
+.workflow-tree-pane.collapsed .workflow-tree-header {
+    justify-content: center;
+}
+
+.workflow-tree-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tree-toggle-btn {
+    width: 28px;
+    min-width: 28px;
+    height: 24px;
+    padding: 0;
+    justify-content: center;
+    align-items: center;
+    gap: 0;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.workflows-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.tree-group {
+    border: 1px solid #e3e7ec;
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 6px;
+}
+
+.tree-group .projects-manager {
+    margin-bottom: 6px;
+    padding: 6px;
+}
+
+.tree-group > summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.tree-summary-action {
+    border: 1px solid #d7deea;
+    background: #f8fafc;
+    color: #2b3a45;
+    border-radius: 4px;
+    width: 20px;
+    height: 20px;
+    line-height: 18px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.tree-summary-action:hover {
+    background: #eef2f8;
+}
+
+.tree-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tree-hint {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #6b7280;
+}
+
+.tree-node {
+    border: 1px solid #d7deea;
+    background: #f8fafc;
+    color: #2b3a45;
+    border-radius: 6px;
+    font-size: 12px;
+    text-align: left;
+    padding: 6px 8px;
+    cursor: pointer;
+}
+
+.tree-node:hover {
+    background: #eef2f8;
+}
+
+.tree-node.active {
+    border-color: #667eea;
+    background: #e8ecff;
+    color: #3f51b5;
+}
+
+.tree-node.drop-target {
+    border-color: #2e7d32;
+    background: #e8f5e9;
+}
+
+.tree-context-menu {
+    position: fixed;
+    z-index: 20000;
+    min-width: 170px;
+    background: #ffffff;
+    border: 1px solid #d7deea;
+    border-radius: 8px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    padding: 4px;
+}
+
+.tree-context-item {
+    width: 100%;
+    border: none;
+    background: transparent;
+    text-align: left;
+    font-size: 12px;
+    padding: 7px 9px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #2b3a45;
+}
+
+.tree-context-item:hover {
+    background: #eef2f8;
+}
+
 .workflows-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
     overflow-y: auto;
     flex: 1;
+}
+
+@media (max-width: 900px) {
+    .workflows-shell {
+        flex-direction: column;
+    }
+
+    .workflow-tree-pane,
+    .workflow-tree-pane.collapsed {
+        width: 100%;
+        min-width: 0;
+    }
 }
 
 .workflow-item {
@@ -515,6 +692,15 @@ header h1 {
 .workflow-item:hover {
     background: #f0f0f0;
     border-color: #667eea;
+}
+
+.workflow-item.dragging {
+    opacity: 0.55;
+}
+
+.workflow-item.drop-target {
+    border-color: #2e7d32;
+    background: #e8f5e9;
 }
 
 .workflow-item.running {
@@ -550,6 +736,22 @@ header h1 {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.workflow-order-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    margin-right: 7px;
+    border-radius: 999px;
+    background: #e8ecff;
+    border: 1px solid #cfd8ff;
+    color: #3f51b5;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1;
 }
 
 .workflow-info p {
@@ -588,7 +790,7 @@ header h1 {
 .builder-header {
     display: flex;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     align-items: center;
     flex-shrink: 0;
 }
@@ -632,6 +834,25 @@ header h1 {
     overflow: hidden;
 }
 
+.builder-top-panels {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 6px 0 12px;
+}
+
+@media (max-width: 1200px) {
+    .builder-top-panels {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 900px) {
+    .builder-top-panels {
+        grid-template-columns: 1fr;
+    }
+}
+
 .steps-panel {
     flex: 1;
     display: flex;
@@ -641,7 +862,7 @@ header h1 {
 
 .steps-panel h3 {
     font-size: 13px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     flex-shrink: 0;
 }
 
@@ -650,7 +871,7 @@ header h1 {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     font-size: 11px;
     color: #555;
 }
@@ -683,7 +904,7 @@ header h1 {
 .steps-list {
     flex: 1;
     overflow-y: auto;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     min-height: 120px;
 }
 
@@ -1004,6 +1225,19 @@ header h1 {
     resize: vertical;
     min-height: 50px;
     max-height: 80px;
+}
+
+.detail-data {
+    resize: vertical;
+    min-height: 50px;
+    max-height: 80px;
+}
+
+.data-source-input textarea.editor-expanded,
+.detail-data.editor-expanded {
+    height: 55vh;
+    min-height: 55vh;
+    max-height: 70vh;
 }
 
 .data-source-actions {
@@ -1778,6 +2012,12 @@ header h1 {
     font-size: 11px;
 }
 
+.project-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .workflow-project-tags {
     margin-top: 6px;
     display: flex;
@@ -1797,8 +2037,16 @@ header h1 {
     background: #f7f9fb;
     border: 1px solid #e3e7ec;
     border-radius: 8px;
-    padding: 10px 12px;
-    margin: 8px 0 12px;
+    padding: 8px 10px;
+    margin: 0;
+}
+
+.workflow-defaults-panel {
+    background: #f7f9fb;
+    border: 1px solid #e3e7ec;
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin: 0;
 }
 
 .workflow-projects-header {
@@ -1806,7 +2054,7 @@ header h1 {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 
 .workflow-projects-list {
@@ -1822,8 +2070,29 @@ header h1 {
     font-size: 12px;
     background: #ffffff;
     border: 1px solid #e3e7ec;
-    padding: 4px 8px;
+    padding: 3px 8px;
     border-radius: 999px;
+}
+
+.workflow-defaults-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 6px 10px;
+    align-items: center;
+}
+
+.workflow-defaults-grid .form-group {
+    display: contents;
+}
+
+.workflow-defaults-grid label {
+    font-size: 11px;
+    color: #4b5563;
+}
+
+.workflow-defaults-grid .form-control {
+    padding: 6px 8px;
+    font-size: 12px;
 }
 
 .muted {
