@@ -68,6 +68,9 @@ export const executionMethods = {
             delete this.resumeSkipByWorkflow[workflowId];
             chrome.storage.local.set({ resumeSkipByWorkflow: this.resumeSkipByWorkflow }).catch(() => {});
         }
+        if (this.executionState) {
+            delete this.executionState.runningWorkflowSnapshot;
+        }
     },
 
     handleWorkflowError(err) {
@@ -110,6 +113,9 @@ export const executionMethods = {
                 totalRows: this.executionState.totalRows
             };
             this.showResumeModal();
+        }
+        if (this.executionState) {
+            delete this.executionState.runningWorkflowSnapshot;
         }
     },
 
@@ -226,6 +232,9 @@ export const executionMethods = {
             this.clearStepStatuses();
             this.addLog('error', 'Workflow stopped by user');
             this.showNotification('Workflow stopped', 'warning');
+            if (this.executionState) {
+                delete this.executionState.runningWorkflowSnapshot;
+            }
         }
     },
     
@@ -234,7 +243,12 @@ export const executionMethods = {
      * This is called when the injected script is about to navigate to a new page
      */
     async handleSaveWorkflowState(data) {
-        if (!this.executionState.isRunning || !this.currentWorkflow) {
+        const runningWorkflow = this.executionState?.runningWorkflowSnapshot
+            || (this.executionState?.currentWorkflowId
+                ? (this.workflows || []).find(w => w.id === this.executionState.currentWorkflowId)
+                : null)
+            || this.currentWorkflow;
+        if (!this.executionState.isRunning || !runningWorkflow) {
             if (this.settings?.logVerbose) {
                 console.warn('[Execution] handleSaveWorkflowState: No running workflow to save');
             }
@@ -254,7 +268,8 @@ export const executionMethods = {
         
         // Save workflow state for resumption after page reload
         const pendingState = {
-            workflow: this.currentWorkflow,
+            workflow: runningWorkflow,
+            workflowId: runningWorkflow?.id || this.executionState.currentWorkflowId || '',
             nextStepIndex: this.executionState.currentStepIndex + 1, // Resume from next step
             currentRowIndex: this.executionState.currentRow,
             totalRows: this.executionState.totalRows,
@@ -296,6 +311,19 @@ export const executionMethods = {
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: (state) => {
+                    const existingRaw = sessionStorage.getItem('d365_pending_workflow');
+                    if (existingRaw) {
+                        try {
+                            const existing = JSON.parse(existingRaw);
+                            const existingSavedAt = Number(existing?.savedAt || 0);
+                            const nextSavedAt = Number(state?.savedAt || 0);
+                            const existingWorkflowId = existing?.workflowId || existing?.workflow?.id || '';
+                            const nextWorkflowId = state?.workflowId || state?.workflow?.id || '';
+                            if (existingWorkflowId && nextWorkflowId && existingWorkflowId !== nextWorkflowId && existingSavedAt >= nextSavedAt) {
+                                return;
+                            }
+                        } catch (_) {}
+                    }
                     sessionStorage.setItem('d365_pending_workflow', JSON.stringify(state));
                 },
                 args: [pendingState]
@@ -311,18 +339,28 @@ export const executionMethods = {
      */
     async handleResumeAfterNavigation(data) {
         const { workflow, nextStepIndex, currentRowIndex, data: rowData, resumeHandled } = data;
+        let workflowForResume = workflow;
+        try {
+            workflowForResume = this.resolveWorkflowDataSources
+                ? this.resolveWorkflowDataSources(workflow)
+                : workflow;
+        } catch (e) {
+            this.addLog('error', e.message || 'Failed to resolve shared data source for resume');
+            this.showNotification(e.message || 'Failed to resolve shared data source for resume', 'error');
+            return;
+        }
         
         // Prevent duplicate resume handling (message may arrive from multiple sources)
-        const resumeKey = `${workflow?.id || 'unknown'}_${nextStepIndex}_${Date.now()}`;
-        if (this._lastResumeKey && this._lastResumeKey === `${workflow?.id || 'unknown'}_${nextStepIndex}`) {
+        const resumeKey = `${workflowForResume?.id || 'unknown'}_${nextStepIndex}_${Date.now()}`;
+        if (this._lastResumeKey && this._lastResumeKey === `${workflowForResume?.id || 'unknown'}_${nextStepIndex}`) {
             console.log('[Execution] Ignoring duplicate resume request');
             return;
         }
-        this._lastResumeKey = `${workflow?.id || 'unknown'}_${nextStepIndex}`;
+        this._lastResumeKey = `${workflowForResume?.id || 'unknown'}_${nextStepIndex}`;
         
         // Clear the deduplication key after a short delay to allow future resumes
         setTimeout(() => {
-            if (this._lastResumeKey === `${workflow?.id || 'unknown'}_${nextStepIndex}`) {
+            if (this._lastResumeKey === `${workflowForResume?.id || 'unknown'}_${nextStepIndex}`) {
                 this._lastResumeKey = null;
             }
         }, 5000);
@@ -337,24 +375,24 @@ export const executionMethods = {
         }
         
         // Set up execution state
-        this.currentWorkflow = workflow;
+        this.currentWorkflow = workflowForResume;
         this.executionState.isRunning = true;
         this.executionState.isLaunching = false;
         this.executionState.isPaused = false;
         this.executionState.currentStepIndex = nextStepIndex;
         this.executionState.currentRow = currentRowIndex || 0;
-        this.executionState.totalSteps = workflow.steps?.length || 0;
-        this.executionState.currentWorkflowId = workflow.id;
-        
-        this.markWorkflowAsRunning(workflow.id);
+        this.executionState.totalSteps = workflowForResume.steps?.length || 0;
+        this.executionState.currentWorkflowId = workflowForResume.id;
+
+        this.markWorkflowAsRunning(workflowForResume.id);
         this.updateExecutionBar();
         
         // Build data array
         let dataToProcess = [];
         if (rowData) {
             dataToProcess = Array.isArray(rowData) ? rowData : [rowData];
-        } else if (this.dataSources?.primary?.data) {
-            dataToProcess = this.dataSources.primary.data;
+        } else if (this.buildExecutionRowsForWorkflow) {
+            dataToProcess = this.buildExecutionRowsForWorkflow(workflowForResume);
         }
         
         if (resumeHandled) {
@@ -362,11 +400,11 @@ export const executionMethods = {
         }
 
         // Continue execution with remaining steps
-        const remainingSteps = workflow.steps
+        const remainingSteps = workflowForResume.steps
             .slice(nextStepIndex)
             .map((step, idx) => ({ ...step, _absoluteIndex: nextStepIndex + idx }));
         const continueWorkflow = {
-            ...workflow,
+            ...workflowForResume,
             steps: remainingSteps,
             _isResume: true,
             _originalStartIndex: nextStepIndex

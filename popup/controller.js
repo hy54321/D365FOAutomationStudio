@@ -25,10 +25,12 @@ class PopupController {
 
         // Data sources management
         this.dataSources = {
-            primary: { type: 'none', data: null, fields: [] },
+            primary: { type: 'none', data: null, fields: [], sharedDataSourceId: '' },
             details: [], // Array of { id, name, type, data, fields, linkedTo, linkFields }
             relationships: [] // Array of { detailId, primaryField, detailField }
         };
+        this.sharedDataSources = [];
+        this.sharedDataSourceRelationships = [];
 
         // Execution state
         this.executionState = {

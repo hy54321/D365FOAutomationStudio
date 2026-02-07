@@ -14,6 +14,9 @@ export const projectMethods = {
         this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
+        if (this.renderSharedDataSourcesUI) {
+            this.renderSharedDataSourcesUI();
+        }
     },
 
     setupProjectUI() {
@@ -159,10 +162,21 @@ export const projectMethods = {
             selectedProjectId: this.selectedProjectId
         });
 
+        if (Array.isArray(this.sharedDataSources)) {
+            this.sharedDataSources = this.sharedDataSources.map(source => ({
+                ...source,
+                projectIds: (source.projectIds || []).filter(id => id !== projectId)
+            }));
+            await this.persistSharedDataSources?.();
+        }
+
         this.renderProjectFilter();
         this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
+        if (this.renderSharedDataSourcesUI) {
+            this.renderSharedDataSourcesUI();
+        }
         this.displayWorkflows();
     },
 
@@ -184,6 +198,9 @@ export const projectMethods = {
         this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
+        if (this.renderSharedDataSourcesUI) {
+            this.renderSharedDataSourcesUI();
+        }
         this.displayWorkflows();
     },
 

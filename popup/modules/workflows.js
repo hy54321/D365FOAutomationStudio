@@ -1,4 +1,20 @@
 export const workflowMethods = {
+    handleDirectBuilderTabAccess() {
+        this.currentWorkflow = null;
+        this.currentStep = null;
+        this.originalWorkflowState = null;
+
+        const workflowName = document.getElementById('workflowName');
+        if (workflowName) workflowName.value = '';
+
+        const stepType = document.getElementById('stepType');
+        if (stepType) stepType.value = 'click';
+
+        this.displaySteps();
+        if (this.renderWorkflowProjects) this.renderWorkflowProjects();
+        if (this.renderWorkflowConfigurations) this.renderWorkflowConfigurations();
+    },
+
     cancelWorkflowChanges() {
         if (this.originalWorkflowState) {
             // Restore original state
@@ -33,11 +49,6 @@ export const workflowMethods = {
             steps: [],
             projectIds: [],
             configurationIds: [],
-            dataSources: {
-                primary: { type: 'none', data: null, fields: [] },
-                details: [],
-                relationships: []
-            },
             settings: {
                 ...this.settings,
                 errorDefaultMode: 'fail',
@@ -47,13 +58,6 @@ export const workflowMethods = {
             }
         };
 
-        // Reset data sources
-        this.dataSources = {
-            primary: { type: 'none', data: null, fields: [] },
-            details: [],
-            relationships: []
-        };
-
         // Store original state for cancel functionality
         this.originalWorkflowState = JSON.parse(JSON.stringify(this.currentWorkflow));
 
@@ -61,13 +65,6 @@ export const workflowMethods = {
         this.displaySteps();
         this.loadWorkflowDefaultsUI();
 
-        // Reset data source UI
-        document.getElementById('primaryDataSourceType').value = 'none';
-        document.getElementById('primaryDataSourceInput').classList.add('is-hidden');
-        document.getElementById('primaryDataInput').value = '';
-        document.getElementById('primaryDataFields').innerHTML = '';
-        document.getElementById('detailDataSources').innerHTML = '';
-        document.getElementById('relationshipsSection').classList.add('is-hidden');
         if (this.renderWorkflowProjects) {
             this.renderWorkflowProjects();
         }
@@ -108,11 +105,10 @@ export const workflowMethods = {
         if (this.syncCurrentWorkflowConfigurationsFromUI) {
             this.syncCurrentWorkflowConfigurationsFromUI();
         }
+        delete this.currentWorkflow.dataSources;
+        delete this.currentWorkflow.dataSource;
 
         this.saveWorkflowDefaultsFromUI();
-
-        // Save data sources with the workflow
-        this.currentWorkflow.dataSources = JSON.parse(JSON.stringify(this.dataSources));
 
         // Update or add workflow
         const existingIndex = this.workflows.findIndex(w => w.id === this.currentWorkflow.id);
@@ -189,14 +185,13 @@ export const workflowMethods = {
 
             // Count loop blocks
             const loopStarts = workflow.steps.filter(s => s.type === 'loop-start').length;
-            const hasData = workflow.dataSources?.primary?.type !== 'none';
             const projectNames = this.getProjectNamesByIds ? this.getProjectNamesByIds(workflow.projectIds || []) : [];
             const configurationNames = this.getConfigurationNamesByIds ? this.getConfigurationNamesByIds(workflow.configurationIds || []) : [];
 
             item.innerHTML = `
                 <div class="workflow-info">
                     <h4>${isConfigOrderMode ? `<span class="workflow-order-chip">${visibleIndex + 1}</span>` : ''}${workflow.name}</h4>
-                    <p>${workflow.steps.length} steps${loopStarts > 0 ? `, ${loopStarts} loop(s)` : ''}${hasData ? ' &bull; Has data' : ''}</p>
+                    <p>${workflow.steps.length} steps${loopStarts > 0 ? `, ${loopStarts} loop(s)` : ''}</p>
                     ${projectNames.length ? `<div class="workflow-project-tags">${projectNames.map(name => `<span class="project-tag">${name}</span>`).join('')}</div>` : ''}
                     ${configurationNames.length ? `<div class="workflow-project-tags">${configurationNames.map(name => `<span class="project-tag">${name}</span>`).join('')}</div>` : ''}
                 </div>
@@ -316,9 +311,6 @@ export const workflowMethods = {
         document.getElementById('workflowName').value = workflow.name;
         this.loadWorkflowDefaultsUI();
 
-        // Load data sources
-        this.loadDataSourcesFromWorkflow();
-
         this.displaySteps();
         if (this.renderWorkflowProjects) {
             this.renderWorkflowProjects();
@@ -331,63 +323,107 @@ export const workflowMethods = {
         document.querySelector('[data-tab="builder"]').click();
     },
 
-    loadDataSourcesFromWorkflow() {
-        if (this.currentWorkflow.dataSources) {
-            this.dataSources = JSON.parse(JSON.stringify(this.currentWorkflow.dataSources));
-        } else {
-            // Legacy workflow - migrate old dataSource format
-            this.dataSources = {
-                primary: { type: 'none', data: null, fields: [] },
-                details: [],
-                relationships: []
-            };
+    loadDataSourcesFromWorkflow() {},
 
-            if (this.currentWorkflow.dataSource && this.currentWorkflow.dataSource.type !== 'none') {
-                this.dataSources.primary = {
-                    type: this.currentWorkflow.dataSource.type,
-                    data: this.currentWorkflow.dataSource.data,
-                    fields: this.currentWorkflow.dataSource.data?.[0] ? Object.keys(this.currentWorkflow.dataSource.data[0]) : []
-                };
-            }
-        }
+    updateDataSourceUIFromState() {},
 
-        // Update UI
-        this.updateDataSourceUIFromState();
+    resolveWorkflowDataSources(workflow) {
+        return JSON.parse(JSON.stringify(workflow || {}));
     },
 
-    updateDataSourceUIFromState() {
-        // Primary data source
-        document.getElementById('primaryDataSourceType').value = this.dataSources.primary.type;
+    collectReferencedSharedSourceIds(workflow) {
+        const ids = new Set();
+        const collectMapping = (value) => {
+            if (typeof value !== 'string') return;
+            const idx = value.indexOf(':');
+            if (idx <= 0) return;
+            const sourceId = value.slice(0, idx);
+            if (!sourceId) return;
+            ids.add(sourceId);
+        };
 
-        if (this.dataSources.primary.type !== 'none') {
-            document.getElementById('primaryDataSourceInput').classList.remove('is-hidden');
+        (workflow?.steps || []).forEach(step => {
+            collectMapping(step?.fieldMapping);
+            collectMapping(step?.conditionFieldMapping);
+            if (step?.type === 'loop-start' && step?.loopDataSource && step.loopDataSource !== 'primary') {
+                ids.add(step.loopDataSource);
+            }
+        });
 
-            // Reconstruct the raw input if we have data
-            if (this.dataSources.primary.data) {
-                const type = this.dataSources.primary.type;
-                let rawData = '';
-                if (type === 'json') {
-                    rawData = JSON.stringify(this.dataSources.primary.data, null, 2);
-                } else if (type === 'csv') {
-                    rawData = this.dataToCSV(this.dataSources.primary.data);
-                }
-                document.getElementById('primaryDataInput').value = rawData;
+        return Array.from(ids);
+    },
+
+    buildExecutionRowsForWorkflow(workflow, sharedSourcesOverride = null) {
+        const sourceIds = this.collectReferencedSharedSourceIds(workflow);
+        if (!sourceIds.length) {
+            return [{}];
+        }
+
+        const sharedSources = Array.isArray(sharedSourcesOverride) ? sharedSourcesOverride : (this.sharedDataSources || []);
+
+        const resolvedSources = sourceIds.map((id) => {
+            const source = sharedSources.find(s => s.id === id);
+            if (!source) {
+                throw new Error(`Shared data source not found: ${id}`);
+            }
+            if (!Array.isArray(source.data) || source.data.length === 0) {
+                throw new Error(`Shared data source "${source.name || id}" has no rows`);
+            }
+            return source;
+        });
+
+        const maxRows = resolvedSources.reduce((max, source) => Math.max(max, source.data.length), 0);
+        const rows = [];
+        for (let rowIndex = 0; rowIndex < maxRows; rowIndex++) {
+            const row = {};
+            resolvedSources.forEach((source) => {
+                const sourceRow = source.data[rowIndex] || source.data[source.data.length - 1] || {};
+                Object.entries(sourceRow).forEach(([field, value]) => {
+                    const key = `${source.id}:${field}`;
+                    row[key] = value;
+                    if (!Object.prototype.hasOwnProperty.call(row, field)) {
+                        row[field] = value;
+                    }
+                });
+            });
+            rows.push(row);
+        }
+
+        return rows.length ? rows : [{}];
+    },
+
+    async resolveRuntimeSharedDataSourcesForWorkflow(workflow) {
+        const sourceIds = new Set(this.collectReferencedSharedSourceIds(workflow));
+        const runtimeSources = (this.sharedDataSources || []).map(source => JSON.parse(JSON.stringify(source)));
+        const dynamicSources = runtimeSources.filter(source =>
+            sourceIds.has(source.id) && source.type === 'odata-dynamic'
+        );
+
+        if (!dynamicSources.length) {
+            return runtimeSources;
+        }
+
+        for (const source of dynamicSources) {
+            const query = (source.odataQuery || '').trim();
+            if (!query) {
+                throw new Error(`Dynamic OData source "${source.name || source.id}" is missing query`);
             }
 
-            this.displayPrimaryDataFields();
-        } else {
-            document.getElementById('primaryDataSourceInput').classList.add('is-hidden');
+            const result = this.fetchODataRowsFromActiveEnvironment
+                ? await this.fetchODataRowsFromActiveEnvironment(query, { previewOnly: false })
+                : null;
+            const rows = Array.isArray(result?.rows) ? result.rows : [];
+            if (!rows.length) {
+                throw new Error(`Dynamic OData source "${source.name || source.id}" returned no rows`);
+            }
+
+            source.data = rows;
+            source.fields = Object.keys(rows[0] || {});
+            source.odataLastFetchedAt = Date.now();
+            this.addLog('info', `Fetched dynamic OData source "${source.name || source.id}" (${rows.length} rows)`);
         }
 
-        // Detail data sources
-        this.renderDetailDataSources();
-
-        // Relationships
-        this.renderRelationships();
-
-        if (this.applyPrimaryDataEditorState) {
-            this.applyPrimaryDataEditorState();
-        }
+        return runtimeSources;
     },
 
     loadWorkflowDefaultsUI() {
@@ -747,10 +783,21 @@ export const workflowMethods = {
 
             let workflowToExecute = workflow;
             let expansionWarnings = [];
+            let executionRows = [{}];
+            let runtimeSharedSources = (this.sharedDataSources || []);
             try {
-                const expansion = this.expandWorkflowForExecution(workflow);
+                const workflowWithResolvedSources = this.resolveWorkflowDataSources
+                    ? this.resolveWorkflowDataSources(workflow, { strict: true })
+                    : workflow;
+                const expansion = this.expandWorkflowForExecution(workflowWithResolvedSources);
                 workflowToExecute = expansion.workflow;
                 expansionWarnings = expansion.warnings || [];
+                runtimeSharedSources = this.resolveRuntimeSharedDataSourcesForWorkflow
+                    ? await this.resolveRuntimeSharedDataSourcesForWorkflow(workflowToExecute)
+                    : (this.sharedDataSources || []);
+                executionRows = this.buildExecutionRowsForWorkflow
+                    ? this.buildExecutionRowsForWorkflow(workflowToExecute, runtimeSharedSources)
+                    : [{}];
             } catch (expansionError) {
                 this.showNotification(expansionError.message || 'Failed to expand workflow', 'error');
                 this.addLog('error', expansionError.message || 'Failed to expand workflow');
@@ -788,7 +835,7 @@ export const workflowMethods = {
             }
 
             // Initialize execution state
-            const totalDataRows = workflowToExecute.dataSources?.primary?.data?.length || 0;
+            const totalDataRows = executionRows.length || 0;
             let effectiveRowCount = totalDataRows;
 
             // Calculate how many rows will actually be processed
@@ -821,7 +868,7 @@ export const workflowMethods = {
                 this.setLogsPanelOpen(true);
             }
 
-            this.addLog('info', `Starting workflow: ${workflowToExecute.name}`);
+            this.addLog('info', `Dispatching workflow: ${workflowToExecute.name}`);
             if (runOptions.skipRows > 0) {
                 this.addLog('info', `Skipping first ${runOptions.skipRows} rows`);
             }
@@ -841,11 +888,44 @@ export const workflowMethods = {
                 const workflowToSend = JSON.parse(JSON.stringify(workflowToExecute));
                 workflowToSend.settings = { ...(workflowToSend.settings || {}), ...(this.settings || {}) };
                 workflowToSend.runOptions = runOptions;
+                workflowToSend.dataSources = {
+                    primary: {
+                        type: 'computed',
+                        data: executionRows,
+                        fields: Object.keys(executionRows[0] || {})
+                    },
+                    details: (runtimeSharedSources || []).map(source => ({
+                        id: source.id,
+                        name: source.name || source.id,
+                        data: Array.isArray(source.data) ? source.data : [],
+                        fields: Array.isArray(source.fields)
+                            ? source.fields
+                            : Object.keys((Array.isArray(source.data) && source.data[0]) ? source.data[0] : {})
+                    })),
+                    relationships: (this.sharedDataSourceRelationships || [])
+                        .filter(rel => rel.detailId && (rel.fieldMappings?.length || (rel.primaryField && rel.detailField)))
+                        .map(rel => ({
+                            parentSourceId: rel.parentSourceId || '',
+                            detailId: rel.detailId,
+                            primaryField: rel.primaryField,
+                            detailField: rel.detailField,
+                            fieldMappings: Array.isArray(rel.fieldMappings) && rel.fieldMappings.length
+                                ? rel.fieldMappings.map(pair => ({
+                                    primaryField: pair.primaryField,
+                                    detailField: pair.detailField
+                                }))
+                                : [{ primaryField: rel.primaryField, detailField: rel.detailField }]
+                        }))
+                };
+
+                // Keep an exact snapshot of the currently running workflow for
+                // navigation resume handling (avoid relying on builder context).
+                this.executionState.runningWorkflowSnapshot = JSON.parse(JSON.stringify(workflowToSend));
 
                 await chrome.tabs.sendMessage(tab.id, {
                     action: 'executeWorkflow',
                     workflow: workflowToSend,
-                    data: workflowToSend.dataSources?.primary?.data || workflowToSend.dataSource?.data,
+                    data: executionRows,
                     runOptions: runOptions
                 });
             } catch (msgError) {

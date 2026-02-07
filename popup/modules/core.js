@@ -14,6 +14,9 @@ export const coreMethods = {
         if (this.loadConfigurations) {
             await this.loadConfigurations();
         }
+        if (this.loadSharedDataSources) {
+            await this.loadSharedDataSources();
+        }
 
         // Load workflows from storage
         await this.loadWorkflows();
@@ -222,8 +225,12 @@ export const coreMethods = {
         const tabContents = document.querySelectorAll('.tab-content');
 
         tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
+            tab.addEventListener('click', (event) => {
                 const tabName = tab.getAttribute('data-tab');
+
+                if (tabName === 'builder' && event.isTrusted && this.handleDirectBuilderTabAccess) {
+                    this.handleDirectBuilderTabAccess();
+                }
 
                 tabs.forEach(t => t.classList.remove('active'));
                 tabContents.forEach(tc => tc.classList.remove('active'));
@@ -234,6 +241,9 @@ export const coreMethods = {
                 // Special actions when tabs are activated
                 if (tabName === 'inspector') {
                     // Auto-refresh elements when inspector tab is opened
+                }
+                if (tabName === 'data-sources' && this.renderSharedDataSourcesUI) {
+                    this.renderSharedDataSourcesUI();
                 }
 
                 if (this.onTabActivated) {
@@ -285,11 +295,28 @@ export const coreMethods = {
         // Data Sources
         document.getElementById('primaryDataSourceType').addEventListener('change', (e) => this.updatePrimaryDataSourceUI(e.target.value));
         document.getElementById('validatePrimaryData').addEventListener('click', () => this.validatePrimaryData());
-        document.getElementById('togglePrimaryDataSize')?.addEventListener('click', () => this.togglePrimaryDataEditorSize());
-        document.getElementById('addDetailDataSource').addEventListener('click', () => this.addDetailDataSource());
+        document.getElementById('refreshSharedDataSources')?.addEventListener('click', () => this.refreshSharedDataSourcesUI());
+        document.getElementById('newSharedDataSource')?.addEventListener('click', () => this.startNewSharedDataSource());
+        document.getElementById('newSharedDataSourceSecondary')?.addEventListener('click', (event) => {
+            event.stopPropagation();
+            this.startNewSharedDataSource();
+        });
+        document.getElementById('dataSourcesPaneResizer')?.addEventListener('pointerdown', (event) => this.startDataSourcesPaneResize(event));
+        document.getElementById('relationshipParentSource')?.addEventListener('change', () => this.renderRelationshipFieldPairRows());
+        document.getElementById('relationshipDetailSource')?.addEventListener('change', () => this.renderRelationshipFieldPairRows());
+        document.getElementById('addRelationshipFieldPair')?.addEventListener('click', () => this.addRelationshipFieldPair());
+        document.getElementById('addDataSourceRelationship')?.addEventListener('click', () => this.saveDataSourceRelationship());
+        document.getElementById('saveAsSharedDataSource')?.addEventListener('click', () => this.saveCurrentPrimaryAsSharedDataSource());
+        document.getElementById('deleteSharedDataSource')?.addEventListener('click', () => this.deleteSelectedSharedDataSource());
+        document.getElementById('dataSourceEditorHeader')?.addEventListener('click', (event) => {
+            if (event.target.closest('#primaryDataSourceType, #newSharedDataSourceSecondary')) return;
+            this.toggleDataSourceEditorPane();
+        });
+        window.addEventListener('resize', () => this.applyDataSourcesPaneWidth?.());
+        document.getElementById('addDetailDataSource')?.addEventListener('click', () => this.addDetailDataSource());
 
         // Data Sources Panel Toggle
-        document.getElementById('dataSourcesHeader').addEventListener('click', () => this.toggleDataSourcesPanel());
+        document.getElementById('dataSourcesHeader')?.addEventListener('click', () => this.toggleDataSourcesPanel());
 
         // Inspector tab
         document.getElementById('startInspector').addEventListener('click', () => this.startInspector());

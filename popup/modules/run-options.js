@@ -9,7 +9,15 @@ export const runOptionsMethods = {
         document.getElementById('runWithLogs').checked = true;
 
         // Calculate total rows
-        const totalRows = workflow.dataSources?.primary?.data?.length || 0;
+        let totalRows = 0;
+        try {
+            const rows = this.buildExecutionRowsForWorkflow
+                ? this.buildExecutionRowsForWorkflow(workflow)
+                : [{}];
+            totalRows = rows.length;
+        } catch (e) {
+            totalRows = 0;
+        }
 
         // Show modal
         document.getElementById('runOptionsModal').classList.remove('is-hidden');
@@ -61,7 +69,16 @@ export const runOptionsMethods = {
             return;
         }
 
-        const totalDataRows = workflow.dataSources?.primary?.data?.length || 0;
+        let totalDataRows = 0;
+        try {
+            const rows = this.buildExecutionRowsForWorkflow
+                ? this.buildExecutionRowsForWorkflow(workflow)
+                : [{}];
+            totalDataRows = rows.length;
+        } catch (e) {
+            this.showNotification(e.message || 'Failed to resolve data source for resume', 'error');
+            return;
+        }
         const baseRunOptions = this.lastRunOptionsByWorkflow[info.workflowId] || this.executionState.runOptions || {};
         const baseSkip = baseRunOptions.skipRows || 0;
         const baseLimit = baseRunOptions.limitRows || 0;

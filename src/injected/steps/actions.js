@@ -913,9 +913,10 @@ export async function navigateToForm(step) {
         const url = new URL(targetUrl);
         const targetMenuItemName = url.searchParams.get('mi') || '';
         
-        // IMPORTANT: Use the ORIGINAL full workflow, not the current (possibly sliced) one
-        // This prevents double-slicing on subsequent navigation resumes
-        const originalWorkflow = window.d365OriginalWorkflow || window.d365CurrentWorkflow || null;
+        // IMPORTANT: Persist pending navigation state from the currently executing workflow.
+        // Prefer current workflow context first, then its original/full workflow when present.
+        const currentWorkflow = window.d365CurrentWorkflow || null;
+        const originalWorkflow = currentWorkflow?._originalWorkflow || currentWorkflow || window.d365OriginalWorkflow || null;
         
         const pendingState = {
             workflow: originalWorkflow,

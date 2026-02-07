@@ -366,7 +366,7 @@ function initNavButtonsBridge() {
     // Refresh when storage changes (buttons or workflows)
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'local') return;
-        if (changes.navButtons || changes.workflows) {
+        if (changes.navButtons || changes.workflows || changes.sharedDataSources) {
             sendNavButtonsUpdate();
         }
     });
@@ -382,11 +382,13 @@ function initNavButtonsBridge() {
 
 async function sendNavButtonsUpdate() {
     try {
-        const result = await chrome.storage.local.get(['navButtons', 'workflows']);
+        const result = await chrome.storage.local.get(['navButtons', 'workflows', 'sharedDataSources']);
         const navButtons = result.navButtons || [];
         const workflows = result.workflows || [];
+        const sharedDataSources = result.sharedDataSources || [];
 
         const workflowMap = new Map(workflows.map((workflow) => [workflow.id, workflow]));
+        const sharedMap = new Map(sharedDataSources.map((source) => [source.id, source]));
 
         const menuItem = new URLSearchParams(window.location.search).get('mi') || '';
         lastNavButtonsMenuItem = menuItem;
@@ -399,7 +401,25 @@ async function sendNavButtonsUpdate() {
                     const workflow = workflowMap.get(button.workflowId);
                     if (!workflow) return null;
                     try {
-                        return expandWorkflowForNavButtons(workflow, workflowMap, button.paramBindings || {});
+                        const resolvedWorkflow = (() => {
+                            const candidate = { ...workflow, dataSources: { ...(workflow.dataSources || {}) } };
+                            const primary = candidate.dataSources.primary || {};
+                            if (primary.type !== 'shared') {
+                                return candidate;
+                            }
+                            const shared = sharedMap.get(primary.sharedDataSourceId || '');
+                            if (!shared) {
+                                throw new Error(`Shared data source not found: ${primary.sharedDataSourceId || '(empty reference)'}`);
+                            }
+                            candidate.dataSources.primary = {
+                                ...primary,
+                                data: Array.isArray(shared.data) ? shared.data : [],
+                                fields: Array.isArray(shared.fields) ? shared.fields : []
+                            };
+                            return candidate;
+                        })();
+
+                        return expandWorkflowForNavButtons(resolvedWorkflow, workflowMap, button.paramBindings || {});
                     } catch (error) {
                         console.warn('[D365 Extension] Failed to expand workflow for nav button:', button?.name || button?.id, error);
                         return null;

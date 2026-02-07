@@ -204,12 +204,15 @@ export const stepMethods = {
     },
 
     renderParamFieldMappingDropdown(currentValue) {
+        const grouped = this.getSharedFieldGroups ? this.getSharedFieldGroups() : [];
         return `
             <select class="form-control param-field">
                 <option value="">Select data field</option>
-                ${(this.dataSources?.primary?.fields || []).map(field =>
-                    `<option value="${field}" ${currentValue === field ? 'selected' : ''}>${field}</option>`
-                ).join('')}
+                ${grouped.map(group => `
+                    <optgroup label="${group.label}">
+                        ${group.fields.map(field => `<option value="${field.value}" ${currentValue === field.value ? 'selected' : ''}>${field.label}</option>`).join('')}
+                    </optgroup>
+                `).join('')}
             </select>
         `;
     },
@@ -575,9 +578,9 @@ export const stepMethods = {
                 <div class="form-group ${loopMode !== 'data' ? 'is-hidden' : ''}">
                     <label>Data Source</label>
                     <select id="stepLoopDataSource" class="form-control">
-                        <option value="primary" ${(this.currentStep?.loopDataSource || 'primary') === 'primary' ? 'selected' : ''}>Primary Data Source</option>
-                        ${this.dataSources.details.map(d => 
-                            `<option value="${d.id}" ${this.currentStep?.loopDataSource === d.id ? 'selected' : ''}>${d.name}</option>`
+                        <option value="primary" ${(this.currentStep?.loopDataSource || 'primary') === 'primary' ? 'selected' : ''}>Primary Execution Rows</option>
+                        ${(this.sharedDataSources || []).map(source => 
+                            `<option value="${source.id}" ${this.currentStep?.loopDataSource === source.id ? 'selected' : ''}>${source.name || source.id}</option>`
                         ).join('')}
                     </select>
                 </div>
@@ -647,6 +650,14 @@ export const stepMethods = {
         } else if (stepType === 'if-end') {
             container.innerHTML = `
                 <p style="color: #666; font-size: 12px;">End of If block.</p>
+            `;
+        } else if (stepType === 'continue-loop') {
+            container.innerHTML = `
+                <p style="color: #666; font-size: 12px;">Continue current loop: skip remaining steps in this iteration and move to the next iteration.</p>
+            `;
+        } else if (stepType === 'break-loop') {
+            container.innerHTML = `
+                <p style="color: #666; font-size: 12px;">Break current loop: stop iterating and continue after the matching Loop End step.</p>
             `;
         } else if (stepType === 'label') {
             container.innerHTML = `
@@ -1383,54 +1394,156 @@ export const stepMethods = {
                     const gotoGroup = document.getElementById('stepOnErrorGotoGroup');
                     if (gotoGroup) gotoGroup.classList.toggle('is-hidden', select.value !== 'goto');
                 }
+                if (select.id === 'stepMappingProjectFilter' || select.id === 'stepMappingSource' || select.id === 'stepMappingField') {
+                    this.syncStepFieldMappingSelection();
+                }
                 this.autoSaveStep();
             });
         });
+
+        this.syncStepFieldMappingSelection();
     },
 
     renderFieldMappingDropdown(currentValue) {
-        const allFields = this.getAllAvailableFields();
+        const grouped = this.getSharedFieldGroups ? this.getSharedFieldGroups() : [];
+        const allFields = grouped.flatMap(group => group.fields);
 
         if (allFields.length === 0) {
             return `
                 <div class="field-mapping-select">
                     <input type="text" id="stepFieldMapping" class="form-control" 
                            value="${currentValue}" 
-                           placeholder="e.g., LanguageId">
-                    <p class="no-fields">No data source configured. Add data in the Data Sources panel below.</p>
+                           placeholder="e.g., shared_123:LanguageId">
+                    <p class="no-fields">No shared data source available. Add one in the Data Sources tab.</p>
                 </div>
             `;
         }
 
+        const [initialSource = '', ...fieldParts] = String(currentValue || '').split(':');
+        const initialField = fieldParts.join(':');
+        const projectOptions = this.getFieldMappingProjectOptions();
+        const sourceOptions = this.getFilteredSharedSourcesForFieldMapping('all', initialSource);
+        const selectedSource = sourceOptions.some(source => source.id === initialSource)
+            ? initialSource
+            : (sourceOptions[0]?.id || '');
+        const selectedSourceObj = sourceOptions.find(source => source.id === selectedSource) || null;
+        const fields = Array.isArray(selectedSourceObj?.fields) ? selectedSourceObj.fields : [];
+        const selectedField = fields.includes(initialField) ? initialField : (fields[0] || '');
+        const resolvedMapping = (selectedSource && selectedField) ? `${selectedSource}:${selectedField}` : '';
+
         return `
             <div class="field-mapping-select">
-                <select id="stepFieldMapping" class="form-control">
-                    <option value="">-- Select Field --</option>
-                    ${this.dataSources.primary.fields.length > 0 ? `
-                        <optgroup label="Primary Data">
-                            ${this.dataSources.primary.fields.map(f => 
-                                `<option value="${f}" ${currentValue === f ? 'selected' : ''}>${f}</option>`
-                            ).join('')}
-                        </optgroup>
-                    ` : ''}
-                    ${this.dataSources.details.map(d => d.fields.length > 0 ? `
-                        <optgroup label="${d.name}">
-                            ${d.fields.map(f => 
-                                `<option value="${d.id}:${f}" ${currentValue === `${d.id}:${f}` ? 'selected' : ''}>${f}</option>`
-                            ).join('')}
-                        </optgroup>
-                    ` : '').join('')}
-                </select>
+                <div class="field-mapping-select-grid">
+                    <div class="field-mapping-col">
+                        <label>Project Filter</label>
+                        <select id="stepMappingProjectFilter" class="form-control">
+                            ${projectOptions.map(option => `<option value="${option.value}">${option.label}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="field-mapping-col">
+                        <label>Data Source</label>
+                        <select id="stepMappingSource" class="form-control">
+                            ${sourceOptions.map(source => `<option value="${source.id}" ${source.id === selectedSource ? 'selected' : ''}>${this.escapeHtml(source.name || source.id)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="field-mapping-col">
+                        <label>Field</label>
+                        <select id="stepMappingField" class="form-control">
+                            <option value="">-- Select Field --</option>
+                            ${fields.map(field => `<option value="${field}" ${field === selectedField ? 'selected' : ''}>${this.escapeHtml(field)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <input type="hidden" id="stepFieldMapping" value="${this.escapeHtml(resolvedMapping)}">
             </div>
         `;
     },
 
+    getFieldMappingProjectOptions() {
+        const projects = (this.projects || [])
+            .slice()
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+            .map(project => ({ value: project.id, label: project.name || project.id }));
+        return [
+            { value: 'all', label: 'All projects' },
+            { value: 'unassigned', label: 'Unassigned data sources' },
+            ...projects
+        ];
+    },
+
+    getFilteredSharedSourcesForFieldMapping(projectFilter = 'all', ensureSourceId = '') {
+        const selectedFilter = projectFilter || 'all';
+        const allSources = (this.sharedDataSources || []).filter(source => Array.isArray(source.fields) && source.fields.length > 0);
+        let filtered = allSources;
+
+        if (selectedFilter === 'unassigned') {
+            filtered = allSources.filter(source => !(source.projectIds || []).length);
+        } else if (selectedFilter !== 'all') {
+            filtered = allSources.filter(source => (source.projectIds || []).includes(selectedFilter));
+        }
+
+        if (ensureSourceId && !filtered.some(source => source.id === ensureSourceId)) {
+            const ensured = allSources.find(source => source.id === ensureSourceId);
+            if (ensured) filtered = [ensured, ...filtered];
+        }
+
+        return filtered;
+    },
+
+    syncStepFieldMappingSelection() {
+        const mappingInput = document.getElementById('stepFieldMapping');
+        const projectSelect = document.getElementById('stepMappingProjectFilter');
+        const sourceSelect = document.getElementById('stepMappingSource');
+        const fieldSelect = document.getElementById('stepMappingField');
+
+        if (!mappingInput || !projectSelect || !sourceSelect || !fieldSelect) return;
+
+        const existingMapping = mappingInput.value || '';
+        const [existingSourceId = '', ...existingFieldParts] = existingMapping.split(':');
+        const existingField = existingFieldParts.join(':');
+
+        const sourcePool = this.getFilteredSharedSourcesForFieldMapping(projectSelect.value || 'all', sourceSelect.value || existingSourceId);
+        const currentSourceId = sourceSelect.value || existingSourceId;
+
+        sourceSelect.innerHTML = sourcePool.length
+            ? sourcePool.map(source => `<option value="${source.id}" ${source.id === currentSourceId ? 'selected' : ''}>${this.escapeHtml(source.name || source.id)}</option>`).join('')
+            : '<option value="">No data sources found</option>';
+
+        const resolvedSourceId = sourceSelect.value || '';
+        const sourceObj = sourcePool.find(source => source.id === resolvedSourceId) || null;
+        const fields = Array.isArray(sourceObj?.fields) ? sourceObj.fields : [];
+        const currentField = fieldSelect.value || existingField;
+
+        fieldSelect.innerHTML = '<option value="">-- Select Field --</option>'
+            + fields.map(field => `<option value="${field}" ${field === currentField ? 'selected' : ''}>${this.escapeHtml(field)}</option>`).join('');
+
+        const resolvedField = fieldSelect.value || '';
+        mappingInput.value = (resolvedSourceId && resolvedField) ? `${resolvedSourceId}:${resolvedField}` : '';
+    },
+
+    escapeHtml(text) {
+        if (text === null || text === undefined) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    },
+
+    getSharedFieldGroups() {
+        return (this.sharedDataSources || [])
+            .filter(source => Array.isArray(source.fields) && source.fields.length > 0)
+            .map(source => ({
+                label: source.name || source.id,
+                fields: source.fields.map(field => ({
+                    value: `${source.id}:${field}`,
+                    label: field
+                }))
+            }));
+    },
+
     getAllAvailableFields() {
-        const fields = [...this.dataSources.primary.fields];
-        this.dataSources.details.forEach(d => {
-            d.fields.forEach(f => fields.push(`${d.name}.${f}`));
-        });
-        return fields;
+        return this.getSharedFieldGroups()
+            .flatMap(group => group.fields)
+            .map(field => field.value);
     },
 
     async switchToInspector() {
@@ -1517,6 +1630,9 @@ export const stepMethods = {
         // Clear the waiting flag
         await chrome.storage.local.remove(['waitingForPick', 'pickedElement', 'currentStepData', 'currentWorkflowData']);
 
+        // Return to Builder tab after selection for the previous behavior.
+        document.querySelector('[data-tab="builder"]')?.click();
+
         // Show success notification
         this.showNotification(`Element selected: ${element.displayText || element.controlName}`, 'success');
     },
@@ -1584,6 +1700,10 @@ export const stepMethods = {
         } else if (this.currentStep.type === 'else') {
             // No fields
         } else if (this.currentStep.type === 'if-end') {
+            // No fields
+        } else if (this.currentStep.type === 'continue-loop') {
+            // No fields
+        } else if (this.currentStep.type === 'break-loop') {
             // No fields
         } else if (this.currentStep.type === 'label') {
             this.currentStep.labelName = document.getElementById('stepLabelName')?.value || '';
@@ -1821,15 +1941,21 @@ export const stepMethods = {
                 stepDesc = `Click "${step.displayText || step.controlName}"${waitFlags}`;
             } else if (step.type === 'input') {
                 stepIcon = 'IN';
-                const inputVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                const inputVal = step.valueSource === 'clipboard'
+                    ? 'clipboard'
+                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
                 stepDesc = `Enter "${inputVal}" into ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'select') {
                 stepIcon = 'SEL';
-                const selectVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                const selectVal = step.valueSource === 'clipboard'
+                    ? 'clipboard'
+                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
                 stepDesc = `Select "${selectVal}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'lookupSelect') {
                 stepIcon = 'LOOK';
-                const lookupVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                const lookupVal = step.valueSource === 'clipboard'
+                    ? 'clipboard'
+                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
                 stepDesc = `Lookup "${lookupVal}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'checkbox') {
                 stepIcon = 'CHK';
@@ -1862,6 +1988,12 @@ export const stepMethods = {
             } else if (step.type === 'if-end') {
                 stepIcon = 'END';
                 stepDesc = 'END IF';
+            } else if (step.type === 'continue-loop') {
+                stepIcon = 'CONT';
+                stepDesc = 'CONTINUE LOOP';
+            } else if (step.type === 'break-loop') {
+                stepIcon = 'BRK';
+                stepDesc = 'BREAK LOOP';
             } else if (step.type === 'label') {
                 stepIcon = 'LBL';
                 stepDesc = `Label: ${step.labelName || 'unnamed'}`;
@@ -1878,11 +2010,15 @@ export const stepMethods = {
             } else if (step.type === 'filter') {
                 stepIcon = 'FLT';
                 const method = step.filterMethod || 'is exactly';
-                const filterVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                const filterVal = step.valueSource === 'clipboard'
+                    ? 'clipboard'
+                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
                 stepDesc = `Filter "${step.displayText || step.controlName}" ${method} "${filterVal}"`;
             } else if (step.type === 'grid-input') {
                 stepIcon = 'GRID';
-                const gridVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                const gridVal = step.valueSource === 'clipboard'
+                    ? 'clipboard'
+                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
                 stepDesc = `Set grid cell "${step.displayText || step.controlName}" to "${gridVal}"${waitFlags}`;
             } else if (step.type === 'wait-until') {
                 stepIcon = 'WAIT';
@@ -1904,7 +2040,9 @@ export const stepMethods = {
                 stepDesc = `${action} section "${step.displayText || step.controlName}"`;
             } else if (step.type === 'query-filter') {
                 stepIcon = '🔎';
-                const filterVal = step.valueSource === 'clipboard' ? 'clipboard' : (step.value || '{' + step.fieldMapping + '}');
+                const filterVal = step.valueSource === 'clipboard'
+                    ? 'clipboard'
+                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
                 stepDesc = `Query filter: ${step.fieldName || 'field'} = "${filterVal}"`;
             } else if (step.type === 'batch-processing') {
                 stepIcon = '⚙️';
@@ -2043,6 +2181,21 @@ export const stepMethods = {
         if (step.waitUntilHidden) flags.push('wait hidden');
         if (flags.length === 0) return '';
         return ` <span class="wait-flags">(${flags.join(', ')})</span>`;
+    },
+
+    formatFieldMappingForDisplay(fieldMapping) {
+        if (!fieldMapping) return '{}';
+        const mappingText = String(fieldMapping);
+        const separatorIndex = mappingText.indexOf(':');
+        if (separatorIndex <= 0) {
+            return `{${mappingText}}`;
+        }
+
+        const sourceId = mappingText.slice(0, separatorIndex);
+        const fieldName = mappingText.slice(separatorIndex + 1);
+        const source = (this.sharedDataSources || []).find(item => item.id === sourceId);
+        const sourceLabel = source?.name || sourceId;
+        return `{${sourceLabel}:${fieldName}}`;
     },
 
     clearStepStatuses() {

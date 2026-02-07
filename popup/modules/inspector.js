@@ -98,33 +98,29 @@ export const inspectorMethods = {
             item.addEventListener('click', () => {
                 // If we're editing a step, populate it with this element
                 if (this.currentStep) {
-                    this.currentStep.controlName = el.controlName;
-                    this.currentStep.displayText = el.displayText;
-                    this.currentStep.role = el.role;
-
-                    if (el.fieldType) {
-                        this.currentStep.fieldType = el.fieldType;
+                    // Reuse centralized picker handling so IF/loop condition picks
+                    // populate conditionControlName instead of controlName.
+                    if (typeof this.handleElementPicked === 'function') {
+                        this.handleElementPicked(el);
+                    } else {
+                        this.currentStep.controlName = el.controlName;
+                        this.currentStep.displayText = el.displayText;
+                        this.currentStep.role = el.role;
+                        if (el.fieldType) {
+                            this.currentStep.fieldType = el.fieldType;
+                        }
+                        const controlNameInput = document.getElementById('stepControlName');
+                        if (controlNameInput) {
+                            controlNameInput.value = el.controlName;
+                        }
+                        const displayTextInput = document.getElementById('stepDisplayText');
+                        if (displayTextInput) {
+                            displayTextInput.value = el.displayText;
+                        }
+                        this.autoSaveStep?.();
+                        document.querySelector('[data-tab="builder"]')?.click();
+                        this.showNotification(`Element selected: ${el.displayText}`, 'success');
                     }
-
-                    // Update UI fields
-                    const controlNameInput = document.getElementById('stepControlName');
-                    if (controlNameInput) {
-                        controlNameInput.value = el.controlName;
-                    }
-
-                    const displayTextInput = document.getElementById('stepDisplayText');
-                    if (displayTextInput) {
-                        displayTextInput.value = el.displayText;
-                    }
-
-                    // Auto-save the step
-                    this.autoSaveStep();
-
-                    // Switch to builder tab to show the populated step
-                    document.querySelector('[data-tab="builder"]').click();
-
-                    // Show success notification
-                    this.showNotification(`Element selected: ${el.displayText}`, 'success');
                 } else {
                     // No step being edited, just copy to clipboard
                     navigator.clipboard.writeText(el.controlName);

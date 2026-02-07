@@ -24,6 +24,7 @@
             <nav class="tabs">
                 <button class="tab active" data-tab="workflows">Workflows</button>
                 <button class="tab" data-tab="builder">Builder</button>
+                <button class="tab" data-tab="data-sources">Data Sources</button>
                 <button class="tab" data-tab="nav-buttons">Nav Buttons</button>
                 <button class="tab" data-tab="inspector">Inspector</button>
                 <button class="tab" data-tab="settings">Settings</button>
@@ -223,6 +224,8 @@
                                         <option value="if-start">🔀 If Condition</option>
                                         <option value="else">↔️ Else</option>
                                         <option value="if-end">✅ End If</option>
+                                        <option value="continue-loop">⏭ Continue Loop</option>
+                                        <option value="break-loop">⏹ Break Loop</option>
                                         <option value="label">🏷️ Label</option>
                                         <option value="goto">↪️ Go To Label</option>
                                     </optgroup>
@@ -260,61 +263,125 @@
                     </div>
                 </div>
 
-                <!-- Data Sources Panel (collapsible) -->
+                <!-- Workflow Actions -->
+                <div class="workflow-actions-bar">
+                    <button id="cancelWorkflow" class="btn btn-secondary">Cancel Changes</button>
+                    <button id="saveWorkflow" class="btn btn-success">💾 Save Workflow</button>
+                </div>
+            </div>
+
+            <!-- Data Sources Tab -->
+            <div class="tab-content" id="data-sources-tab">
                 <div class="data-sources-panel">
                     <div class="panel-header" id="dataSourcesHeader">
                         <h3>📊 Data Sources</h3>
                         <span class="toggle-icon">▼</span>
                     </div>
                     <div class="panel-body" id="dataSourcesBody">
-                        <!-- Primary/Header Data Source -->
-                        <div class="data-source-section">
-                            <div class="data-source-header">
-                                <h4>Primary Data Source (Header)</h4>
-                                <select id="primaryDataSourceType" class="form-control form-control-sm">
-                                    <option value="none">No Data</option>
-                                    <option value="json">JSON</option>
-                                    <option value="csv">CSV / TSV</option>
-                                </select>
-                            </div>
-                            <div id="primaryDataSourceInput" class="data-source-input is-hidden">
-                                <textarea id="primaryDataInput" class="form-control" placeholder="Paste your primary/header data here..." rows="3"></textarea>
-                                <div class="data-source-actions">
-                                    <button id="validatePrimaryData" class="btn btn-secondary btn-sm">Validate</button>
-                                    <button id="togglePrimaryDataSize" class="btn btn-secondary btn-sm">Maximize</button>
-                                    <span id="primaryDataStatus" class="data-status"></span>
+                        <div class="data-sources-layout">
+                            <aside class="data-sources-project-pane">
+                                <div class="data-source-section">
+                                    <div class="data-source-header">
+                                        <h4>Projects</h4>
+                                    </div>
+                                    <div class="tree-list" id="dataSourcesProjectsTree"></div>
                                 </div>
-                            </div>
-                            <div id="primaryDataFields" class="data-fields-preview"></div>
-                        </div>
+                            </aside>
 
-                        <!-- Detail/Child Data Sources -->
-                        <div class="data-source-section">
-                            <div class="data-source-header">
-                                <h4>Detail Data Sources</h4>
-                                <button id="addDetailDataSource" class="btn btn-secondary btn-sm">➕ Add</button>
-                            </div>
-                            <div id="detailDataSources" class="detail-data-sources">
-                                <!-- Detail data sources will be added here -->
-                            </div>
-                        </div>
+                            <div class="data-sources-main-pane" id="dataSourcesMainPane">
+                                <div class="data-sources-list-pane" id="dataSourcesListPane">
+                                    <div class="data-source-section">
+                                        <div class="data-source-header">
+                                            <h4>1. Existing Data Sources</h4>
+                                            <button id="newSharedDataSource" class="btn btn-secondary btn-sm">New Data Source</button>
+                                        </div>
+                                        <div id="sharedDataSourcesList" class="shared-data-sources-list"></div>
+                                    </div>
+                                </div>
 
-                        <!-- Data Relationships -->
-                        <div class="data-source-section is-hidden" id="relationshipsSection">
-                            <div class="data-source-header">
-                                <h4>🔗 Relationships</h4>
-                            </div>
-                            <div id="dataRelationships" class="data-relationships">
-                                <!-- Relationships will be configured here -->
+                                <div class="data-sources-pane-resizer" id="dataSourcesPaneResizer" role="separator" aria-orientation="vertical" aria-label="Resize data source panes"></div>
+
+                                <div class="data-sources-editor-pane" id="dataSourcesEditorPane">
+                                    <div class="data-source-section">
+                                        <div class="data-source-header collapsible" id="dataSourceEditorHeader">
+                                            <h4>2. Create / Edit Data Source</h4>
+                                            <div class="data-source-header-actions">
+                                                <button id="newSharedDataSourceSecondary" class="btn btn-secondary btn-sm">New Data Source</button>
+                                                <span id="dataSourceEditorToggleIcon" class="toggle-icon-inline">▼</span>
+                                                <select id="primaryDataSourceType" class="form-control form-control-sm">
+                                                    <option value="json">JSON</option>
+                                                    <option value="csv">CSV / TSV</option>
+                                                    <option value="odata-cached">OData (Cached)</option>
+                                                    <option value="odata-dynamic">OData (Dynamic)</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div id="dataSourceEditorSectionBody">
+                                            <div id="primaryODataQueryContainer" class="data-source-input is-hidden">
+                                                <input id="primaryODataQuery" class="form-control form-control-sm" placeholder="CustomersV3?$top=10&$filter=CustomerGroupId eq 'C-DOM'&$select=CustomerAccount,CustomerGroupId,FullPrimaryAddress">
+                                            </div>
+                                            <div id="primaryODataDynamicNote" class="odata-note is-hidden">
+                                                Dynamic OData validates with a preview row for field detection. Full query results are fetched right before workflow execution.
+                                            </div>
+                                            <div id="primaryDataSourceInput" class="data-source-input is-hidden">
+                                                <textarea id="primaryDataInput" class="form-control editor-expanded" placeholder="Paste shared data here..." rows="3"></textarea>
+                                                <div class="data-source-actions">
+                                                    <button id="validatePrimaryData" class="btn btn-secondary btn-sm">Validate</button>
+                                                    <span id="primaryDataStatus" class="data-status"></span>
+                                                </div>
+                                            </div>
+                                            <div id="primaryDataFields" class="data-fields-preview"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="data-source-section" id="dataSourceSaveSection">
+                                        <div class="data-source-header">
+                                            <h4>3. Save / Delete</h4>
+                                        </div>
+                                        <div class="data-source-input">
+                                            <div class="data-source-actions">
+                                                <input id="sharedDataSourceName" class="form-control form-control-sm" placeholder="Data source name" style="min-width: 180px;">
+                                                <button id="saveAsSharedDataSource" class="btn btn-secondary btn-sm">Save</button>
+                                                <button id="refreshSharedDataSources" class="btn btn-secondary btn-sm">Refresh</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="data-source-section" id="dataSourceProjectLinksSection">
+                                        <div class="data-source-header">
+                                            <h4>Linked Projects (filter only)</h4>
+                                        </div>
+                                        <div id="dataSourceProjectLinks" class="workflow-projects-list"></div>
+                                    </div>
+
+                                    <div class="data-source-section" id="dataSourceRelationshipsSection">
+                                        <div class="data-source-header">
+                                            <h4>Relationships (nested loops)</h4>
+                                        </div>
+                                        <div class="relationship-builder">
+                                            <div id="relationshipScopeInfo" class="relationship-scope-info"></div>
+                                            <div class="relationship-grid">
+                                                <div class="relationship-cell">
+                                                    <label>Parent Source</label>
+                                                    <select id="relationshipParentSource" class="form-control form-control-sm"></select>
+                                                </div>
+                                                <div class="relationship-cell">
+                                                    <label>Child Source</label>
+                                                    <select id="relationshipDetailSource" class="form-control form-control-sm"></select>
+                                                </div>
+                                            </div>
+                                            <div id="relationshipFieldPairs" class="relationship-pairs"></div>
+                                            <div class="data-source-actions">
+                                                <button id="addRelationshipFieldPair" class="btn btn-secondary btn-sm">Add Field Pair</button>
+                                                <button id="addDataSourceRelationship" class="btn btn-secondary btn-sm">Save Relationship</button>
+                                            </div>
+                                            <div id="dataSourceRelationshipsList" class="relationship-list"></div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- Workflow Actions -->
-                <div class="workflow-actions-bar">
-                    <button id="cancelWorkflow" class="btn btn-secondary">Cancel Changes</button>
-                    <button id="saveWorkflow" class="btn btn-success">💾 Save Workflow</button>
                 </div>
             </div>
 

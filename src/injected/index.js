@@ -354,16 +354,9 @@ async function executeWorkflow(workflow, data) {
         executionControl.currentStepIndex = executionControl.stepIndexOffset;
         currentWorkflow = workflow;
         
-        // Preserve the original full workflow for navigation resume
-        // If this is a resumed workflow, it may have _originalWorkflow attached
-        // Otherwise, this IS the original workflow (first run)
-        if (workflow._originalWorkflow) {
-            window.d365OriginalWorkflow = workflow._originalWorkflow;
-        } else if (!workflow._isResume) {
-            // This is a fresh run, store the full workflow as the original
-            window.d365OriginalWorkflow = workflow;
-        }
-        // If _isResume but no _originalWorkflow, keep existing d365OriginalWorkflow
+        // Always refresh original-workflow pointer to avoid stale resume state
+        // from a previously executed workflow in the same page context.
+        window.d365OriginalWorkflow = workflow?._originalWorkflow || workflow;
         
         currentWorkflowSettings = workflow?.settings || {};
         window.d365CurrentWorkflowSettings = currentWorkflowSettings;
@@ -456,8 +449,11 @@ async function resolveStepValue(step, currentRow) {
 
 function extractRowValue(fieldMapping, currentRow) {
     if (!currentRow || !fieldMapping) return '';
-    const fieldName = fieldMapping.includes(':') ? fieldMapping.split(':').pop() : fieldMapping;
-    const value = currentRow[fieldName];
+    let value = currentRow[fieldMapping];
+    if (value === undefined && fieldMapping.includes(':')) {
+        const fieldName = fieldMapping.split(':').pop();
+        value = currentRow[fieldName];
+    }
     return value === undefined || value === null ? '' : String(value);
 }
 
@@ -863,16 +859,67 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
 
         if (loopDataSource !== 'primary' && detailSources[loopDataSource]) {
             const detailSource = detailSources[loopDataSource];
-
-            // If there's a relationship, filter detail data by the current primary row
-            const rel = relationships.find(r => r.detailId === loopDataSource);
-            if (rel && currentDataRow[rel.primaryField] !== undefined) {
-                loopData = detailSource.data.filter(d => 
-                    String(d[rel.detailField]) === String(currentDataRow[rel.primaryField])
-                );
-            } else {
+            const relationsForDetail = (relationships || []).filter(r => r.detailId === loopDataSource);
+            if (!relationsForDetail.length) {
                 loopData = detailSource.data;
+                return loopData;
             }
+
+            const loopStack = Array.isArray(currentDataRow?.__d365_loop_stack)
+                ? currentDataRow.__d365_loop_stack
+                : [];
+            const parentLoopSourceId = loopStack.length ? loopStack[loopStack.length - 1] : '';
+            if (!parentLoopSourceId) {
+                // Top-level loop: do not apply relationship filtering.
+                loopData = detailSource.data;
+                return loopData;
+            }
+
+            const parentScopedRelations = relationsForDetail.filter(rel => (rel.parentSourceId || '') === parentLoopSourceId);
+            const candidateRelations = parentScopedRelations.length ? parentScopedRelations : relationsForDetail;
+
+            const resolveParentValue = (rel, pair) => {
+                const explicitKey = rel?.parentSourceId ? `${rel.parentSourceId}:${pair.primaryField}` : '';
+                if (explicitKey) {
+                    const explicitValue = currentDataRow?.[explicitKey];
+                    if (explicitValue !== undefined && explicitValue !== null && String(explicitValue) !== '') {
+                        return explicitValue;
+                    }
+                }
+                const fallbackValue = currentDataRow?.[pair.primaryField];
+                if (fallbackValue !== undefined && fallbackValue !== null && String(fallbackValue) !== '') {
+                    return fallbackValue;
+                }
+                return undefined;
+            };
+
+            const selectedRelation = candidateRelations.find((rel) => {
+                const fieldMappings = Array.isArray(rel?.fieldMappings) && rel.fieldMappings.length
+                    ? rel.fieldMappings
+                    : (rel?.primaryField && rel?.detailField
+                        ? [{ primaryField: rel.primaryField, detailField: rel.detailField }]
+                    : []);
+                if (!fieldMappings.length) return false;
+                return fieldMappings.every((pair) => resolveParentValue(rel, pair) !== undefined);
+            }) || null;
+
+            if (!selectedRelation) {
+                sendLog('warning', `Relationship filter for ${loopDataSource} could not resolve parent values. Loop will process 0 rows.`);
+                loopData = [];
+                return loopData;
+            }
+
+            const selectedMappings = Array.isArray(selectedRelation.fieldMappings) && selectedRelation.fieldMappings.length
+                ? selectedRelation.fieldMappings
+                : [{ primaryField: selectedRelation.primaryField, detailField: selectedRelation.detailField }];
+
+            loopData = detailSource.data.filter((detailRow) => selectedMappings.every((pair) => {
+                const parentValue = resolveParentValue(selectedRelation, pair);
+                const childValue = detailRow?.[pair.detailField];
+                if (parentValue === undefined) return false;
+                if (childValue === undefined || childValue === null) return false;
+                return String(childValue) === String(parentValue);
+            }));
         }
 
         return loopData;
@@ -979,6 +1026,14 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                 continue;
             }
 
+            if (step.type === 'continue-loop') {
+                return { signal: 'continue-loop' };
+            }
+
+            if (step.type === 'break-loop') {
+                return { signal: 'break-loop' };
+            }
+
             if (step.type === 'loop-start') {
                 const loopEndIdx = loopPairMap.get(idx);
                 if (loopEndIdx === undefined || loopEndIdx <= idx) {
@@ -1051,7 +1106,17 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                 for (let iterIndex = 0; iterIndex < loopData.length; iterIndex++) {
                     await checkExecutionControl(); // Check for pause/stop
 
-                    const iterRow = { ...currentDataRow, ...loopData[iterIndex] };
+                    const iterSourceRow = loopData[iterIndex] || {};
+                    const iterRow = { ...currentDataRow, ...iterSourceRow };
+                    const parentStack = Array.isArray(currentDataRow?.__d365_loop_stack)
+                        ? currentDataRow.__d365_loop_stack
+                        : [];
+                    iterRow.__d365_loop_stack = [...parentStack, loopDataSource];
+                    if (loopDataSource !== 'primary') {
+                        Object.entries(iterSourceRow).forEach(([field, value]) => {
+                            iterRow[`${loopDataSource}:${field}`] = value;
+                        });
+                    }
                     const isPrimaryLoop = loopDataSource === 'primary';
                     const totalRowsForLoop = isPrimaryLoop ? originalTotalRows : loopData.length;
                     const totalToProcessForLoop = loopData.length;

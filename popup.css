@@ -498,6 +498,27 @@ header h1 {
     min-height: 0;
 }
 
+.btn.is-processing {
+    opacity: 0.9;
+    cursor: progress;
+}
+
+.btn.is-processing::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: btnSpin 0.7s linear infinite;
+}
+
+@keyframes btnSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .workflow-tree-pane {
     width: 280px;
     min-width: 280px;
@@ -1152,12 +1173,154 @@ header h1 {
     color: #888;
 }
 
+.field-mapping-select {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.field-mapping-select-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+}
+
+.field-mapping-col {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.field-mapping-col label {
+    font-size: 11px;
+    color: #555;
+    font-weight: 500;
+}
+
+.no-fields {
+    font-size: 11px;
+    color: #777;
+}
+
+.relationship-builder {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.relationship-scope-info {
+    font-size: 11px;
+    color: #5f6b92;
+}
+
+.relationship-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.relationship-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.relationship-cell label {
+    font-size: 11px;
+    color: #555;
+    font-weight: 500;
+}
+
+.relationship-pairs {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.relationship-pair-row {
+    display: grid;
+    grid-template-columns: 1fr 24px 1fr auto;
+    gap: 8px;
+    align-items: center;
+}
+
+.relationship-arrow {
+    text-align: center;
+    color: #6b7280;
+    font-size: 12px;
+}
+
+.relationship-pair-remove {
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #c62828;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.relationship-pair-remove:hover {
+    background: #ffebee;
+    border-color: #ef9a9a;
+}
+
+.relationship-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.relationship-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #d9e1f6;
+    background: #f8faff;
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+}
+
+.relationship-text {
+    color: #2b3671;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.relationship-delete {
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #c62828;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+}
+
+.relationship-delete:hover {
+    background: #ffebee;
+    border-color: #ef9a9a;
+}
+
 /* Data Sources Panel */
 .data-sources-panel {
     border: 1px solid #e0e0e0;
     border-radius: 6px;
     margin-top: 12px;
-    flex-shrink: 0;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
 .panel-header {
@@ -1186,6 +1349,8 @@ header h1 {
 .panel-body {
     padding: 10px;
     overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 
 .panel-body.collapsed {
@@ -1205,16 +1370,229 @@ header h1 {
     margin-bottom: 10px;
 }
 
+.data-sources-layout {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 12px;
+    height: 100%;
+    min-height: 0;
+}
+
+.data-sources-project-pane {
+    border-right: 1px solid #eceff5;
+    padding-right: 10px;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.data-sources-main-pane {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+}
+
+.data-sources-list-pane {
+    flex: 0 0 480px;
+    min-width: 280px;
+    max-width: 78%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-right: 8px;
+}
+
+.data-sources-editor-pane {
+    flex: 1 1 auto;
+    min-width: 340px;
+    min-height: 0;
+    overflow-y: auto;
+    padding-left: 8px;
+}
+
+.data-sources-pane-resizer {
+    width: 8px;
+    flex: 0 0 8px;
+    cursor: col-resize;
+    position: relative;
+    background: transparent;
+}
+
+.data-sources-pane-resizer::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    left: 3px;
+    width: 2px;
+    border-radius: 2px;
+    background: #d7deea;
+}
+
+.data-sources-pane-resizer:hover::before {
+    background: #9aa8cc;
+}
+
+.data-sources-list-pane .data-source-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.data-sources-list-pane .data-source-section .shared-data-sources-list {
+    flex: 1 1 auto;
+    min-height: 240px;
+}
+
+@media (max-width: 1280px) {
+    .data-sources-main-pane {
+        display: block;
+        overflow-y: auto;
+    }
+
+    .data-sources-list-pane,
+    .data-sources-editor-pane {
+        min-width: 0;
+        max-width: none;
+        padding: 0;
+        overflow: visible;
+    }
+
+    .data-sources-pane-resizer {
+        display: none;
+    }
+}
+
+.shared-data-sources-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: none;
+    overflow-y: auto;
+}
+
+.shared-data-source-item {
+    border: 1px solid #d9e1f6;
+    background: #f8faff;
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+}
+
+.shared-data-source-item.dragging {
+    opacity: 0.6;
+}
+
+.shared-data-source-item.active {
+    border-color: #667eea;
+    background: #eef2ff;
+}
+
+.shared-data-source-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: center;
+}
+
+.shared-data-source-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.shared-data-source-delete {
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    color: #c62828;
+    border-radius: 4px;
+    font-size: 11px;
+    line-height: 1;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.shared-data-source-delete:hover {
+    background: #ffebee;
+    border-color: #ef9a9a;
+}
+
+.shared-data-source-name {
+    font-size: 12px;
+    font-weight: 700;
+    color: #2b3671;
+}
+
+.shared-data-source-meta {
+    font-size: 10px;
+    color: #5f6b92;
+}
+
+.shared-data-source-projects {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.data-source-project-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 10px;
+    background: #edf2ff;
+    color: #4658b5;
+    border: 1px solid #d9e1ff;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.data-source-project-tag.unassigned {
+    background: #f4f4f4;
+    color: #666;
+    border-color: #e2e2e2;
+}
+
 .data-source-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 8px;
     margin-bottom: 6px;
+}
+
+.data-source-header.collapsible {
+    cursor: pointer;
 }
 
 .data-source-header h4 {
     font-size: 11px;
     font-weight: 600;
+    white-space: nowrap;
+}
+
+.data-source-header-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.toggle-icon-inline {
+    font-size: 10px;
+    color: #5f6b92;
+    line-height: 1;
+}
+
+#primaryDataSourceType {
+    width: 120px;
+    min-width: 120px;
+    flex: 0 0 120px;
 }
 
 .data-source-input {
@@ -1987,6 +2365,16 @@ header h1 {
     display: flex;
     flex-direction: column;
     gap: 6px;
+}
+
+.odata-note {
+    font-size: 11px;
+    color: #667085;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
 }
 
 .project-item {
