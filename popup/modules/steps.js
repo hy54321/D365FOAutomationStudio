@@ -1570,13 +1570,13 @@ export const stepMethods = {
         console.log('Starting element picker, current step:', this.currentStep);
 
         // Store that we're waiting for element pick
-        await chrome.storage.local.set({ 
+        await this.chrome.storage.local.set({ 
             waitingForPick: true,
             currentStepData: this.currentStep,
             currentWorkflowData: this.currentWorkflow
         });
 
-        await chrome.tabs.sendMessage(tab.id, { action: 'startPicker' });
+        await this.chrome.tabs.sendMessage(tab.id, { action: 'startPicker' });
 
         // Note: Window stays open in standalone mode, no need to close
     },
@@ -1628,7 +1628,7 @@ export const stepMethods = {
         this.pickTarget = null;
 
         // Clear the waiting flag
-        await chrome.storage.local.remove(['waitingForPick', 'pickedElement', 'currentStepData', 'currentWorkflowData']);
+        await this.chrome.storage.local.remove(['waitingForPick', 'pickedElement', 'currentStepData', 'currentWorkflowData']);
 
         // Return to Builder tab after selection for the previous behavior.
         document.querySelector('[data-tab="builder"]')?.click();

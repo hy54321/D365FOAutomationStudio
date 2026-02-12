@@ -8,7 +8,7 @@ export const logsMethods = {
     },
 
     async initLogsPanelState() {
-        const { logsPanelOpen } = await chrome.storage.local.get(['logsPanelOpen']);
+        const { logsPanelOpen } = await this.chrome.storage.local.get(['logsPanelOpen']);
         this.setLogsPanelOpen(!!logsPanelOpen);
     },
 
@@ -16,7 +16,7 @@ export const logsMethods = {
         const logsPanel = document.getElementById('logsPanel');
         if (!logsPanel) return;
         logsPanel.classList.toggle('open', isOpen);
-        chrome.storage.local.set({ logsPanelOpen: isOpen });
+        this.chrome.storage.local.set({ logsPanelOpen: isOpen });
     },
 
     addLog(level, message) {

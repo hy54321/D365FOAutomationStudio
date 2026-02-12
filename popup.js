@@ -1,3 +1,9 @@
 import { PopupController } from './popup/controller.js';
 
-new PopupController();
+export function startPopup(options = {}) {
+    return new PopupController(options);
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    startPopup();
+}

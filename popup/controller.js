@@ -12,13 +12,30 @@ import { navButtonsMethods } from './modules/nav-buttons.js';
 import { projectMethods } from './modules/projects.js';
 import { configurationMethods } from './modules/configurations.js';
 
+const DEFAULT_SETTINGS = {
+    delayAfterClick: 800,
+    delayAfterInput: 400,
+    delayAfterSave: 1000,
+    maxRetries: 3,
+    logVerbose: false,
+    pauseOnError: false,
+    comboSelectMode: 'method3',
+    suppressLookupWarnings: false,
+    labelLanguage: 'en-us',
+    dateFormat: 'DDMMYYYY'
+};
+
 class PopupController {
-    constructor() {
+    constructor(options = {}) {
+        const { autoInit = true, chromeApi = globalThis.chrome, windowObj = globalThis.window, documentObj = globalThis.document, initialSettings = null } = options;
+        this.chrome = chromeApi;
+        this.window = windowObj;
+        this.document = documentObj;
         this.currentWorkflow = null;
         this.currentStep = null;
         this.workflows = [];
         this.discoveredElements = [];
-        this.settings = this.loadSettings();
+        this.settings = initialSettings || { ...DEFAULT_SETTINGS };
         this.linkedTabId = null;
         this.originalWorkflowState = null; // For cancel functionality
         this.autoSaveTimeout = null;
@@ -63,7 +80,9 @@ class PopupController {
         this.selectedConfigurationId = 'all';
         this.configurationRunState = null;
 
-        this.init();
+        if (autoInit) {
+            this.init();
+        }
     }
 }
 

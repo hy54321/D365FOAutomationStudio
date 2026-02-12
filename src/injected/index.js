@@ -3,22 +3,33 @@ import { logStep, sendLog } from './utils/logging.js';
 import { sleep } from './utils/async.js';
 import { coerceBoolean, normalizeText } from './utils/text.js';
 import { NavigationInterruptError } from './runtime/errors.js';
+import { getStepErrorConfig, findLoopPairs, findIfPairs } from './runtime/engine-utils.js';
 import { clickElement, applyGridFilter, waitUntilCondition, setInputValue, setGridCellValue, setLookupSelectValue, setCheckboxValue, navigateToForm, activateTab, activateActionPaneTab, expandOrCollapseSection, configureQueryFilter, configureBatchProcessing, closeDialog, configureRecurrence } from './steps/actions.js';
 import { findElementInActiveContext, isElementVisible } from './utils/dom.js';
 
 
-window.D365Inspector = D365Inspector;
+export function startInjected({ windowObj = globalThis.window, documentObj = globalThis.document, inspectorFactory = () => new D365Inspector() } = {}) {
+    if (!windowObj || !documentObj) {
+        return { started: false, reason: 'missing-window-or-document' };
+    }
+    const window = windowObj;
+    const document = documentObj;
+    const navigator = windowObj.navigator || globalThis.navigator;
 
-// ====== Initialize and Listen for Messages ======
+    window.D365Inspector = D365Inspector;
 
-// Prevent duplicate initialization
-if (window.d365InjectedScriptLoaded) {
-    console.log('D365 injected script already loaded, skipping...');
-} else {
+    // ====== Initialize and Listen for Messages ======
+
+    // Prevent duplicate initialization
+    if (window.d365InjectedScriptLoaded) {
+        console.log('D365 injected script already loaded, skipping...');
+        return { started: false, reason: 'already-loaded' };
+    }
+
     window.d365InjectedScriptLoaded = true;
 
     // Create inspector instance
-    const inspector = new D365Inspector();
+    const inspector = inspectorFactory();
 
     // ====== Workflow Execution Engine ======
     let currentWorkflowSettings = {};
@@ -539,25 +550,6 @@ function evaluateCondition(step, currentRow) {
     return false;
 }
 
-function getWorkflowErrorDefaults(settings) {
-    return {
-        mode: settings?.errorDefaultMode || 'fail',
-        retryCount: Number.isFinite(settings?.errorDefaultRetryCount) ? settings.errorDefaultRetryCount : 0,
-        retryDelay: Number.isFinite(settings?.errorDefaultRetryDelay) ? settings.errorDefaultRetryDelay : 1000,
-        gotoLabel: settings?.errorDefaultGotoLabel || ''
-    };
-}
-
-function getStepErrorConfig(step, settings) {
-    const defaults = getWorkflowErrorDefaults(settings);
-    const mode = step?.onErrorMode && step.onErrorMode !== 'default' ? step.onErrorMode : defaults.mode;
-    const retryCount = Number.isFinite(step?.onErrorRetryCount) ? step.onErrorRetryCount : defaults.retryCount;
-    const retryDelay = Number.isFinite(step?.onErrorRetryDelay) ? step.onErrorRetryDelay : defaults.retryDelay;
-    const gotoLabel = step?.onErrorGotoLabel || defaults.gotoLabel;
-
-    return { mode, retryCount, retryDelay, gotoLabel };
-}
-
 // Execute a single step (maps step.type to action functions)
 async function executeSingleStep(step, stepIndex, currentRow, detailSources, settings, dryRun) {
     executionControl.currentStepIndex = typeof step._absoluteIndex === 'number'
@@ -714,113 +706,14 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
     executionControl.totalRows = originalTotalRows;
     
     // Find loop structures
-    const loopPairs = findLoopPairs(steps);
-    const ifPairs = findIfPairs(steps);
+    const loopPairs = findLoopPairs(steps, (message) => sendLog('error', message));
+    const ifPairs = findIfPairs(steps, (message) => sendLog('error', message));
     const labelMap = new Map();
     steps.forEach((step, index) => {
         if (step?.type === 'label' && step.labelName) {
             labelMap.set(step.labelName, index);
         }
     });
-
-    // Helper: find matching loop start/end pairs supporting nested loops and explicit loopRef linking
-    function findLoopPairs(stepsList) {
-        const stack = [];
-        const pairs = [];
-
-        for (let i = 0; i < stepsList.length; i++) {
-            const s = stepsList[i];
-            if (!s || !s.type) continue;
-
-            if (s.type === 'loop-start') {
-                // push start with its id (if present) so loop-end can match by loopRef
-                stack.push({ startIndex: i, id: s.id });
-            } else if (s.type === 'loop-end') {
-                let matched = null;
-
-                // If loop-end references a specific start id, try to match that
-                if (s.loopRef) {
-                    for (let j = stack.length - 1; j >= 0; j--) {
-                        if (stack[j].id === s.loopRef) {
-                            matched = { startIndex: stack[j].startIndex, endIndex: i };
-                            stack.splice(j, 1);
-                            break;
-                        }
-                    }
-                }
-
-                // Fallback: match the most recent unmatched loop-start (LIFO)
-                if (!matched) {
-                    const last = stack.pop();
-                    if (last) {
-                        matched = { startIndex: last.startIndex, endIndex: i };
-                    } else {
-                        // Unmatched loop-end - ignore but log
-                        sendLog('error', `Unmatched loop-end at index ${i}`);
-                    }
-                }
-
-                if (matched) pairs.push(matched);
-            }
-        }
-
-        if (stack.length) {
-            // Some loop-starts were not closed
-            for (const rem of stack) {
-                sendLog('error', `Unclosed loop-start at index ${rem.startIndex}`);
-            }
-        }
-
-        // Sort pairs by start index ascending
-        pairs.sort((a, b) => a.startIndex - b.startIndex);
-        return pairs;
-    }
-
-    function findIfPairs(stepsList) {
-        const stack = [];
-        const ifToElse = new Map();
-        const ifToEnd = new Map();
-        const elseToEnd = new Map();
-
-        for (let i = 0; i < stepsList.length; i++) {
-            const s = stepsList[i];
-            if (!s || !s.type) continue;
-
-            if (s.type === 'if-start') {
-                stack.push({ ifIndex: i, elseIndex: null });
-            } else if (s.type === 'else') {
-                if (stack.length === 0) {
-                    sendLog('error', `Else without matching if-start at index ${i}`);
-                } else {
-                    const top = stack[stack.length - 1];
-                    if (top.elseIndex === null) {
-                        top.elseIndex = i;
-                    } else {
-                        sendLog('error', `Multiple else blocks for if-start at index ${top.ifIndex}`);
-                    }
-                }
-            } else if (s.type === 'if-end') {
-                const top = stack.pop();
-                if (!top) {
-                    sendLog('error', `If-end without matching if-start at index ${i}`);
-                } else {
-                    ifToEnd.set(top.ifIndex, i);
-                    if (top.elseIndex !== null) {
-                        ifToElse.set(top.ifIndex, top.elseIndex);
-                        elseToEnd.set(top.elseIndex, i);
-                    }
-                }
-            }
-        }
-
-        if (stack.length) {
-            for (const rem of stack) {
-                sendLog('error', `Unclosed if-start at index ${rem.ifIndex}`);
-            }
-        }
-
-        return { ifToElse, ifToEnd, elseToEnd };
-    }
 
     // If no loops, execute all steps for each primary data row (legacy behavior)
     if (loopPairs.length === 0) {
@@ -1181,5 +1074,9 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
     }
 }
 
+    return { started: true };
+}
 
-} // End of injected script initialization guard
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+    startInjected({ windowObj: window, documentObj: document });
+}

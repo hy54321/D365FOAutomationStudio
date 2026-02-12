@@ -22,7 +22,7 @@ export const dataSourceMethods = {
     },
 
     async loadSharedDataSources() {
-        const result = await chrome.storage.local.get([
+        const result = await this.chrome.storage.local.get([
             'sharedDataSources',
             'sharedDataSourceRelationships',
             'selectedDataSourceProjectId',
@@ -58,11 +58,11 @@ export const dataSourceMethods = {
     },
 
     async persistSharedDataSources() {
-        await chrome.storage.local.set({ sharedDataSources: this.sharedDataSources });
+        await this.chrome.storage.local.set({ sharedDataSources: this.sharedDataSources });
     },
 
     async persistSharedDataSourceRelationships() {
-        await chrome.storage.local.set({ sharedDataSourceRelationships: this.sharedDataSourceRelationships || [] });
+        await this.chrome.storage.local.set({ sharedDataSourceRelationships: this.sharedDataSourceRelationships || [] });
     },
 
     getSharedDataSourceById(id) {
@@ -119,7 +119,7 @@ export const dataSourceMethods = {
 
     async selectDataSourceProjectFilter(projectId) {
         this.selectedDataSourceProjectId = projectId || 'all';
-        await chrome.storage.local.set({ selectedDataSourceProjectId: this.selectedDataSourceProjectId });
+        await this.chrome.storage.local.set({ selectedDataSourceProjectId: this.selectedDataSourceProjectId });
         this.renderSharedDataSourcesUI();
     },
 
@@ -131,7 +131,7 @@ export const dataSourceMethods = {
         const selected = this.selectedDataSourceProjectId || 'all';
         if (selected !== 'all' && selected !== 'unassigned' && !(this.projects || []).some(project => project.id === selected)) {
             this.selectedDataSourceProjectId = 'all';
-            chrome.storage.local.set({ selectedDataSourceProjectId: 'all' }).catch(() => {});
+            this.chrome.storage.local.set({ selectedDataSourceProjectId: 'all' }).catch(() => {});
         }
 
         const createNode = (id, label, depth = 0) => {
@@ -739,7 +739,7 @@ export const dataSourceMethods = {
         const onUp = async () => {
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
-            await chrome.storage.local.set({
+            await this.chrome.storage.local.set({
                 dataSourcesListPaneWidth: Math.round(this.dataSourcesListPaneWidth || 480)
             });
         };
@@ -750,7 +750,7 @@ export const dataSourceMethods = {
 
     async toggleDataSourceEditorPane() {
         this.dataSourceEditorPaneCollapsed = !this.dataSourceEditorPaneCollapsed;
-        await chrome.storage.local.set({ dataSourceEditorPaneCollapsed: !!this.dataSourceEditorPaneCollapsed });
+        await this.chrome.storage.local.set({ dataSourceEditorPaneCollapsed: !!this.dataSourceEditorPaneCollapsed });
         this.applyDataSourceEditorPaneState();
     },
 
@@ -1069,7 +1069,7 @@ export const dataSourceMethods = {
             return tabInfo;
         }
 
-        const result = await chrome.storage.local.get(['linkedTabUrl', 'linkedTabId']);
+        const result = await this.chrome.storage.local.get(['linkedTabUrl', 'linkedTabId']);
         if (result?.linkedTabUrl && isD365Url(result.linkedTabUrl)) {
             const origin = new URL(result.linkedTabUrl).origin;
             return { origin, tabId: result.linkedTabId || null };
@@ -1099,7 +1099,7 @@ export const dataSourceMethods = {
             throw new Error('No D365 tab available for OData query');
         }
 
-        const [{ result }] = await chrome.scripting.executeScript({
+        const [{ result }] = await this.chrome.scripting.executeScript({
             target: { tabId },
             func: async (url, isPreview) => {
                 const collectRows = (payload) => {

@@ -2,7 +2,7 @@ export const inspectorMethods = {
     async startInspector() {
         const tab = await this.getLinkedOrActiveTab();
         if (tab) {
-            await chrome.tabs.sendMessage(tab.id, { action: 'startPicker' });
+            await this.chrome.tabs.sendMessage(tab.id, { action: 'startPicker' });
         } else {
             this.showNotification('No D365FO tab connected', 'error');
         }
@@ -12,7 +12,7 @@ export const inspectorMethods = {
         const tab = await this.getLinkedOrActiveTab();
         if (tab) {
             const activeFormOnly = document.getElementById('activeFormOnly')?.checked || false;
-            await chrome.tabs.sendMessage(tab.id, { 
+            await this.chrome.tabs.sendMessage(tab.id, { 
                 action: 'discoverElements',
                 activeFormOnly: activeFormOnly
             });

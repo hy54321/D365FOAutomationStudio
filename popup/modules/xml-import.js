@@ -13,7 +13,7 @@ export const xmlImportMethods = {
      */
     async getD365BaseUrl() {
         try {
-            const result = await chrome.storage.local.get(['linkedTabUrl']);
+            const result = await this.chrome.storage.local.get(['linkedTabUrl']);
             if (result.linkedTabUrl) {
                 const url = new URL(result.linkedTabUrl);
                 return url.origin;
@@ -62,7 +62,7 @@ export const xmlImportMethods = {
         }
 
         // Get the linked tab ID
-        const result = await chrome.storage.local.get(['linkedTabId']);
+        const result = await this.chrome.storage.local.get(['linkedTabId']);
         console.log('[XML Import] Linked tab ID:', result.linkedTabId);
         
         if (!result.linkedTabId) {
@@ -75,7 +75,7 @@ export const xmlImportMethods = {
             
             // Send message to content script to resolve labels
             const langToUse = (this.settings && this.settings.labelLanguage) ? this.settings.labelLanguage : language;
-            const response = await chrome.tabs.sendMessage(result.linkedTabId, {
+            const response = await this.chrome.tabs.sendMessage(result.linkedTabId, {
                 action: 'resolveD365Labels',
                 labelIds: uniqueLabels,
                 language: langToUse
@@ -1234,7 +1234,7 @@ export const xmlImportMethods = {
             const configurationOrderChanged = this.syncConfigurationOrderForWorkflow
                 ? this.syncConfigurationOrderForWorkflow(workflow)
                 : false;
-            await chrome.storage.local.set(configurationOrderChanged
+            await this.chrome.storage.local.set(configurationOrderChanged
                 ? { workflows: this.workflows, configurations: this.configurations }
                 : { workflows: this.workflows });
             

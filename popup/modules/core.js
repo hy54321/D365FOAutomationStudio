@@ -1,5 +1,8 @@
 export const coreMethods = {
     async init() {
+        if (this.loadSettings) {
+            this.settings = this.loadSettings();
+        }
         await this.loadResumeState();
         // Get the linked tab from background
         await this.initLinkedTab();
@@ -48,11 +51,11 @@ export const coreMethods = {
 
     async initLinkedTab() {
         // Get linked tab from storage/background
-        const result = await chrome.storage.local.get(['linkedTabId', 'linkedTabUrl']);
+        const result = await this.chrome.storage.local.get(['linkedTabId', 'linkedTabUrl']);
 
         if (result.linkedTabId) {
             try {
-                const tab = await chrome.tabs.get(result.linkedTabId);
+                const tab = await this.chrome.tabs.get(result.linkedTabId);
                 this.linkedTabId = tab.id;
                 this.updateLinkedTabUI(tab);
             } catch (e) {
@@ -62,10 +65,10 @@ export const coreMethods = {
             }
         } else {
             // Try to get the active tab
-            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            const [tab] = await this.chrome.tabs.query({ active: true, currentWindow: true });
             if (tab && tab.url && (tab.url.includes('dynamics.com') || tab.url.includes('cloudax.dynamics.com'))) {
                 this.linkedTabId = tab.id;
-                await chrome.storage.local.set({ linkedTabId: tab.id, linkedTabUrl: tab.url });
+                await this.chrome.storage.local.set({ linkedTabId: tab.id, linkedTabUrl: tab.url });
                 this.updateLinkedTabUI(tab);
             }
         }
@@ -89,7 +92,7 @@ export const coreMethods = {
     },
 
     async checkForPickedElement() {
-        const result = await chrome.storage.local.get(['waitingForPick', 'pickedElement', 'currentStepData', 'currentWorkflowData']);
+        const result = await this.chrome.storage.local.get(['waitingForPick', 'pickedElement', 'currentStepData', 'currentWorkflowData']);
 
         if (result.waitingForPick && result.pickedElement) {
             console.log('Picked element detected:', result.pickedElement);
@@ -175,7 +178,7 @@ export const coreMethods = {
             let tab;
             if (this.linkedTabId) {
                 try {
-                    tab = await chrome.tabs.get(this.linkedTabId);
+                    tab = await this.chrome.tabs.get(this.linkedTabId);
                 } catch (e) {
                     // Linked tab no longer exists
                     this.linkedTabId = null;
@@ -183,7 +186,7 @@ export const coreMethods = {
             }
 
             if (!tab) {
-                [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                [tab] = await this.chrome.tabs.query({ active: true, currentWindow: true });
             }
 
             if (!tab) {
@@ -191,13 +194,13 @@ export const coreMethods = {
                 return;
             }
 
-            const response = await chrome.tabs.sendMessage(tab.id, { action: 'checkD365' });
+            const response = await this.chrome.tabs.sendMessage(tab.id, { action: 'checkD365' });
 
             if (response && response.isD365) {
                 this.setStatus('connected', 'Connected to D365FO');
                 // Update linked tab
                 this.linkedTabId = tab.id;
-                await chrome.storage.local.set({ linkedTabId: tab.id });
+                await this.chrome.storage.local.set({ linkedTabId: tab.id });
                 this.updateLinkedTabUI(tab);
             } else {
                 this.setStatus('disconnected', 'Not a D365FO page');
@@ -358,7 +361,7 @@ export const coreMethods = {
         document.getElementById('formFilter')?.addEventListener('change', () => this.filterElements());
 
         // Listen for messages from background script
-        chrome.runtime.onMessage.addListener((request) => {
+        this.chrome.runtime.onMessage.addListener((request) => {
             if (request.action === 'elementsDiscovered') {
                 this.displayDiscoveredElements(request.elements, request.activeForm);
             }
@@ -395,10 +398,10 @@ export const coreMethods = {
 
     async relinkTab() {
         try {
-            const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            const [tab] = await this.chrome.tabs.query({ active: true, lastFocusedWindow: true });
             if (tab && tab.url && (tab.url.includes('dynamics.com') || tab.url.includes('cloudax.dynamics.com'))) {
                 this.linkedTabId = tab.id;
-                await chrome.storage.local.set({ linkedTabId: tab.id, linkedTabUrl: tab.url });
+                await this.chrome.storage.local.set({ linkedTabId: tab.id, linkedTabUrl: tab.url });
                 this.updateLinkedTabUI(tab);
                 this.checkD365Status();
                 this.showNotification('Linked to: ' + tab.title, 'success');
@@ -414,13 +417,13 @@ export const coreMethods = {
         // Try linked tab first
         if (this.linkedTabId) {
             try {
-                return await chrome.tabs.get(this.linkedTabId);
+                return await this.chrome.tabs.get(this.linkedTabId);
             } catch (e) {
                 this.linkedTabId = null;
             }
         }
         // Fall back to active tab
-        const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+        const [tab] = await this.chrome.tabs.query({ active: true, lastFocusedWindow: true });
         return tab;
     },
 
@@ -433,7 +436,7 @@ export const coreMethods = {
     async clearWorkflowFilters() {
         this.selectedProjectId = 'all';
         this.selectedConfigurationId = 'all';
-        await chrome.storage.local.set({
+        await this.chrome.storage.local.set({
             selectedProjectId: this.selectedProjectId,
             selectedConfigurationId: this.selectedConfigurationId
         });

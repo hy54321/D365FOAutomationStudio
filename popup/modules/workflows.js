@@ -77,7 +77,7 @@ export const workflowMethods = {
     },
 
     async loadWorkflows() {
-        const result = await chrome.storage.local.get(['workflows']);
+        const result = await this.chrome.storage.local.get(['workflows']);
         this.workflows = result.workflows || [];
         this.displayWorkflows();
         if (this.updateNavButtonsWorkflowOptions) {
@@ -92,7 +92,7 @@ export const workflowMethods = {
     },
 
     async loadResumeState() {
-        const result = await chrome.storage.local.get(['resumeSkipByWorkflow']);
+        const result = await this.chrome.storage.local.get(['resumeSkipByWorkflow']);
         this.resumeSkipByWorkflow = result.resumeSkipByWorkflow || {};
     },
     async saveWorkflow() {
@@ -122,7 +122,7 @@ export const workflowMethods = {
             ? this.syncConfigurationOrderForWorkflow(this.currentWorkflow)
             : false;
 
-        await chrome.storage.local.set(configurationOrderChanged
+        await this.chrome.storage.local.set(configurationOrderChanged
             ? { workflows: this.workflows, configurations: this.configurations }
             : { workflows: this.workflows });
         this.displayWorkflows();
@@ -235,7 +235,7 @@ export const workflowMethods = {
                         });
                     }
 
-                    await chrome.storage.local.set(configurationOrderChanged
+                    await this.chrome.storage.local.set(configurationOrderChanged
                         ? { workflows: this.workflows, configurations: this.configurations }
                         : { workflows: this.workflows });
                     this.displayWorkflows();
@@ -809,7 +809,7 @@ export const workflowMethods = {
             let tab;
             if (this.linkedTabId) {
                 try {
-                    tab = await chrome.tabs.get(this.linkedTabId);
+                    tab = await this.chrome.tabs.get(this.linkedTabId);
                 } catch (e) {
                     this.linkedTabId = null;
                 }
@@ -817,7 +817,7 @@ export const workflowMethods = {
 
             if (!tab) {
                 // Try to find a D365 tab
-                const tabs = await chrome.tabs.query({});
+                const tabs = await this.chrome.tabs.query({});
                 tab = tabs.find(t => t.url && (t.url.includes('dynamics.com') || t.url.includes('cloudax.dynamics.com')));
             }
 
@@ -922,7 +922,7 @@ export const workflowMethods = {
                 // navigation resume handling (avoid relying on builder context).
                 this.executionState.runningWorkflowSnapshot = JSON.parse(JSON.stringify(workflowToSend));
 
-                await chrome.tabs.sendMessage(tab.id, {
+                await this.chrome.tabs.sendMessage(tab.id, {
                     action: 'executeWorkflow',
                     workflow: workflowToSend,
                     data: executionRows,
@@ -1034,7 +1034,7 @@ export const workflowMethods = {
                         ? this.syncConfigurationOrderForWorkflow(workflow)
                         : false;
 
-                    await chrome.storage.local.set(configurationOrderChanged
+                    await this.chrome.storage.local.set(configurationOrderChanged
                         ? { workflows: this.workflows, configurations: this.configurations }
                         : { workflows: this.workflows });
                     this.displayWorkflows();

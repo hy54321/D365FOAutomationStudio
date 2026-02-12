@@ -66,7 +66,7 @@ export const executionMethods = {
 
         if (workflowId && this.resumeSkipByWorkflow?.[workflowId]) {
             delete this.resumeSkipByWorkflow[workflowId];
-            chrome.storage.local.set({ resumeSkipByWorkflow: this.resumeSkipByWorkflow }).catch(() => {});
+            this.chrome.storage.local.set({ resumeSkipByWorkflow: this.resumeSkipByWorkflow }).catch(() => {});
         }
         if (this.executionState) {
             delete this.executionState.runningWorkflowSnapshot;
@@ -105,7 +105,7 @@ export const executionMethods = {
             const resumeSkip = Math.max(0, this.executionState.currentRow);
             this.resumeSkipByWorkflow = this.resumeSkipByWorkflow || {};
             this.resumeSkipByWorkflow[workflowId] = resumeSkip;
-            chrome.storage.local.set({ resumeSkipByWorkflow: this.resumeSkipByWorkflow }).catch(() => {});
+            this.chrome.storage.local.set({ resumeSkipByWorkflow: this.resumeSkipByWorkflow }).catch(() => {});
 
             this.lastFailureInfo = {
                 workflowId: workflowId,
@@ -193,7 +193,7 @@ export const executionMethods = {
 
         const tab = await this.getLinkedOrActiveTab();
         if (tab) {
-            await chrome.tabs.sendMessage(tab.id, { action: 'pauseWorkflow' });
+            await this.chrome.tabs.sendMessage(tab.id, { action: 'pauseWorkflow' });
             this.executionState.isPaused = true;
             this.updateExecutionBar();
             this.addLog('warning', 'Workflow paused');
@@ -206,7 +206,7 @@ export const executionMethods = {
 
         const tab = await this.getLinkedOrActiveTab();
         if (tab) {
-            await chrome.tabs.sendMessage(tab.id, { action: 'resumeWorkflow' });
+            await this.chrome.tabs.sendMessage(tab.id, { action: 'resumeWorkflow' });
             this.executionState.isPaused = false;
             this.updateExecutionBar();
             this.addLog('info', 'Workflow resumed');
@@ -221,7 +221,7 @@ export const executionMethods = {
 
         const tab = await this.getLinkedOrActiveTab();
         if (tab) {
-            await chrome.tabs.sendMessage(tab.id, { action: 'stopWorkflow' });
+            await this.chrome.tabs.sendMessage(tab.id, { action: 'stopWorkflow' });
             this.executionState.isRunning = false;
             this.executionState.isLaunching = false;
             this.executionState.isPaused = false;
@@ -308,7 +308,7 @@ export const executionMethods = {
         
         // Execute in the tab context to save to sessionStorage
         try {
-            await chrome.scripting.executeScript({
+            await this.chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: (state) => {
                     const existingRaw = sessionStorage.getItem('d365_pending_workflow');
@@ -411,7 +411,7 @@ export const executionMethods = {
         };
 
         try {
-            await chrome.tabs.sendMessage(tab.id, {
+            await this.chrome.tabs.sendMessage(tab.id, {
                 action: 'executeWorkflow',
                 workflow: continueWorkflow,
                 data: dataToProcess.length > 0 ? dataToProcess : [{}]

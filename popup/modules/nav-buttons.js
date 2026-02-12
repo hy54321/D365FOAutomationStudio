@@ -1,6 +1,6 @@
 export const navButtonsMethods = {
     async loadNavButtons() {
-        const result = await chrome.storage.local.get(['navButtons']);
+        const result = await this.chrome.storage.local.get(['navButtons']);
         this.navButtons = (result.navButtons || []).map((button) => ({
             ...button,
             paramBindings: this.normalizeNavButtonParamBindings(button?.paramBindings || {})
@@ -8,7 +8,7 @@ export const navButtonsMethods = {
     },
 
     async saveNavButtonsToStorage() {
-        await chrome.storage.local.set({ navButtons: this.navButtons });
+        await this.chrome.storage.local.set({ navButtons: this.navButtons });
     },
 
     initNavButtonsUI() {

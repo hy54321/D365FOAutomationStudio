@@ -1,13 +1,13 @@
 export const projectMethods = {
     async loadProjects() {
-        const result = await chrome.storage.local.get(['projects', 'selectedProjectId']);
+        const result = await this.chrome.storage.local.get(['projects', 'selectedProjectId']);
         this.projects = result.projects || [];
         this.selectedProjectId = result.selectedProjectId || 'all';
 
         if (this.selectedProjectId !== 'all' && this.selectedProjectId !== 'unassigned'
             && !this.projects.find(p => p.id === this.selectedProjectId)) {
             this.selectedProjectId = 'all';
-            await chrome.storage.local.set({ selectedProjectId: 'all' });
+            await this.chrome.storage.local.set({ selectedProjectId: 'all' });
         }
 
         this.renderProjectFilter();
@@ -49,7 +49,7 @@ export const projectMethods = {
             this.selectedConfigurationId = 'all';
         }
 
-        await chrome.storage.local.set({
+        await this.chrome.storage.local.set({
             selectedProjectId: this.selectedProjectId,
             selectedConfigurationId: this.selectedConfigurationId
         });
@@ -87,7 +87,7 @@ export const projectMethods = {
 
         const project = { id: Date.now().toString(), name, parentId: parentId || null };
         this.projects.push(project);
-        chrome.storage.local.set({ projects: this.projects });
+        this.chrome.storage.local.set({ projects: this.projects });
         this.renderProjectFilter();
         this.renderProjectsManager();
         this.renderProjectTree();
@@ -129,7 +129,7 @@ export const projectMethods = {
         }
 
         project.parentId = normalizedParentId;
-        await chrome.storage.local.set({ projects: this.projects });
+        await this.chrome.storage.local.set({ projects: this.projects });
         this.renderProjectTree();
         this.renderProjectsManager();
         this.renderWorkflowProjects();
@@ -156,7 +156,7 @@ export const projectMethods = {
             this.selectedProjectId = 'all';
         }
 
-        await chrome.storage.local.set({
+        await this.chrome.storage.local.set({
             projects: this.projects,
             workflows: this.workflows,
             selectedProjectId: this.selectedProjectId
@@ -193,7 +193,7 @@ export const projectMethods = {
         }
 
         project.name = trimmed;
-        await chrome.storage.local.set({ projects: this.projects });
+        await this.chrome.storage.local.set({ projects: this.projects });
         this.renderProjectFilter();
         this.renderProjectsManager();
         this.renderProjectTree();
@@ -224,7 +224,7 @@ export const projectMethods = {
             workflow.projectIds.push(projectId);
         }
 
-        await chrome.storage.local.set({ workflows: this.workflows });
+        await this.chrome.storage.local.set({ workflows: this.workflows });
         this.displayWorkflows();
         this.renderProjectsManager();
         this.renderProjectTree();

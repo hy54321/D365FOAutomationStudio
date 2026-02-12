@@ -1,6 +1,6 @@
 export const configurationMethods = {
     async loadConfigurations() {
-        const result = await chrome.storage.local.get(['configurations', 'selectedConfigurationId']);
+        const result = await this.chrome.storage.local.get(['configurations', 'selectedConfigurationId']);
         const rawConfigurations = result.configurations || [];
         let normalizedChanged = false;
         this.configurations = rawConfigurations.map(configuration => {
@@ -15,7 +15,7 @@ export const configurationMethods = {
         if (this.selectedConfigurationId !== 'all' && this.selectedConfigurationId !== 'unassigned'
             && !this.configurations.find(c => c.id === this.selectedConfigurationId)) {
             this.selectedConfigurationId = 'all';
-            await chrome.storage.local.set({ selectedConfigurationId: 'all' });
+            await this.chrome.storage.local.set({ selectedConfigurationId: 'all' });
         }
 
         this.renderConfigurationFilter();
@@ -24,7 +24,7 @@ export const configurationMethods = {
         this.renderWorkflowConfigurations();
 
         if (normalizedChanged) {
-            await chrome.storage.local.set({ configurations: this.configurations });
+            await this.chrome.storage.local.set({ configurations: this.configurations });
         }
     },
 
@@ -59,7 +59,7 @@ export const configurationMethods = {
             this.selectedProjectId = 'all';
         }
 
-        await chrome.storage.local.set({
+        await this.chrome.storage.local.set({
             selectedConfigurationId: this.selectedConfigurationId,
             selectedProjectId: this.selectedProjectId
         });
@@ -146,7 +146,7 @@ export const configurationMethods = {
         const configuration = { id: Date.now().toString(), name, workflowOrder: [] };
         this.configurations.push(configuration);
 
-        chrome.storage.local.set({ configurations: this.configurations });
+        this.chrome.storage.local.set({ configurations: this.configurations });
         this.renderConfigurationFilter();
         this.renderConfigurationsManager();
         this.renderConfigurationTree();
@@ -180,7 +180,7 @@ export const configurationMethods = {
             this.selectedConfigurationId = 'all';
         }
 
-        await chrome.storage.local.set({
+        await this.chrome.storage.local.set({
             configurations: this.configurations,
             workflows: this.workflows,
             selectedConfigurationId: this.selectedConfigurationId
@@ -206,7 +206,7 @@ export const configurationMethods = {
         }
 
         configuration.name = trimmed;
-        await chrome.storage.local.set({ configurations: this.configurations });
+        await this.chrome.storage.local.set({ configurations: this.configurations });
         this.renderConfigurationFilter();
         this.renderConfigurationsManager();
         this.renderConfigurationTree();
@@ -245,7 +245,7 @@ export const configurationMethods = {
             }
         }
 
-        await chrome.storage.local.set(orderChanged
+        await this.chrome.storage.local.set(orderChanged
             ? { workflows: this.workflows, configurations: this.configurations }
             : { workflows: this.workflows });
         this.displayWorkflows();
@@ -361,7 +361,7 @@ export const configurationMethods = {
         const [moved] = order.splice(sourceIndex, 1);
         order.splice(targetIndex, 0, moved);
 
-        await chrome.storage.local.set({ configurations: this.configurations });
+        await this.chrome.storage.local.set({ configurations: this.configurations });
         this.renderConfigurationsManager();
         this.showNotification('Configuration order updated', 'success');
     },

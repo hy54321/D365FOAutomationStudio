@@ -109,7 +109,7 @@ export const runOptionsMethods = {
 
         this.resumeSkipByWorkflow = this.resumeSkipByWorkflow || {};
         this.resumeSkipByWorkflow[info.workflowId] = runOptions.skipRows;
-        chrome.storage.local.set({ resumeSkipByWorkflow: this.resumeSkipByWorkflow }).catch(() => {});
+        this.chrome.storage.local.set({ resumeSkipByWorkflow: this.resumeSkipByWorkflow }).catch(() => {});
 
         this.hideResumeModal();
         this.executeWorkflowWithOptions(workflow, runOptions);
