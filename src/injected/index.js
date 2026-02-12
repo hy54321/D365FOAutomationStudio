@@ -4,6 +4,7 @@ import { sleep } from './utils/async.js';
 import { coerceBoolean, normalizeText } from './utils/text.js';
 import { NavigationInterruptError } from './runtime/errors.js';
 import { getStepErrorConfig, findLoopPairs, findIfPairs } from './runtime/engine-utils.js';
+import { evaluateCondition } from './runtime/conditions.js';
 import { clickElement, applyGridFilter, waitUntilCondition, setInputValue, setGridCellValue, setLookupSelectValue, setCheckboxValue, navigateToForm, activateTab, activateActionPaneTab, expandOrCollapseSection, configureQueryFilter, configureBatchProcessing, closeDialog, configureRecurrence } from './steps/actions.js';
 import { findElementInActiveContext, isElementVisible } from './utils/dom.js';
 
@@ -458,98 +459,6 @@ async function resolveStepValue(step, currentRow) {
     return step?.value ?? '';
 }
 
-function extractRowValue(fieldMapping, currentRow) {
-    if (!currentRow || !fieldMapping) return '';
-    let value = currentRow[fieldMapping];
-    if (value === undefined && fieldMapping.includes(':')) {
-        const fieldName = fieldMapping.split(':').pop();
-        value = currentRow[fieldName];
-    }
-    return value === undefined || value === null ? '' : String(value);
-}
-
-function getElementTextForCondition(element) {
-    if (!element) return '';
-    const aria = element.getAttribute?.('aria-label');
-    if (aria) return aria.trim();
-    const text = element.textContent?.trim();
-    return text || '';
-}
-
-function getElementValueForCondition(element) {
-    if (!element) return '';
-    if ('value' in element && element.value !== undefined) {
-        return String(element.value ?? '');
-    }
-    return getElementTextForCondition(element);
-}
-
-function evaluateCondition(step, currentRow) {
-    const type = step?.conditionType || 'ui-visible';
-
-    if (type.startsWith('ui-')) {
-        const controlName = step?.conditionControlName || step?.controlName || '';
-        const element = controlName ? findElementInActiveContext(controlName) : null;
-
-        switch (type) {
-            case 'ui-visible':
-                return !!element && isElementVisible(element);
-            case 'ui-hidden':
-                return !element || !isElementVisible(element);
-            case 'ui-exists':
-                return !!element;
-            case 'ui-not-exists':
-                return !element;
-            case 'ui-text-equals': {
-                const actual = normalizeText(getElementTextForCondition(element));
-                const expected = normalizeText(step?.conditionValue || '');
-                return actual === expected;
-            }
-            case 'ui-text-contains': {
-                const actual = normalizeText(getElementTextForCondition(element));
-                const expected = normalizeText(step?.conditionValue || '');
-                return actual.includes(expected);
-            }
-            case 'ui-value-equals': {
-                const actual = normalizeText(getElementValueForCondition(element));
-                const expected = normalizeText(step?.conditionValue || '');
-                return actual === expected;
-            }
-            case 'ui-value-contains': {
-                const actual = normalizeText(getElementValueForCondition(element));
-                const expected = normalizeText(step?.conditionValue || '');
-                return actual.includes(expected);
-            }
-            default:
-                return false;
-        }
-    }
-
-    if (type.startsWith('data-')) {
-        const fieldMapping = step?.conditionFieldMapping || '';
-        const actualRaw = extractRowValue(fieldMapping, currentRow);
-        const actual = normalizeText(actualRaw);
-        const expected = normalizeText(step?.conditionValue || '');
-
-        switch (type) {
-            case 'data-equals':
-                return actual === expected;
-            case 'data-not-equals':
-                return actual !== expected;
-            case 'data-contains':
-                return actual.includes(expected);
-            case 'data-empty':
-                return actual === '';
-            case 'data-not-empty':
-                return actual !== '';
-            default:
-                return false;
-        }
-    }
-
-    return false;
-}
-
 // Execute a single step (maps step.type to action functions)
 async function executeSingleStep(step, stepIndex, currentRow, detailSources, settings, dryRun) {
     executionControl.currentStepIndex = typeof step._absoluteIndex === 'number'
@@ -884,7 +793,10 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
             }
 
             if (step.type === 'if-start') {
-                const conditionMet = evaluateCondition(step, currentDataRow);
+                const conditionMet = evaluateCondition(step, currentDataRow, {
+                    findElementInActiveContext,
+                    isElementVisible
+                });
                 const endIndex = ifPairs.ifToEnd.get(idx);
                 const elseIndex = ifPairs.ifToElse.get(idx);
                 if (endIndex === undefined) {
@@ -960,7 +872,10 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                     let iterIndex = 0;
                     while (iterIndex < maxIterations) {
                         await checkExecutionControl();
-                        if (!evaluateCondition(step, currentDataRow)) break;
+                        if (!evaluateCondition(step, currentDataRow, {
+                            findElementInActiveContext,
+                            isElementVisible
+                        })) break;
 
                         window.postMessage({
                             type: 'D365_WORKFLOW_PROGRESS',

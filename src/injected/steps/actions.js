@@ -5,6 +5,7 @@ import { waitForLookupPopup, waitForLookupRows, waitForLookupDockForElement, wai
 import { typeValueSlowly, typeValueWithInputEvents, waitForInputValue, setValueOnce, setValueWithVerify, comboInputWithSelectedMethod as comboInputWithSelectedMethodWithMode, commitComboValue, dispatchClickSequence } from '../utils/combobox.js';
 import { coerceBoolean, normalizeText } from '../utils/text.js';
 import { NavigationInterruptError } from '../runtime/errors.js';
+import { parseGridAndColumn, buildFilterFieldPatterns, buildApplyButtonPatterns, getFilterMethodSearchTerms, textIncludesAny } from './action-helpers.js';
 
 function comboInputWithSelectedMethod(input, value) {
     const method = window.d365CurrentWorkflowSettings?.comboSelectMode || 'method3';
@@ -40,24 +41,14 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     
     // Extract grid name and column name from controlName
     // Format: GridName_ColumnName (e.g., "GridReadOnlyMarkupTable_MarkupCode")
-    const lastUnderscoreIdx = controlName.lastIndexOf('_');
-    const gridName = controlName.substring(0, lastUnderscoreIdx);
-    const columnName = controlName.substring(lastUnderscoreIdx + 1);
+    const { gridName, columnName } = parseGridAndColumn(controlName);
     
     console.log(`  Grid: ${gridName}, Column: ${columnName}`);
     
     // Helper function to find filter input with multiple patterns
     async function findFilterInput() {
         // D365 creates filter inputs with various patterns
-        const filterFieldPatterns = [
-            `FilterField_${gridName}_${columnName}_${columnName}_Input_0`,
-            `FilterField_${controlName}_${columnName}_Input_0`,
-            `FilterField_${controlName}_Input_0`,
-            `FilterField_${gridName}_${columnName}_Input_0`,
-            // Additional patterns for different D365 versions
-            `${controlName}_FilterField_Input`,
-            `${gridName}_${columnName}_FilterField`
-        ];
+        const filterFieldPatterns = buildFilterFieldPatterns(controlName, gridName, columnName);
         
         let filterInput = null;
         let filterFieldContainer = null;
@@ -189,12 +180,7 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     
     // Step 6: Apply the filter - find and click the Apply button
     // IMPORTANT: The pattern is {GridName}_{ColumnName}_ApplyFilters, not just {GridName}_ApplyFilters
-    const applyBtnPatterns = [
-        `${gridName}_${columnName}_ApplyFilters`,  // Most common: GridReadOnlyMarkupTable_MarkupCode_ApplyFilters
-        `${controlName}_ApplyFilters`,
-        `${gridName}_ApplyFilters`,
-        `ApplyFilters`
-    ];
+    const applyBtnPatterns = buildApplyButtonPatterns(controlName, gridName, columnName);
     
     let applyBtn = null;
     for (const pattern of applyBtnPatterns) {
@@ -1569,31 +1555,17 @@ export async function setFilterMethod(filterContainer, method) {
     await sleep(300);
     
     // Find and click the matching option
-    const methodMappings = {
-        'is exactly': ['is exactly', 'equals', 'is equal to', '='],
-        'contains': ['contains', 'like'],
-        'begins with': ['begins with', 'starts with'],
-        'is not': ['is not', 'not equal', '!=', '<>'],
-        'does not contain': ['does not contain', 'not like'],
-        'is one of': ['is one of', 'in'],
-        'after': ['after', 'greater than', '>'],
-        'before': ['before', 'less than', '<'],
-        'matches': ['matches', 'regex', 'pattern']
-    };
-    
-    const searchTerms = methodMappings[method] || [method];
+    const searchTerms = getFilterMethodSearchTerms(method);
     
     // Look for options in listbox/dropdown
     const options = document.querySelectorAll('[role="option"], [role="listitem"], .dyn-listView-item');
     for (const opt of options) {
         const text = opt.textContent.toLowerCase();
-        for (const term of searchTerms) {
-            if (text.includes(term.toLowerCase())) {
-                opt.click();
-                await sleep(200);
-                console.log(`  Set filter method: ${method}`);
-                return;
-            }
+        if (textIncludesAny(text, searchTerms)) {
+            opt.click();
+            await sleep(200);
+            console.log(`  Set filter method: ${method}`);
+            return;
         }
     }
     
@@ -1602,14 +1574,12 @@ export async function setFilterMethod(filterContainer, method) {
     if (selectEl) {
         for (const opt of selectEl.options) {
             const text = opt.textContent.toLowerCase();
-            for (const term of searchTerms) {
-                if (text.includes(term.toLowerCase())) {
-                    selectEl.value = opt.value;
-                    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-                    await sleep(200);
-                    console.log(`  Set filter method: ${method}`);
-                    return;
-                }
+            if (textIncludesAny(text, searchTerms)) {
+                selectEl.value = opt.value;
+                selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                await sleep(200);
+                console.log(`  Set filter method: ${method}`);
+                return;
             }
         }
     }
