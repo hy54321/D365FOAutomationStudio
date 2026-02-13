@@ -6,6 +6,7 @@ import { workflowMethods } from './modules/workflows.js';
 import { stepMethods } from './modules/steps.js';
 import { dataSourceMethods } from './modules/data-sources.js';
 import { inspectorMethods } from './modules/inspector.js';
+import { adminInspectorMethods } from './modules/admin-inspector.js';
 import { settingsMethods } from './modules/settings.js';
 import { xmlImportMethods } from './modules/xml-import.js';
 import { navButtonsMethods } from './modules/nav-buttons.js';
@@ -99,6 +100,7 @@ Object.assign(
     stepMethods,
     dataSourceMethods,
     inspectorMethods,
+    adminInspectorMethods,
     settingsMethods,
     xmlImportMethods,
     navButtonsMethods,

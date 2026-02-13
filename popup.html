@@ -419,6 +419,54 @@
                     </div>
                 </div>
 
+                <!-- Admin Tools Panel -->
+                <div class="admin-tools-wrapper">
+                    <button id="adminToolsToggle" class="admin-tools-toggle">▼ Admin Tools</button>
+                    <div id="adminToolsPanel" class="admin-tools-panel">
+                        <div class="admin-btn-group">
+                            <span class="admin-group-label">Page Overview</span>
+                            <div class="admin-btn-row">
+                                <button id="adminScanPage" class="btn btn-sm btn-admin" title="Full page scan - all forms, inputs, buttons, grids">🔎 Scan Page</button>
+                                <button id="adminOpenForms" class="btn btn-sm btn-admin" title="List all open forms and dialog stack">📄 Open Forms</button>
+                            </div>
+                        </div>
+                        <div class="admin-btn-group">
+                            <span class="admin-group-label">Dialog Inspection</span>
+                            <div class="admin-btn-row">
+                                <button id="adminBatchDialog" class="btn btn-sm btn-admin" title="Inspect batch job dialog controls">⚙️ Batch Dialog</button>
+                                <button id="adminRecurrenceDialog" class="btn btn-sm btn-admin" title="Inspect recurrence dialog settings">🔁 Recurrence</button>
+                                <button id="adminFilterDialog" class="btn btn-sm btn-admin" title="Inspect filter/query dialog">🔍 Filter Dialog</button>
+                            </div>
+                        </div>
+                        <div class="admin-btn-group">
+                            <span class="admin-group-label">Form & Tab Analysis</span>
+                            <div class="admin-btn-row">
+                                <button id="adminFormTabs" class="btn btn-sm btn-admin" title="List all tabs on the form">📑 Form Tabs</button>
+                                <button id="adminActiveTab" class="btn btn-sm btn-admin" title="Inspect fields on the active tab">📋 Active Tab</button>
+                                <button id="adminActionPaneTabs" class="btn btn-sm btn-admin" title="List action pane (ribbon) tabs">🎯 Action Pane</button>
+                            </div>
+                            <div class="admin-btn-row">
+                                <button id="adminFormInputs" class="btn btn-sm btn-admin" title="All inputs on a specific form (uses form filter)">📝 Form Inputs</button>
+                                <button id="adminGenerateSteps" class="btn btn-sm btn-admin" title="Generate workflow step templates from active tab">⚡ Generate Steps</button>
+                            </div>
+                        </div>
+
+                        <!-- Admin Results Panel -->
+                        <div id="adminResultsPanel" class="admin-results-panel is-hidden">
+                            <div class="admin-results-header">
+                                <span id="adminResultsTitle" class="admin-results-title">Results</span>
+                                <div class="admin-results-actions">
+                                    <button id="adminCopyJson" class="btn btn-xs btn-secondary" title="Copy raw JSON">📋 JSON</button>
+                                    <button id="adminCopyForAI" class="btn btn-xs btn-primary" title="Copy formatted for AI assistant">🤖 Copy for AI</button>
+                                    <button id="adminClearResults" class="btn btn-xs btn-danger" title="Clear results">✕</button>
+                                </div>
+                            </div>
+                            <div id="adminResultsContent" class="admin-results-content">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="elements-filter">
                     <input type="text" id="elementFilter" class="form-control" placeholder="Filter elements...">
                     <select id="elementTypeFilter" class="form-control">
@@ -740,7 +788,6 @@
     <script type="module" src="popup.js"></script>
 </body>
 </html>
-
 
 
 

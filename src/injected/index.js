@@ -88,6 +88,20 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             inspector.stopElementPicker();
         }
 
+        // Admin inspection tools - run discovery functions and return results
+        if (event.data.type === 'D365_ADMIN_INSPECT') {
+            const inspectionType = event.data.inspectionType;
+            const formName = event.data.formName;
+            let result;
+            try {
+                const data = runAdminInspection(inspector, inspectionType, formName, document, window);
+                result = { success: true, inspectionType, data };
+            } catch (e) {
+                result = { success: false, inspectionType, error: e.message };
+            }
+            window.postMessage({ type: 'D365_ADMIN_INSPECTION_RESULT', result }, '*');
+        }
+
         if (event.data.type === 'D365_EXECUTE_WORKFLOW') {
             executeWorkflow(event.data.workflow, event.data.data);
         }
@@ -1861,6 +1875,424 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
     if (finalResult?.signal === 'break-loop' || finalResult?.signal === 'continue-loop' || finalResult?.signal === 'repeat-loop') {
         throw new Error('Loop control signal used outside of a loop');
     }
+}
+
+// ====== Admin Inspection Functions ======
+function runAdminInspection(inspector, inspectionType, formNameParam, document, window) {
+    switch (inspectionType) {
+        case 'scanPage':
+            return adminDiscoverEverything(document, window);
+        case 'openForms':
+            return adminDiscoverOpenForms(document, window);
+        case 'batchDialog':
+            return adminDiscoverBatchDialog(document);
+        case 'recurrenceDialog':
+            return adminDiscoverRecurrenceDialog(document);
+        case 'filterDialog':
+            return adminDiscoverFilterDialog(document);
+        case 'formTabs':
+            return adminDiscoverTabs(document);
+        case 'activeTab':
+            return adminDiscoverActiveTab(document);
+        case 'actionPaneTabs':
+            return adminDiscoverActionPaneTabs(document);
+        case 'formInputs':
+            return adminDiscoverFormInputs(document, formNameParam);
+        case 'generateSteps':
+            return adminGenerateStepsForTab(document);
+        default:
+            throw new Error('Unknown inspection type: ' + inspectionType);
+    }
+}
+
+function getMainForm(document) {
+    const forms = document.querySelectorAll('[data-dyn-form-name]');
+    let mainForm = null;
+    forms.forEach(f => {
+        const name = f.getAttribute('data-dyn-form-name');
+        if (name !== 'DefaultDashboard' && f.offsetParent !== null) {
+            mainForm = f;
+        }
+    });
+    return mainForm;
+}
+
+function adminDiscoverOpenForms(document, window) {
+    const results = {
+        currentUrl: {
+            full: window.location.href,
+            menuItem: new URLSearchParams(window.location.search).get('mi'),
+            company: new URLSearchParams(window.location.search).get('cmp')
+        },
+        forms: [],
+        dialogStack: []
+    };
+
+    document.querySelectorAll('[data-dyn-form-name]').forEach(el => {
+        const formName = el.getAttribute('data-dyn-form-name');
+        const isDialog = el.closest('.dialog-container') !== null ||
+            formName.includes('Dialog') || formName.includes('Form') ||
+            formName === 'SysRecurrence' || formName === 'SysQueryForm';
+        const isVisible = el.offsetParent !== null;
+
+        results.forms.push({ formName, isDialog, isVisible });
+        if (isDialog && isVisible) {
+            results.dialogStack.push(formName);
+        }
+    });
+    results.dialogStack.reverse();
+    return results;
+}
+
+function adminDiscoverBatchDialog(document) {
+    const results = {
+        dialogFound: false, formName: null,
+        allControls: [], inputFields: [], checkboxes: [], comboboxes: [], buttons: [], groups: [], toggles: []
+    };
+
+    const dialogForm = document.querySelector('[data-dyn-form-name="SysOperationTemplateForm"]') ||
+        document.querySelector('[data-dyn-form-name*="Dialog"]') ||
+        document.querySelector('.dialog-content [data-dyn-form-name]');
+
+    if (!dialogForm) return results;
+
+    results.dialogFound = true;
+    results.formName = dialogForm.getAttribute('data-dyn-form-name');
+
+    dialogForm.querySelectorAll('[data-dyn-controlname]').forEach(el => {
+        const info = {
+            controlName: el.getAttribute('data-dyn-controlname'),
+            role: el.getAttribute('data-dyn-role'),
+            controlType: el.getAttribute('data-dyn-controltype'),
+            label: el.querySelector('label')?.textContent?.trim() || el.getAttribute('aria-label') || el.getAttribute('title')
+        };
+        results.allControls.push(info);
+        const role = (info.role || '').toLowerCase();
+        if (role.includes('input') || role === 'string' || role === 'integer' || role === 'real') results.inputFields.push(info);
+        else if (role.includes('checkbox') || role === 'yesno') results.checkboxes.push(info);
+        else if (role.includes('combobox') || role === 'dropdown') results.comboboxes.push(info);
+        else if (role.includes('button')) results.buttons.push(info);
+        else if (role === 'group') results.groups.push(info);
+    });
+
+    dialogForm.querySelectorAll('.toggle, [role="switch"], input[type="checkbox"]').forEach(el => {
+        const container = el.closest('[data-dyn-controlname]');
+        if (container) {
+            results.toggles.push({
+                controlName: container.getAttribute('data-dyn-controlname'),
+                role: container.getAttribute('data-dyn-role'),
+                label: container.querySelector('label')?.textContent?.trim(),
+                isChecked: el.checked || el.getAttribute('aria-checked') === 'true'
+            });
+        }
+    });
+    return results;
+}
+
+function adminDiscoverRecurrenceDialog(document) {
+    const results = {
+        dialogFound: false, formName: 'SysRecurrence',
+        startDateTime: {}, endOptions: {}, pattern: {}, buttons: [], allControls: []
+    };
+    const form = document.querySelector('[data-dyn-form-name="SysRecurrence"]');
+    if (!form) return results;
+    results.dialogFound = true;
+
+    form.querySelectorAll('[data-dyn-controlname]').forEach(el => {
+        const controlName = el.getAttribute('data-dyn-controlname');
+        const role = el.getAttribute('data-dyn-role');
+        const label = el.querySelector('label')?.textContent?.trim() || el.getAttribute('aria-label');
+        const info = { controlName, role, label };
+        results.allControls.push(info);
+
+        const nameLower = (controlName || '').toLowerCase();
+        if (nameLower === 'startdate') results.startDateTime.startDate = info;
+        else if (nameLower === 'starttime') results.startDateTime.startTime = info;
+        else if (nameLower === 'timezone') results.startDateTime.timezone = info;
+        else if (nameLower === 'enddateint') results.endOptions.count = info;
+        else if (nameLower === 'enddatedate') results.endOptions.endDate = info;
+        else if (nameLower === 'patternunit') results.pattern.unit = info;
+        else if (role === 'CommandButton') results.buttons.push(info);
+    });
+    return results;
+}
+
+function adminDiscoverFilterDialog(document) {
+    const results = {
+        dialogFound: false, formName: 'SysQueryForm',
+        tabs: [], gridInfo: {}, savedQueries: null, buttons: [], checkboxes: [], allControls: []
+    };
+    const queryForm = document.querySelector('[data-dyn-form-name="SysQueryForm"]');
+    if (!queryForm) return results;
+    results.dialogFound = true;
+
+    queryForm.querySelectorAll('[data-dyn-role="PivotItem"]').forEach(el => {
+        results.tabs.push({
+            controlName: el.getAttribute('data-dyn-controlname'),
+            label: el.textContent?.trim().split('\n')[0],
+            isVisible: el.offsetParent !== null
+        });
+    });
+
+    const grid = queryForm.querySelector('[data-dyn-controlname="RangeGrid"]');
+    if (grid) {
+        results.gridInfo = { controlName: 'RangeGrid', role: grid.getAttribute('data-dyn-role') };
+    }
+
+    queryForm.querySelectorAll('[data-dyn-controlname]').forEach(el => {
+        const controlName = el.getAttribute('data-dyn-controlname');
+        const role = el.getAttribute('data-dyn-role');
+        const label = el.querySelector('label')?.textContent?.trim();
+        const info = { controlName, role, label };
+        results.allControls.push(info);
+        if (controlName === 'SavedQueriesBox') results.savedQueries = info;
+        else if (role === 'CommandButton' || role === 'Button') results.buttons.push(info);
+        else if (role === 'CheckBox') results.checkboxes.push(info);
+    });
+    return results;
+}
+
+function adminDiscoverTabs(document) {
+    const results = { formName: null, activeTab: null, tabs: [] };
+    const mainForm = getMainForm(document);
+    if (!mainForm) return results;
+    results.formName = mainForm.getAttribute('data-dyn-form-name');
+
+    mainForm.querySelectorAll('[data-dyn-role="PivotItem"]').forEach(el => {
+        const controlName = el.getAttribute('data-dyn-controlname');
+        const isActive = el.classList.contains('active') || el.getAttribute('aria-selected') === 'true';
+        const headerEl = mainForm.querySelector(`[data-dyn-controlname="${controlName}_header"]`);
+        const label = headerEl?.textContent?.trim() ||
+            el.querySelector('.pivot-link-text')?.textContent?.trim() ||
+            el.textContent?.trim().split('\n')[0];
+
+        results.tabs.push({ controlName, label: (label || '').substring(0, 50), isActive });
+        if (isActive) results.activeTab = controlName;
+    });
+    return results;
+}
+
+function adminDiscoverActiveTab(document) {
+    const results = {
+        formName: null, activeTab: null, sections: [],
+        fields: { inputs: [], checkboxes: [], comboboxes: [], integers: [], dates: [] },
+        summary: {}
+    };
+    const mainForm = getMainForm(document);
+    if (!mainForm) return results;
+    results.formName = mainForm.getAttribute('data-dyn-form-name');
+
+    const activeTabEl = mainForm.querySelector('[data-dyn-role="PivotItem"].active, [data-dyn-role="PivotItem"][aria-selected="true"]');
+    if (activeTabEl) results.activeTab = activeTabEl.getAttribute('data-dyn-controlname');
+
+    mainForm.querySelectorAll('[data-dyn-role="SectionPage"], [data-dyn-role="TabPage"]').forEach(el => {
+        if (el.offsetParent === null) return;
+        const controlName = el.getAttribute('data-dyn-controlname');
+        if (!controlName || /^\d+$/.test(controlName)) return;
+        const headerEl = el.querySelector('[data-dyn-role="SectionPageHeader"], .section-header');
+        const label = headerEl?.textContent?.trim()?.split('\n')[0];
+        const isExpanded = !el.classList.contains('collapsed') && el.getAttribute('aria-expanded') !== 'false';
+        results.sections.push({ controlName, label: (label || '').substring(0, 50), isExpanded });
+    });
+
+    mainForm.querySelectorAll('[data-dyn-controlname]').forEach(el => {
+        if (el.offsetParent === null) return;
+        const controlName = el.getAttribute('data-dyn-controlname');
+        const role = el.getAttribute('data-dyn-role');
+        const label = el.querySelector('label')?.textContent?.trim() || el.getAttribute('aria-label');
+        if (!role || !controlName || /^\d+$/.test(controlName)) return;
+        const info = { controlName, label: (label || '').substring(0, 40) };
+
+        switch (role) {
+            case 'Input': case 'String': results.fields.inputs.push(info); break;
+            case 'CheckBox': case 'YesNo': results.fields.checkboxes.push(info); break;
+            case 'ComboBox': case 'DropdownList': results.fields.comboboxes.push(info); break;
+            case 'Integer': case 'Real': results.fields.integers.push(info); break;
+            case 'Date': case 'Time': results.fields.dates.push(info); break;
+        }
+    });
+
+    results.summary = {
+        sections: results.sections.length,
+        inputs: results.fields.inputs.length,
+        checkboxes: results.fields.checkboxes.length,
+        comboboxes: results.fields.comboboxes.length,
+        integers: results.fields.integers.length,
+        dates: results.fields.dates.length
+    };
+    return results;
+}
+
+function adminDiscoverActionPaneTabs(document) {
+    const results = { formName: null, activeTab: null, tabs: [] };
+    const mainForm = getMainForm(document);
+    if (mainForm) results.formName = mainForm.getAttribute('data-dyn-form-name');
+
+    // Method 1: role="tab" outside dialogs
+    document.querySelectorAll('[role="tab"]').forEach(el => {
+        if (el.closest('.dialog-content, [data-dyn-form-name="SysQueryForm"]')) return;
+        const controlName = el.getAttribute('data-dyn-controlname');
+        const label = el.getAttribute('aria-label') || el.textContent?.trim();
+        if (!controlName && !label) return;
+        const isActive = el.getAttribute('aria-selected') === 'true' || el.classList.contains('active');
+        const tabInfo = { controlName: controlName || (label || '').replace(/\s+/g, ''), label, isActive };
+        if (!results.tabs.some(t => t.controlName === tabInfo.controlName)) {
+            results.tabs.push(tabInfo);
+            if (isActive) results.activeTab = tabInfo.controlName;
+        }
+    });
+
+    // Method 2: tablist
+    document.querySelectorAll('[role="tablist"]').forEach(tablist => {
+        if (tablist.closest('.dialog-content')) return;
+        tablist.querySelectorAll('[role="tab"], button, [data-dyn-controlname]').forEach(el => {
+            const controlName = el.getAttribute('data-dyn-controlname');
+            const label = el.getAttribute('aria-label') || el.textContent?.trim();
+            if (!controlName && !label) return;
+            if (results.tabs.some(t => t.controlName === (controlName || label))) return;
+            const isActive = el.getAttribute('aria-selected') === 'true' || el.classList.contains('active');
+            const tabInfo = { controlName: controlName || label, label, isActive };
+            results.tabs.push(tabInfo);
+            if (isActive) results.activeTab = tabInfo.controlName;
+        });
+    });
+
+    return results;
+}
+
+function adminDiscoverFormInputs(document, formName) {
+    const form = formName
+        ? document.querySelector(`[data-dyn-form-name="${formName}"]`)
+        : document.querySelector('[data-dyn-form-name]:last-of-type');
+
+    if (!form) return null;
+
+    const actualFormName = form.getAttribute('data-dyn-form-name');
+    const results = {
+        formName: actualFormName,
+        inputs: [], checkboxes: [], comboboxes: [], radioButtons: [],
+        dateFields: [], timeFields: [], integerFields: [], stringFields: []
+    };
+
+    form.querySelectorAll('[data-dyn-controlname]').forEach(el => {
+        const role = el.getAttribute('data-dyn-role');
+        const controlName = el.getAttribute('data-dyn-controlname');
+        const label = el.querySelector('label')?.textContent?.trim() || el.getAttribute('aria-label') || el.getAttribute('title');
+        if (!role) return;
+        const info = { controlName, role, label };
+        results.inputs.push(info);
+
+        switch (role) {
+            case 'CheckBox': case 'YesNo': results.checkboxes.push(info); break;
+            case 'ComboBox': case 'DropdownList': results.comboboxes.push(info); break;
+            case 'RadioButton': results.radioButtons.push(info); break;
+            case 'Date': results.dateFields.push(info); break;
+            case 'Time': results.timeFields.push(info); break;
+            case 'Integer': case 'Real': results.integerFields.push(info); break;
+            case 'String': case 'Input': results.stringFields.push(info); break;
+        }
+    });
+
+    return results;
+}
+
+function adminDiscoverEverything(document, window) {
+    const results = {
+        url: {
+            full: window.location.href,
+            menuItem: new URLSearchParams(window.location.search).get('mi'),
+            company: new URLSearchParams(window.location.search).get('cmp')
+        },
+        forms: [],
+        byForm: {}
+    };
+
+    document.querySelectorAll('[data-dyn-form-name]').forEach(formEl => {
+        const formName = formEl.getAttribute('data-dyn-form-name');
+        const isVisible = formEl.offsetParent !== null;
+        results.forms.push({ formName, isVisible });
+        if (!isVisible) return;
+
+        const formData = { tabs: [], sections: [], buttons: [], inputs: [], grids: [] };
+
+        formEl.querySelectorAll('[data-dyn-role="PivotItem"]').forEach(el => {
+            formData.tabs.push({
+                controlName: el.getAttribute('data-dyn-controlname'),
+                label: el.textContent?.trim().split('\n')[0]
+            });
+        });
+
+        formEl.querySelectorAll('[data-dyn-role="SectionPage"], [data-dyn-role="Group"]').forEach(el => {
+            const controlName = el.getAttribute('data-dyn-controlname');
+            if (controlName && !/^\d+$/.test(controlName)) {
+                formData.sections.push({
+                    controlName,
+                    label: el.querySelector('label, .section-header')?.textContent?.trim()
+                });
+            }
+        });
+
+        formEl.querySelectorAll('[data-dyn-role*="Button"]').forEach(el => {
+            const controlName = el.getAttribute('data-dyn-controlname');
+            if (controlName && !/^\d+$/.test(controlName) && !controlName.includes('Clear')) {
+                formData.buttons.push({
+                    controlName,
+                    role: el.getAttribute('data-dyn-role'),
+                    label: el.textContent?.trim().replace(/\s+/g, ' ').substring(0, 50)
+                });
+            }
+        });
+
+        const inputRoles = ['Input', 'String', 'Integer', 'Real', 'Date', 'Time', 'CheckBox', 'YesNo', 'ComboBox', 'RadioButton'];
+        inputRoles.forEach(role => {
+            formEl.querySelectorAll(`[data-dyn-role="${role}"]`).forEach(el => {
+                const controlName = el.getAttribute('data-dyn-controlname');
+                if (controlName) {
+                    formData.inputs.push({
+                        controlName, role,
+                        label: el.querySelector('label')?.textContent?.trim()
+                    });
+                }
+            });
+        });
+
+        formEl.querySelectorAll('[data-dyn-role="Grid"], [data-dyn-role="ReactList"]').forEach(el => {
+            formData.grids.push({
+                controlName: el.getAttribute('data-dyn-controlname'),
+                role: el.getAttribute('data-dyn-role')
+            });
+        });
+
+        results.byForm[formName] = formData;
+    });
+
+    return results;
+}
+
+function adminGenerateStepsForTab(document) {
+    const tabData = adminDiscoverActiveTab(document);
+    if (!tabData.activeTab) return { activeTab: null, steps: [] };
+
+    const steps = [];
+    steps.push({ type: 'tab-navigate', controlName: tabData.activeTab, displayText: `Switch to ${tabData.activeTab} tab`, value: '' });
+
+    tabData.fields.inputs.forEach(f => {
+        steps.push({ type: 'input', controlName: f.controlName, value: '', displayText: f.label || f.controlName });
+    });
+    tabData.fields.checkboxes.forEach(f => {
+        steps.push({ type: 'checkbox', controlName: f.controlName, value: 'true', displayText: f.label || f.controlName });
+    });
+    tabData.fields.comboboxes.forEach(f => {
+        steps.push({ type: 'select', controlName: f.controlName, value: '', displayText: f.label || f.controlName });
+    });
+    tabData.fields.integers.forEach(f => {
+        steps.push({ type: 'input', controlName: f.controlName, value: '', displayText: f.label || f.controlName });
+    });
+    tabData.fields.dates.forEach(f => {
+        steps.push({ type: 'input', controlName: f.controlName, value: '', displayText: f.label || f.controlName });
+    });
+
+    return { activeTab: tabData.activeTab, steps };
 }
 
     return { started: true };

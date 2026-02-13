@@ -118,6 +118,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         chrome.runtime.sendMessage(request).catch(() => {});
     }
 
+    if (request.action === 'adminInspectionResult') {
+        chrome.runtime.sendMessage(request).catch(() => {});
+    }
+
     if (request.action === 'elementPicked') {
         // Store picked element for when popup reopens
         chrome.storage.local.set({ 

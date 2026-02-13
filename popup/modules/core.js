@@ -42,6 +42,11 @@ export const coreMethods = {
             this.initNavButtonsUI();
         }
 
+        // Initialize admin inspector tools
+        if (this.initAdminInspector) {
+            this.initAdminInspector();
+        }
+
         // Load settings into UI
         this.loadSettingsUI();
 
@@ -397,6 +402,9 @@ export const coreMethods = {
             }
             if (request.action === 'workflowInterruption') {
                 this.handleWorkflowInterruption(request.payload);
+            }
+            if (request.action === 'adminInspectionResult') {
+                this.handleAdminInspectionResult(request.result);
             }
             // Handle workflow navigation state save
             if (request.action === 'saveWorkflowState') {

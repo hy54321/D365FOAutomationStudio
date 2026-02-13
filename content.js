@@ -79,6 +79,13 @@ if (!window.d365ContentScriptLoaded) {
                     payload: event.data.payload
                 });
             }
+
+            if (event.data.type === 'D365_ADMIN_INSPECTION_RESULT') {
+                chrome.runtime.sendMessage({
+                    action: 'adminInspectionResult',
+                    result: event.data.result
+                });
+            }
             
             // Handle navigation event - save workflow state before page reload
             if (event.data.type === 'D365_WORKFLOW_NAVIGATING') {
@@ -678,6 +685,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'startPicker') {
         window.postMessage({ type: 'D365_START_PICKER' }, '*');
         return false; // No response needed
+    }
+
+    if (request.action === 'adminInspect') {
+        window.postMessage({
+            type: 'D365_ADMIN_INSPECT',
+            inspectionType: request.inspectionType,
+            formName: request.formName || null
+        }, '*');
+        return false;
     }
 
     if (request.action === 'stopPicker') {
