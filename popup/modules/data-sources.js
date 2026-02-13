@@ -199,7 +199,7 @@ export const dataSourceMethods = {
                     <div class="shared-data-source-head">
                         <span class="shared-data-source-name">${this.escapeHtml(source.name || source.id)}</span>
                         <div class="shared-data-source-actions">
-                            <span class="shared-data-source-meta">${source.type === 'odata-dynamic' ? 'dynamic' : `${Array.isArray(source.data) ? source.data.length : 0} rows`}</span>
+                            <span class="shared-data-source-meta">${source.type === 'odata-dynamic' ? 'dynamic' : source.type === 'faker' ? 'faker' : `${Array.isArray(source.data) ? source.data.length : 0} rows`}</span>
                             <button class="shared-data-source-delete" data-delete-source-id="${source.id}" title="Delete data source" aria-label="Delete data source">🗑</button>
                         </div>
                     </div>
@@ -313,7 +313,9 @@ export const dataSourceMethods = {
             type: source.type || 'json',
             data: Array.isArray(source.data) ? JSON.parse(JSON.stringify(source.data)) : [],
             fields: Array.isArray(source.fields) ? [...source.fields] : [],
-            odataQuery: source.odataQuery || ''
+            odataQuery: source.odataQuery || '',
+            fakerFields: Array.isArray(source.fakerFields) ? JSON.parse(JSON.stringify(source.fakerFields)) : [],
+            fakerRowCount: source.fakerRowCount || 10
         };
 
         const nameInput = document.getElementById('sharedDataSourceName');
@@ -329,7 +331,11 @@ export const dataSourceMethods = {
         const input = document.getElementById('primaryDataInput');
         const queryInput = document.getElementById('primaryODataQuery');
         if (input) {
-            if ((source.type || 'json') === 'json') {
+            if ((source.type || 'json') === 'faker') {
+                // Show preview of previously generated data
+                const data = source.data || [];
+                input.value = data.length ? JSON.stringify(data.slice(0, 5), null, 2) + (data.length > 5 ? `\n... (${data.length - 5} more rows)` : '') : '';
+            } else if ((source.type || 'json') === 'json') {
                 input.value = JSON.stringify(source.data || [], null, 2);
             } else if ((source.type || 'json') === 'odata-cached' || (source.type || 'json') === 'odata-dynamic') {
                 input.value = JSON.stringify(source.data || [], null, 2);
@@ -343,7 +349,11 @@ export const dataSourceMethods = {
 
         const statusEl = document.getElementById('primaryDataStatus');
         if (statusEl) {
-            statusEl.textContent = `Editing existing data source (${(source.data || []).length} rows)`;
+            if (source.type === 'faker') {
+                statusEl.textContent = `Editing faker data source (${(source.data || []).length} rows, ${(source.fakerFields || []).length} fields)`;
+            } else {
+                statusEl.textContent = `Editing existing data source (${(source.data || []).length} rows)`;
+            }
             statusEl.className = 'data-status success';
         }
 
@@ -367,7 +377,9 @@ export const dataSourceMethods = {
             type: 'json',
             data: null,
             fields: [],
-            odataQuery: ''
+            odataQuery: '',
+            fakerFields: [],
+            fakerRowCount: 10
         };
 
         const nameInput = document.getElementById('sharedDataSourceName');
@@ -784,38 +796,266 @@ export const dataSourceMethods = {
         }
     },
 
+    // ── Faker generators (built-in, no external library) ──────────────
+    FAKER_GENERATORS: {
+        'First Name':  () => { const n = ['James','Mary','John','Patricia','Robert','Jennifer','Michael','Linda','David','Elizabeth','William','Barbara','Richard','Susan','Joseph','Jessica','Thomas','Sarah','Charles','Karen','Christopher','Lisa','Daniel','Nancy','Matthew','Betty','Anthony','Margaret','Mark','Sandra','Emma','Oliver','Ava','Noah','Sophia','Liam','Isabella','Charlotte','Amelia','Ethan','Harper','Lucas','Mia','Mason','Evelyn','Logan','Abigail','Alexander','Emily','Jacob']; return n[Math.floor(Math.random()*n.length)]; },
+        'Last Name':   () => { const n = ['Smith','Johnson','Williams','Brown','Jones','Garcia','Miller','Davis','Rodriguez','Martinez','Hernandez','Lopez','Gonzalez','Wilson','Anderson','Thomas','Taylor','Moore','Jackson','Martin','Lee','Perez','Thompson','White','Harris','Sanchez','Clark','Ramirez','Lewis','Robinson','Walker','Young','Allen','King','Wright','Scott','Torres','Nguyen','Hill','Flores','Green','Adams','Nelson','Baker','Hall','Rivera','Campbell','Mitchell','Carter','Roberts']; return n[Math.floor(Math.random()*n.length)]; },
+        'Full Name':   function() { return this['First Name']() + ' ' + this['Last Name'](); },
+        'Email':       function() { return this['First Name']().toLowerCase() + '.' + this['Last Name']().toLowerCase() + '@' + ['example.com','test.com','mail.com','demo.org','sample.net'][Math.floor(Math.random()*5)]; },
+        'Phone':       () => { const d = () => Math.floor(Math.random()*10); return `+1-${d()}${d()}${d()}-${d()}${d()}${d()}-${d()}${d()}${d()}${d()}`; },
+        'City':        () => { const c = ['New York','Los Angeles','Chicago','Houston','Phoenix','Philadelphia','San Antonio','San Diego','Dallas','San Jose','Austin','Jacksonville','Fort Worth','Columbus','Charlotte','Indianapolis','San Francisco','Seattle','Denver','Washington','Nashville','Oklahoma City','El Paso','Boston','Portland','Las Vegas','Memphis','Louisville','Baltimore','Milwaukee','Albuquerque','Tucson','Fresno','Mesa','Sacramento','Atlanta','Kansas City','Omaha','Miami','Minneapolis']; return c[Math.floor(Math.random()*c.length)]; },
+        'Country':     () => { const c = ['United States','Canada','United Kingdom','Germany','France','Australia','Japan','Brazil','India','Mexico','Italy','Spain','Netherlands','Sweden','Norway','Denmark','Finland','Switzerland','Austria','Belgium','Poland','Ireland','New Zealand','South Korea','Singapore','Portugal','Czech Republic','Greece','Turkey','Argentina']; return c[Math.floor(Math.random()*c.length)]; },
+        'State':       () => { const s = ['Alabama','Alaska','Arizona','Arkansas','California','Colorado','Connecticut','Delaware','Florida','Georgia','Hawaii','Idaho','Illinois','Indiana','Iowa','Kansas','Kentucky','Louisiana','Maine','Maryland','Massachusetts','Michigan','Minnesota','Mississippi','Missouri','Montana','Nebraska','Nevada','New Hampshire','New Jersey','New Mexico','New York','North Carolina','North Dakota','Ohio','Oklahoma','Oregon','Pennsylvania','Rhode Island','South Carolina','South Dakota','Tennessee','Texas','Utah','Vermont','Virginia','Washington','West Virginia','Wisconsin','Wyoming']; return s[Math.floor(Math.random()*s.length)]; },
+        'Address':     function() { return `${Math.floor(Math.random()*9999)+1} ${this['Last Name']()} ${['St','Ave','Blvd','Dr','Ln','Rd','Way','Ct'][Math.floor(Math.random()*8)]}`; },
+        'Zip Code':    () => String(Math.floor(Math.random()*90000)+10000),
+        'Company':     () => { const p = ['Acme','Global','Tech','Prime','Alpha','Omega','Nova','Apex','Core','Peak','Vertex','Summit','Nexus','Pulse','Quantum','Fusion','Catalyst','Horizon','Pinnacle','Vanguard']; const s = ['Corp','Inc','Ltd','Group','Solutions','Systems','Industries','Technologies','Enterprises','Services']; return p[Math.floor(Math.random()*p.length)] + ' ' + s[Math.floor(Math.random()*s.length)]; },
+        'Number':      () => String(Math.floor(Math.random()*10000)),
+        'Decimal':     () => (Math.random()*10000).toFixed(2),
+        'UUID':        () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random()*16|0; return (c==='x'?r:(r&0x3|0x8)).toString(16); }),
+        'Date':        () => { const d = new Date(Date.now()-Math.floor(Math.random()*365*5*24*60*60*1000)); return d.toISOString().slice(0,10); },
+        'Boolean':     () => Math.random() < 0.5 ? 'true' : 'false',
+        'Currency Code': () => { const c = ['USD','EUR','GBP','JPY','CAD','AUD','CHF','CNY','SEK','NOK','DKK','NZD','SGD','HKD','KRW','MXN','BRL','INR','ZAR','TRY']; return c[Math.floor(Math.random()*c.length)]; },
+        'Word':        () => { const w = ['alpha','bravo','charlie','delta','echo','foxtrot','golf','hotel','india','juliet','kilo','lima','mike','november','oscar','papa','quebec','romeo','sierra','tango','uniform','victor','whiskey','xray','yankee','zulu','apex','bolt','crest','dawn','ember','flint','grove','haven','ivory','jade','knot','loom','mesa','nexus']; return w[Math.floor(Math.random()*w.length)]; },
+        'Lorem Sentence': () => { const w = ['lorem','ipsum','dolor','sit','amet','consectetur','adipiscing','elit','sed','do','eiusmod','tempor','incididunt','ut','labore','et','dolore','magna','aliqua','enim','ad','minim','veniam','quis','nostrud','exercitation','ullamco','laboris']; const shuffled = [...w].sort(()=>Math.random()-0.5); const len = Math.floor(Math.random()*6)+3; const sentence = shuffled.slice(0,len).join(' '); return sentence.charAt(0).toUpperCase()+sentence.slice(1); },
+        'Sequential':  () => { if (!window._fakerSeqCounter) window._fakerSeqCounter = 0; window._fakerSeqCounter++; return String(window._fakerSeqCounter); },
+    },
+
+    getFakerGeneratorNames() {
+        return Object.keys(this.FAKER_GENERATORS);
+    },
+
+    generateFakerValue(generatorName) {
+        const gen = this.FAKER_GENERATORS[generatorName];
+        if (!gen) return '';
+        return gen.call(this.FAKER_GENERATORS);
+    },
+
+    generateFakerRows(fakerFields, rowCount) {
+        // Reset sequential counter for each generation run
+        if (typeof window !== 'undefined') window._fakerSeqCounter = 0;
+        const rows = [];
+        for (let i = 0; i < rowCount; i++) {
+            const row = {};
+            fakerFields.forEach(def => {
+                let val;
+                if (def.type === 'Constant') {
+                    const values = (def.values || '').split(',').map(v => v.trim()).filter(Boolean);
+                    val = values.length ? values[Math.floor(Math.random() * values.length)] : '';
+                } else {
+                    val = this.generateFakerValue(def.generator || 'First Name');
+                }
+                // All values must be strings (consistent with CSV/JSON data sources)
+                row[def.field] = val === undefined || val === null ? '' : String(val);
+            });
+            rows.push(row);
+        }
+        return rows;
+    },
+
+    // ── Faker UI methods ────────────────────────────────────────────────
+    renderFakerFieldRow(def, index) {
+        const generatorNames = this.getFakerGeneratorNames();
+        const isConstant = def.type === 'Constant';
+        const row = document.createElement('div');
+        row.className = 'faker-field-row';
+        row.dataset.index = index;
+
+        row.innerHTML = `
+            <input type="text" class="form-control form-control-sm faker-field-name" value="${this.escapeHtml(def.field || '')}" placeholder="field name" />
+            <select class="form-control form-control-sm faker-field-type">
+                <option value="Faker" ${!isConstant ? 'selected' : ''}>Faker</option>
+                <option value="Constant" ${isConstant ? 'selected' : ''}>Constant</option>
+            </select>
+            <div class="faker-value-cell">
+                ${isConstant
+                    ? `<input type="text" class="form-control form-control-sm faker-constant-input" value="${this.escapeHtml(def.values || '')}" placeholder="value1,value2,value3" />`
+                    : `<select class="form-control form-control-sm faker-generator-select">${generatorNames.map(name => `<option value="${this.escapeHtml(name)}" ${def.generator === name ? 'selected' : ''}>${this.escapeHtml(name)}</option>`).join('')}</select>`
+                }
+            </div>
+            <button class="btn btn-sm faker-field-delete" title="Remove field">✕</button>
+        `;
+
+        // Type change → swap value cell
+        row.querySelector('.faker-field-type').addEventListener('change', (e) => {
+            this.onFakerFieldTypeChange(row, e.target.value, index);
+        });
+
+        // Delete
+        row.querySelector('.faker-field-delete').addEventListener('click', () => {
+            this.removeFakerField(index);
+        });
+
+        return row;
+    },
+
+    onFakerFieldTypeChange(row, newType, index) {
+        const defs = this.dataSources.primary.fakerFields || [];
+        if (defs[index]) defs[index].type = newType;
+
+        const cell = row.querySelector('.faker-value-cell');
+        if (!cell) return;
+
+        if (newType === 'Constant') {
+            cell.innerHTML = `<input type="text" class="form-control form-control-sm faker-constant-input" value="" placeholder="value1,value2,value3" />`;
+            if (defs[index]) { defs[index].values = ''; delete defs[index].generator; }
+        } else {
+            const generatorNames = this.getFakerGeneratorNames();
+            cell.innerHTML = `<select class="form-control form-control-sm faker-generator-select">${generatorNames.map(name => `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`).join('')}</select>`;
+            if (defs[index]) { defs[index].generator = generatorNames[0]; delete defs[index].values; }
+        }
+    },
+
+    readFakerFieldsFromUI() {
+        const container = document.getElementById('fakerFieldsList');
+        if (!container) return [];
+        const rows = container.querySelectorAll('.faker-field-row');
+        return Array.from(rows).map(row => {
+            const field = row.querySelector('.faker-field-name')?.value?.trim() || '';
+            const type = row.querySelector('.faker-field-type')?.value || 'Faker';
+            const generator = row.querySelector('.faker-generator-select')?.value || '';
+            const values = row.querySelector('.faker-constant-input')?.value || '';
+            return { field, type, generator: type === 'Faker' ? generator : '', values: type === 'Constant' ? values : '' };
+        });
+    },
+
+    renderFakerFieldsList(fakerFields) {
+        const container = document.getElementById('fakerFieldsList');
+        if (!container) return;
+        container.innerHTML = '';
+        (fakerFields || []).forEach((def, i) => {
+            container.appendChild(this.renderFakerFieldRow(def, i));
+        });
+    },
+
+    addFakerField() {
+        const defs = this.readFakerFieldsFromUI();
+        defs.push({ field: '', type: 'Faker', generator: this.getFakerGeneratorNames()[0], values: '' });
+        this.dataSources.primary.fakerFields = defs;
+        this.renderFakerFieldsList(defs);
+    },
+
+    removeFakerField(index) {
+        const defs = this.readFakerFieldsFromUI();
+        defs.splice(index, 1);
+        this.dataSources.primary.fakerFields = defs;
+        this.renderFakerFieldsList(defs);
+    },
+
+    renderFakerPreview(rows) {
+        const container = document.getElementById('fakerPreviewContainer');
+        const output = document.getElementById('fakerPreviewOutput');
+        if (!container || !output) return;
+
+        const previewRows = Array.isArray(rows) ? rows.slice(0, 5) : [];
+        if (!previewRows.length) {
+            output.textContent = '';
+            container.classList.add('is-hidden');
+            return;
+        }
+
+        output.textContent = JSON.stringify(previewRows, null, 2);
+        container.classList.remove('is-hidden');
+    },
+
+    async validateFakerData() {
+        const statusEl = document.getElementById('fakerDataStatus');
+        const rowCountInput = document.getElementById('fakerRowCount');
+        const fakerFields = this.readFakerFieldsFromUI();
+
+        // Basic validation
+        const fieldNames = fakerFields.map(f => f.field).filter(Boolean);
+        if (!fakerFields.length || !fieldNames.length) {
+            if (statusEl) { statusEl.textContent = 'Add at least one field with a name'; statusEl.className = 'data-status error'; }
+            this.renderFakerPreview([]);
+            return false;
+        }
+        const dupes = fieldNames.filter((name, i) => fieldNames.indexOf(name) !== i);
+        if (dupes.length) {
+            if (statusEl) { statusEl.textContent = `Duplicate field: ${dupes[0]}`; statusEl.className = 'data-status error'; }
+            this.renderFakerPreview([]);
+            return false;
+        }
+        const emptyField = fakerFields.find(f => !f.field);
+        if (emptyField) {
+            if (statusEl) { statusEl.textContent = 'All fields must have a name'; statusEl.className = 'data-status error'; }
+            this.renderFakerPreview([]);
+            return false;
+        }
+
+        const rowCount = Math.max(1, Math.min(10000, parseInt(rowCountInput?.value, 10) || 10));
+        const rows = this.generateFakerRows(fakerFields, rowCount);
+
+        this.dataSources.primary.type = 'faker';
+        this.dataSources.primary.fakerFields = fakerFields;
+        this.dataSources.primary.fakerRowCount = rowCount;
+        this.dataSources.primary.data = rows;
+        this.dataSources.primary.fields = fieldNames;
+
+        if (statusEl) {
+            statusEl.textContent = `OK ${rows.length} rows generated, ${fieldNames.length} fields`;
+            statusEl.className = 'data-status success';
+        }
+
+        // Show preview in the main textarea
+        const previewInput = document.getElementById('primaryDataInput');
+        if (previewInput) {
+            previewInput.value = JSON.stringify(rows.slice(0, 5), null, 2) + (rows.length > 5 ? `\n... (${rows.length - 5} more rows)` : '');
+        }
+        this.renderFakerPreview(rows);
+
+        this.displayPrimaryDataFields();
+        return true;
+    },
+
     updatePrimaryDataSourceUI(type) {
         const inputContainer = document.getElementById('primaryDataSourceInput');
         const odataQueryContainer = document.getElementById('primaryODataQueryContainer');
         const odataDynamicNote = document.getElementById('primaryODataDynamicNote');
+        const fakerContainer = document.getElementById('fakerFieldsContainer');
         const fieldsPreview = document.getElementById('primaryDataFields');
 
         if (!inputContainer || !fieldsPreview) return;
 
-        inputContainer.classList.remove('is-hidden');
+        const isFaker = type === 'faker';
         const isOData = type === 'odata-cached' || type === 'odata-dynamic';
-        if (odataQueryContainer) {
-            odataQueryContainer.classList.toggle('is-hidden', !isOData);
-        }
-        if (odataDynamicNote) {
-            odataDynamicNote.classList.toggle('is-hidden', type !== 'odata-dynamic');
-        }
 
-        let placeholder = 'code,text\nA1,Example';
-        if (type === 'json') {
-            placeholder = '[{"code": "A1", "text": "Example"}]';
-        } else if (type === 'odata-cached' || type === 'odata-dynamic') {
-            placeholder = 'Validated OData data preview will appear here...';
-        }
+        // Show/hide containers
+        inputContainer.classList.toggle('is-hidden', isFaker);
+        if (fakerContainer) fakerContainer.classList.toggle('is-hidden', !isFaker);
+        if (odataQueryContainer) odataQueryContainer.classList.toggle('is-hidden', !isOData);
+        if (odataDynamicNote) odataDynamicNote.classList.toggle('is-hidden', type !== 'odata-dynamic');
 
-        const input = document.getElementById('primaryDataInput');
-        if (input) {
-            input.placeholder = placeholder;
-            input.classList.add('editor-expanded');
-        }
-        const queryInput = document.getElementById('primaryODataQuery');
-        if (queryInput && isOData && !queryInput.value && this.dataSources?.primary?.odataQuery) {
-            queryInput.value = this.dataSources.primary.odataQuery;
+        if (!isFaker) {
+            // Standard types
+            let placeholder = 'code,text\nA1,Example';
+            if (type === 'json') {
+                placeholder = '[{"code": "A1", "text": "Example"}]';
+            } else if (isOData) {
+                placeholder = 'Validated OData data preview will appear here...';
+            }
+
+            const input = document.getElementById('primaryDataInput');
+            if (input) {
+                input.placeholder = placeholder;
+                input.classList.add('editor-expanded');
+            }
+            const queryInput = document.getElementById('primaryODataQuery');
+            if (queryInput && isOData && !queryInput.value && this.dataSources?.primary?.odataQuery) {
+                queryInput.value = this.dataSources.primary.odataQuery;
+            }
+            this.renderFakerPreview([]);
+        } else {
+            // Initialize faker fields if empty
+            if (!this.dataSources.primary.fakerFields || !this.dataSources.primary.fakerFields.length) {
+                this.dataSources.primary.fakerFields = [
+                    { field: 'name', type: 'Faker', generator: 'First Name', values: '' }
+                ];
+                this.dataSources.primary.fakerRowCount = 10;
+            }
+            this.renderFakerFieldsList(this.dataSources.primary.fakerFields);
+            const rowCountInput = document.getElementById('fakerRowCount');
+            if (rowCountInput) rowCountInput.value = this.dataSources.primary.fakerRowCount || 10;
+            this.renderFakerPreview(this.dataSources.primary.data || []);
         }
 
         this.dataSources.primary.type = type || 'json';
@@ -828,6 +1068,11 @@ export const dataSourceMethods = {
         const statusEl = document.getElementById('primaryDataStatus');
         const previewInput = document.getElementById('primaryDataInput');
         const isOData = type === 'odata-cached' || type === 'odata-dynamic';
+
+        // Faker validation is handled by validateFakerData()
+        if (type === 'faker') {
+            return this.validateFakerData();
+        }
 
         if (isOData) {
             this.setDataSourceProcessingState('validatePrimaryData', true, 'Validating...');
@@ -921,8 +1166,8 @@ export const dataSourceMethods = {
         }
 
         const primary = this.dataSources?.primary || {};
-        if (!['json', 'csv', 'odata-cached', 'odata-dynamic'].includes(primary.type)) {
-            this.showNotification('Choose JSON, CSV / TSV, or OData first', 'warning');
+        if (!['json', 'csv', 'odata-cached', 'odata-dynamic', 'faker'].includes(primary.type)) {
+            this.showNotification('Choose JSON, CSV / TSV, OData, or Faker first', 'warning');
             return;
         }
 
@@ -931,7 +1176,7 @@ export const dataSourceMethods = {
             return;
         }
 
-        if (primary.type !== 'odata-dynamic' && (!Array.isArray(primary.data) || primary.data.length === 0)) {
+        if (primary.type !== 'odata-dynamic' && primary.type !== 'faker' && (!Array.isArray(primary.data) || primary.data.length === 0)) {
             this.showNotification('Validate data before saving', 'warning');
             return;
         }
@@ -952,6 +1197,8 @@ export const dataSourceMethods = {
             existing.data = JSON.parse(JSON.stringify(primary.data || []));
             existing.fields = [...(primary.fields || [])];
             existing.odataQuery = (primary.odataQuery || '').trim();
+            existing.fakerFields = primary.type === 'faker' ? JSON.parse(JSON.stringify(primary.fakerFields || [])) : undefined;
+            existing.fakerRowCount = primary.type === 'faker' ? (primary.fakerRowCount || 10) : undefined;
             existing.updatedAt = now;
         } else {
             const source = {
@@ -961,6 +1208,8 @@ export const dataSourceMethods = {
                 data: JSON.parse(JSON.stringify(primary.data || [])),
                 fields: [...(primary.fields || [])],
                 odataQuery: (primary.odataQuery || '').trim(),
+                fakerFields: primary.type === 'faker' ? JSON.parse(JSON.stringify(primary.fakerFields || [])) : undefined,
+                fakerRowCount: primary.type === 'faker' ? (primary.fakerRowCount || 10) : undefined,
                 projectIds: (this.selectedDataSourceProjectId && !['all', 'unassigned'].includes(this.selectedDataSourceProjectId))
                     ? [this.selectedDataSourceProjectId]
                     : [],

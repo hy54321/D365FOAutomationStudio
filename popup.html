@@ -183,96 +183,102 @@
                         </div>
                     </div>
                 </div>
-
                 <!-- Main Builder Area -->
                 <div class="builder-main">
-                    <!-- Steps Panel -->
-                    <div class="steps-panel" id="stepsPanel">
-                        <h3>Workflow Steps</h3>
-                        <div class="steps-toolbar">
-                            <label class="steps-select-all">
-                                <input type="checkbox" id="stepsSelectAll">
-                                Select all
-                            </label>
-                            <div class="steps-copy-controls">
-                                <select id="copyStepsTarget" class="form-control form-control-sm"></select>
-                                <button id="copyStepsButton" class="btn btn-secondary btn-sm" disabled>Copy from workflow</button>
+                    <div class="builder-steps-split" id="builderStepsSplit">
+                        <!-- Steps Panel -->
+                        <div class="steps-panel" id="stepsPanel">
+                            <h3>Workflow Steps</h3>
+                            <div class="steps-toolbar">
+                                <label class="steps-select-all">
+                                    <input type="checkbox" id="stepsSelectAll">
+                                    Select all
+                                </label>
+                                <div class="steps-copy-controls">
+                                    <select id="copyStepsTarget" class="form-control form-control-sm"></select>
+                                    <button id="copyStepsButton" class="btn btn-secondary btn-sm" disabled>Copy from workflow</button>
+                                </div>
                             </div>
-                        </div>
-                        <div id="stepsList" class="steps-list">
-                            <!-- Steps will be added here -->
-                        </div>
-                        <button id="addStep" class="btn btn-primary btn-block">
-                            ➕ Add Step
-                        </button>
-                    </div>
-
-                    <!-- Step Editor -->
-                    <div class="step-editor-overlay is-hidden" id="stepEditorOverlay">
-                        <div class="step-editor-header">
-                            <h3 id="stepEditorTitle">Edit Step</h3>
-                            <button id="closeEditor" class="btn-close">✕</button>
-                        </div>
-                        <div class="step-editor-body">
-                            <div class="form-group">
-                                <label>Step Type</label>
-                                <select id="stepType" class="form-control">
-                                    <optgroup label="Basic Actions">
-                                        <option value="click">Click Button</option>
-                                        <option value="input">Enter Text</option>
-                                        <option value="select">Select from Dropdown</option>
-                                        <option value="lookupSelect">Lookup Select (open picker)</option>
-                                        <option value="checkbox">Toggle Checkbox</option>
-                                    </optgroup>
-                                    <optgroup label="Navigation">
-                                        <option value="navigate">🧭 Navigate to Form</option>
-                                        <option value="tab-navigate">📑 Switch Tab</option>
-                                        <option value="action-pane-tab">🎛️ Action Pane Tab</option>
-                                        <option value="expand-section">📂 Expand/Collapse Section</option>
-                                    </optgroup>
-                                    <optgroup label="Control Flow">
-                                        <option value="if-start">🔀 If Condition</option>
-                                        <option value="else">↔️ Else</option>
-                                        <option value="if-end">✅ End If</option>
-                                        <option value="continue-loop">⏭ Continue Loop</option>
-                                        <option value="break-loop">⏹ Break Loop</option>
-                                        <option value="label">🏷️ Label</option>
-                                        <option value="goto">↪️ Go To Label</option>
-                                    </optgroup>
-                                    <optgroup label="Grid & Filtering">
-                                        <option value="filter">🔍 Filter Grid Column</option>
-                                        <option value="grid-input">📝 Grid Cell Input</option>
-                                        <option value="query-filter">🔎 Query Filter (Records to include)</option>
-                                    </optgroup>
-                                    <optgroup label="Batch Job Configuration">
-                                        <option value="batch-processing">⚙️ Toggle Batch Processing</option>
-                                        <option value="recurrence">🔁 Configure Recurrence</option>
-                                    </optgroup>
-                                    <optgroup label="Dialog & Timing">
-                                        <option value="close-dialog">✓ Close Dialog (OK/Cancel)</option>
-                                        <option value="wait">Wait/Delay</option>
-                                        <option value="wait-until">⏳ Wait Until Visible</option>
-                                        <option value="loop-start">🔄 Loop Start</option>
-                                        <option value="loop-end">🔄 Loop End</option>
-                                    </optgroup>
-                                    <optgroup label="Workflow">
-                                        <option value="subworkflow">Call Subworkflow</option>
-                                    </optgroup>
-                                </select>
+                            <div id="stepsList" class="steps-list">
+                                <!-- Steps will be added here -->
                             </div>
+                            <button id="addStep" class="btn btn-primary btn-block">
+                                ➕ Add Step
+                            </button>
+                        </div>
 
-                            <div id="stepTypeFields">
-                                <!-- Dynamic fields based on step type -->
+                        <div class="builder-steps-resizer" id="builderStepsPaneResizer" role="separator" aria-orientation="vertical" aria-label="Resize builder panes"></div>
+
+                        <div class="step-editor-empty" id="stepEditorEmpty">
+                            Select a step on the left to view details.
+                        </div>
+
+                        <!-- Step Editor -->
+                        <div class="step-editor-overlay is-hidden" id="stepEditorOverlay">
+                            <div class="step-editor-header">
+                                <h3 id="stepEditorTitle">Edit Step</h3>
+                                <button id="closeEditor" class="btn-close">✕</button>
                             </div>
+                            <div class="step-editor-body">
+                                <div class="form-group">
+                                    <label>Step Type</label>
+                                    <select id="stepType" class="form-control">
+                                        <optgroup label="Basic Actions">
+                                            <option value="click">Click Button</option>
+                                            <option value="input">Enter Text</option>
+                                            <option value="select">Select from Dropdown</option>
+                                            <option value="lookupSelect">Lookup Select (open picker)</option>
+                                            <option value="checkbox">Toggle Checkbox</option>
+                                        </optgroup>
+                                        <optgroup label="Navigation">
+                                            <option value="navigate">🧭 Navigate to Form</option>
+                                            <option value="tab-navigate">📑 Switch Tab</option>
+                                            <option value="action-pane-tab">🎛️ Action Pane Tab</option>
+                                            <option value="expand-section">📂 Expand/Collapse Section</option>
+                                        </optgroup>
+                                        <optgroup label="Control Flow">
+                                            <option value="if-start">🔀 If Condition</option>
+                                            <option value="else">↔️ Else</option>
+                                            <option value="if-end">✅ End If</option>
+                                            <option value="continue-loop">⏭ Continue Loop</option>
+                                            <option value="break-loop">⏹ Break Loop</option>
+                                            <option value="label">🏷️ Label</option>
+                                            <option value="goto">↪️ Go To Label</option>
+                                        </optgroup>
+                                        <optgroup label="Grid & Filtering">
+                                            <option value="filter">🔍 Filter Grid Column</option>
+                                            <option value="grid-input">📝 Grid Cell Input</option>
+                                            <option value="query-filter">🔎 Query Filter (Records to include)</option>
+                                        </optgroup>
+                                        <optgroup label="Batch Job Configuration">
+                                            <option value="batch-processing">⚙️ Toggle Batch Processing</option>
+                                            <option value="recurrence">🔁 Configure Recurrence</option>
+                                        </optgroup>
+                                        <optgroup label="Dialog & Timing">
+                                            <option value="close-dialog">✓ Close Dialog (OK/Cancel)</option>
+                                            <option value="wait">Wait/Delay</option>
+                                            <option value="wait-until">⏳ Wait Until Visible</option>
+                                            <option value="loop-start">🔄 Loop Start</option>
+                                            <option value="loop-end">🔄 Loop End</option>
+                                        </optgroup>
+                                        <optgroup label="Workflow">
+                                            <option value="subworkflow">Call Subworkflow</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
 
-                            <div class="form-actions">
-                                <button id="deleteStep" class="btn btn-danger is-hidden">🗑️ Delete Step</button>
-                                <button id="cancelStep" class="btn btn-secondary">Done</button>
+                                <div id="stepTypeFields">
+                                    <!-- Dynamic fields based on step type -->
+                                </div>
+
+                                <div class="form-actions">
+                                    <button id="deleteStep" class="btn btn-danger is-hidden">🗑️ Delete Step</button>
+                                    <button id="cancelStep" class="btn btn-secondary">Done</button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-
                 <!-- Workflow Actions -->
                 <div class="workflow-actions-bar">
                     <button id="cancelWorkflow" class="btn btn-secondary">Cancel Changes</button>
@@ -323,6 +329,7 @@
                                                     <option value="csv">CSV / TSV</option>
                                                     <option value="odata-cached">OData (Cached)</option>
                                                     <option value="odata-dynamic">OData (Dynamic)</option>
+                                                    <option value="faker">Faker (Generate)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -332,6 +339,30 @@
                                             </div>
                                             <div id="primaryODataDynamicNote" class="odata-note is-hidden">
                                                 Dynamic OData validates with a preview row for field detection. Full query results are fetched right before workflow execution.
+                                            </div>
+                                            <div id="fakerFieldsContainer" class="faker-fields-container is-hidden">
+                                                <div class="faker-row-count-row">
+                                                    <label>Rows to generate:</label>
+                                                    <input id="fakerRowCount" type="number" class="form-control form-control-sm" value="10" min="1" max="10000" style="width:80px;">
+                                                </div>
+                                                <div class="faker-fields-table">
+                                                    <div class="faker-fields-header">
+                                                        <span class="faker-col-field">Field</span>
+                                                        <span class="faker-col-type">Type</span>
+                                                        <span class="faker-col-value">Values / Faker</span>
+                                                        <span class="faker-col-actions"></span>
+                                                    </div>
+                                                    <div id="fakerFieldsList" class="faker-fields-list"></div>
+                                                </div>
+                                                <div class="data-source-actions">
+                                                    <button id="addFakerField" class="btn btn-secondary btn-sm">+ Add Field</button>
+                                                    <button id="validateFakerData" class="btn btn-secondary btn-sm">Validate &amp; Preview</button>
+                                                    <span id="fakerDataStatus" class="data-status"></span>
+                                                </div>
+                                                <div id="fakerPreviewContainer" class="faker-preview-container is-hidden">
+                                                    <div class="faker-preview-header">Preview (up to 5 rows)</div>
+                                                    <pre id="fakerPreviewOutput" class="faker-preview-output"></pre>
+                                                </div>
                                             </div>
                                             <div id="primaryDataSourceInput" class="data-source-input is-hidden">
                                                 <textarea id="primaryDataInput" class="form-control editor-expanded" placeholder="Paste shared data here..." rows="3"></textarea>
@@ -788,6 +819,5 @@
     <script type="module" src="popup.js"></script>
 </body>
 </html>
-
 
 

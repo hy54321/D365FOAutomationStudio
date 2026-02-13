@@ -1,4 +1,81 @@
 export const stepMethods = {
+    async initBuilderStepsSplit() {
+        if (this._builderStepsSplitInitialized) {
+            this.applyBuilderStepsPaneWidth();
+            return;
+        }
+
+        const result = await this.chrome.storage.local.get(['builderStepsPaneWidth']);
+        this.builderStepsPaneWidth = Number.isFinite(result?.builderStepsPaneWidth)
+            ? result.builderStepsPaneWidth
+            : null;
+
+        this.applyBuilderStepsPaneWidth();
+
+        const resizer = document.getElementById('builderStepsPaneResizer');
+        if (resizer) {
+            resizer.addEventListener('pointerdown', (event) => this.startBuilderStepsResize(event));
+        }
+
+        window.addEventListener('resize', () => this.applyBuilderStepsPaneWidth());
+        this._builderStepsSplitInitialized = true;
+    },
+
+    applyBuilderStepsPaneWidth() {
+        const split = document.getElementById('builderStepsSplit');
+        const leftPane = document.getElementById('stepsPanel');
+        const rightPane = document.getElementById('stepEditorOverlay') || document.getElementById('stepEditorEmpty');
+        const resizer = document.getElementById('builderStepsPaneResizer');
+        if (!split || !leftPane) return;
+
+        if (window.matchMedia('(max-width: 1100px)').matches) {
+            leftPane.style.flexBasis = 'auto';
+            return;
+        }
+
+        const totalWidth = split.clientWidth || 0;
+        const minLeft = 320;
+        const minRight = Math.max(320, parseInt(window.getComputedStyle(rightPane || split).minWidth, 10) || 320);
+        const resizerWidth = (resizer?.offsetWidth || 8);
+        const maxLeft = Math.max(minLeft, totalWidth - minRight - resizerWidth);
+        const defaultWidth = totalWidth > 0 ? totalWidth / 2 : 520;
+        const requested = Number.isFinite(this.builderStepsPaneWidth) ? this.builderStepsPaneWidth : defaultWidth;
+        const clamped = Math.min(Math.max(requested, minLeft), maxLeft);
+        this.builderStepsPaneWidth = clamped;
+        leftPane.style.flexBasis = `${Math.round(clamped)}px`;
+    },
+
+    startBuilderStepsResize(event) {
+        const split = document.getElementById('builderStepsSplit');
+        const rightPane = document.getElementById('stepEditorOverlay') || document.getElementById('stepEditorEmpty');
+        const resizer = document.getElementById('builderStepsPaneResizer');
+        if (!split || window.matchMedia('(max-width: 1100px)').matches) return;
+
+        event.preventDefault();
+
+        const onMove = (moveEvent) => {
+            const rect = split.getBoundingClientRect();
+            const minLeft = 320;
+            const minRight = Math.max(320, parseInt(window.getComputedStyle(rightPane || split).minWidth, 10) || 320);
+            const resizerWidth = (resizer?.offsetWidth || 8);
+            const maxLeft = Math.max(minLeft, rect.width - minRight - resizerWidth);
+            const next = moveEvent.clientX - rect.left;
+            this.builderStepsPaneWidth = Math.min(Math.max(next, minLeft), maxLeft);
+            this.applyBuilderStepsPaneWidth();
+        };
+
+        const onUp = async () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            await this.chrome.storage.local.set({
+                builderStepsPaneWidth: Math.round(this.builderStepsPaneWidth || 0)
+            });
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', onUp);
+    },
+
     initStepCopyUI() {
         const selectAll = document.getElementById('stepsSelectAll');
         const targetSelect = document.getElementById('copyStepsTarget');
@@ -156,8 +233,9 @@ export const stepMethods = {
     },
 
     showStepEditor() {
-        document.getElementById('stepsPanel').classList.add('is-hidden');
+        if (!this.currentStep) return;
         document.getElementById('stepEditorOverlay').classList.remove('is-hidden');
+        document.getElementById('stepEditorEmpty')?.classList.add('is-hidden');
         document.getElementById('stepType').value = this.currentStep.type;
 
         // Show delete button only for existing steps (not new ones)
@@ -177,7 +255,7 @@ export const stepMethods = {
 
     hideStepEditor() {
         document.getElementById('stepEditorOverlay').classList.add('is-hidden');
-        document.getElementById('stepsPanel').classList.remove('is-hidden');
+        document.getElementById('stepEditorEmpty')?.classList.remove('is-hidden');
     },
 
     isUIActionStep(stepType) {
@@ -456,6 +534,129 @@ export const stepMethods = {
         };
     },
 
+    supportsComboMethodOverride(stepType) {
+        return ['input', 'select', 'lookupSelect', 'grid-input', 'filter', 'query-filter'].includes(stepType);
+    },
+
+    getStepFakerGeneratorNames() {
+        if (typeof this.getFakerGeneratorNames === 'function') {
+            const names = this.getFakerGeneratorNames();
+            if (Array.isArray(names) && names.length) return names;
+        }
+        return ['First Name', 'Last Name', 'Full Name', 'Email', 'Number', 'Decimal', 'Date', 'UUID', 'Boolean', 'Word', 'Lorem Sentence', 'Sequential'];
+    },
+
+    renderStepValueSourceOptions(valueSource) {
+        return `
+            <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
+            <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
+            <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
+            <option value="faker" ${valueSource === 'faker' ? 'selected' : ''}>Faker</option>
+            <option value="random-constant" ${valueSource === 'random-constant' ? 'selected' : ''}>Random Constant</option>
+        `;
+    },
+
+    renderGeneratedValueSourceFields(valueSource) {
+        const fakerGenerator = this.currentStep?.fakerGenerator || 'First Name';
+        const randomValues = this.currentStep?.randomValues || '';
+        const fakerOptions = this.getStepFakerGeneratorNames()
+            .map(name => `<option value="${this.escapeHtml(name)}" ${name === fakerGenerator ? 'selected' : ''}>${this.escapeHtml(name)}</option>`)
+            .join('');
+
+        return `
+            <div class="form-group ${valueSource !== 'faker' ? 'is-hidden' : ''}" id="fakerGeneratorGroup">
+                <label>Faker Generator</label>
+                <select id="stepFakerGenerator" class="form-control">
+                    ${fakerOptions}
+                </select>
+                <small style="color: #666; font-size: 11px;">Generates a fresh value each time this step runs.</small>
+            </div>
+            <div class="form-group ${valueSource !== 'random-constant' ? 'is-hidden' : ''}" id="randomConstantGroup">
+                <label>Random Constants</label>
+                <input type="text" id="stepRandomValues" class="form-control"
+                       value="${this.escapeHtml(randomValues)}"
+                       placeholder="A,B,C">
+                <small style="color: #666; font-size: 11px;">Comma-separated values. One value is picked randomly each run.</small>
+            </div>
+        `;
+    },
+
+    toggleStepValueSourceGroups(source) {
+        const staticGroup = document.getElementById('staticValueGroup');
+        const dataGroup = document.getElementById('dataFieldGroup');
+        const clipboardGroup = document.getElementById('clipboardValueGroup');
+        const fakerGroup = document.getElementById('fakerGeneratorGroup');
+        const randomGroup = document.getElementById('randomConstantGroup');
+
+        if (staticGroup) staticGroup.classList.toggle('is-hidden', source !== 'static');
+        if (dataGroup) dataGroup.classList.toggle('is-hidden', source !== 'data');
+        if (clipboardGroup) clipboardGroup.classList.toggle('is-hidden', source !== 'clipboard');
+        if (fakerGroup) fakerGroup.classList.toggle('is-hidden', source !== 'faker');
+        if (randomGroup) randomGroup.classList.toggle('is-hidden', source !== 'random-constant');
+    },
+
+    applyStepValueSourceFields(valueSource) {
+        this.currentStep.valueSource = valueSource;
+        delete this.currentStep.value;
+        delete this.currentStep.fieldMapping;
+        delete this.currentStep.fakerGenerator;
+        delete this.currentStep.randomValues;
+
+        if (valueSource === 'static') {
+            this.currentStep.value = document.getElementById('stepValue')?.value || '';
+            return;
+        }
+        if (valueSource === 'data') {
+            this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
+            return;
+        }
+        if (valueSource === 'faker') {
+            this.currentStep.fakerGenerator = document.getElementById('stepFakerGenerator')?.value || 'First Name';
+            return;
+        }
+        if (valueSource === 'random-constant') {
+            this.currentStep.randomValues = document.getElementById('stepRandomValues')?.value || '';
+        }
+    },
+
+    formatStepValueSourceForDisplay(step) {
+        const source = step?.valueSource || (step?.fieldMapping ? 'data' : 'static');
+        if (source === 'clipboard') return 'clipboard';
+        if (source === 'data') return this.formatFieldMappingForDisplay(step.fieldMapping);
+        if (source === 'faker') return `faker:${step.fakerGenerator || 'First Name'}`;
+        if (source === 'random-constant') {
+            const values = String(step.randomValues || '')
+                .split(',')
+                .map(v => v.trim())
+                .filter(Boolean);
+            if (!values.length) return 'random constants';
+            if (values.length <= 3) return `random:${values.join('|')}`;
+            return `random:${values.slice(0, 3).join('|')}+${values.length - 3}`;
+        }
+        return step?.value || this.formatFieldMappingForDisplay(step?.fieldMapping);
+    },
+
+    renderComboMethodOverrideField() {
+        const selectedMode = this.currentStep?.comboSelectMode || 'default';
+        return `
+            <div class="form-group">
+                <label>ComboBox Input Method Override</label>
+                <select id="stepComboSelectMode" class="form-control">
+                    <option value="default" ${selectedMode === 'default' ? 'selected' : ''}>Use global setting</option>
+                    <option value="method1" ${selectedMode === 'method1' ? 'selected' : ''}>Method 1: Basic setValue</option>
+                    <option value="method2" ${selectedMode === 'method2' ? 'selected' : ''}>Method 2: Paste simulation</option>
+                    <option value="method3" ${selectedMode === 'method3' ? 'selected' : ''}>Method 3: Char-by-char (recommended)</option>
+                    <option value="method4" ${selectedMode === 'method4' ? 'selected' : ''}>Method 4: With keypress</option>
+                    <option value="method5" ${selectedMode === 'method5' ? 'selected' : ''}>Method 5: execCommand</option>
+                    <option value="method6" ${selectedMode === 'method6' ? 'selected' : ''}>Method 6: Paste + Backspace</option>
+                    <option value="method7" ${selectedMode === 'method7' ? 'selected' : ''}>Method 7: D365 internal trigger</option>
+                    <option value="method8" ${selectedMode === 'method8' ? 'selected' : ''}>Method 8: Composition events</option>
+                </select>
+                <small style="color: #666; font-size: 11px;">Applies only to this step. Leave on global unless this field needs a different typing strategy.</small>
+            </div>
+        `;
+    },
+
     updateStepFields(stepType) {
         const container = document.getElementById('stepTypeFields');
         container.innerHTML = '';
@@ -494,9 +695,7 @@ export const stepMethods = {
                 <div class="form-group">
                     <label>Value Source</label>
                     <select id="stepValueSource" class="form-control">
-                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
-                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
-                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
+                        ${this.renderStepValueSourceOptions(valueSource)}
                     </select>
                 </div>
                 <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
@@ -513,15 +712,14 @@ export const stepMethods = {
                     <label>Clipboard</label>
                     <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
+                ${this.renderGeneratedValueSourceFields(valueSource)}
+                ${this.renderComboMethodOverrideField()}
             `;
 
             // Add event listener for value source change
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
-                    const source = e.target.value;
-                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
-                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
-                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
+                    this.toggleStepValueSourceGroups(e.target.value);
                 });
             }, 0);
         } else if (stepType === 'checkbox') {
@@ -798,9 +996,7 @@ export const stepMethods = {
                 <div class="form-group">
                     <label>Value Source</label>
                     <select id="stepValueSource" class="form-control">
-                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
-                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
-                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
+                        ${this.renderStepValueSourceOptions(valueSource)}
                     </select>
                 </div>
                 <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
@@ -817,21 +1013,20 @@ export const stepMethods = {
                     <label>Clipboard</label>
                     <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
+                ${this.renderGeneratedValueSourceFields(valueSource)}
                 <div class="form-group">
                     <label>Display Text (for reference)</label>
                     <input type="text" id="stepDisplayText" class="form-control" 
                            value="${this.currentStep?.displayText || ''}" 
                            placeholder="e.g., Charges code">
                 </div>
+                ${this.renderComboMethodOverrideField()}
             `;
 
             // Add event listener for value source change
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
-                    const source = e.target.value;
-                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
-                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
-                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
+                    this.toggleStepValueSourceGroups(e.target.value);
                 });
             }, 0);
         } else if (stepType === 'wait-until') {
@@ -1078,9 +1273,7 @@ export const stepMethods = {
                 <div class="form-group">
                     <label>Value Source</label>
                     <select id="stepValueSource" class="form-control">
-                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
-                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
-                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
+                        ${this.renderStepValueSourceOptions(valueSource)}
                     </select>
                 </div>
                 <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
@@ -1098,6 +1291,7 @@ export const stepMethods = {
                     <label>Clipboard</label>
                     <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
+                ${this.renderGeneratedValueSourceFields(valueSource)}
                 <div class="form-group">
                     <label>Saved Query (optional)</label>
                     <input type="text" id="stepSavedQuery" class="form-control" 
@@ -1119,14 +1313,12 @@ export const stepMethods = {
                            value="${this.currentStep?.displayText || ''}" 
                            placeholder="e.g., Filter by Sales order">
                 </div>
+                ${this.renderComboMethodOverrideField()}
             `;
 
             setTimeout(() => {
                 document.getElementById('stepValueSource')?.addEventListener('change', (e) => {
-                    const source = e.target.value;
-                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
-                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
-                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
+                    this.toggleStepValueSourceGroups(e.target.value);
                 });
             }, 0);
         } else if (stepType === 'batch-processing') {
@@ -1273,9 +1465,7 @@ export const stepMethods = {
                 <div class="form-group">
                     <label>Value Source</label>
                     <select id="stepValueSource" class="form-control">
-                        <option value="static" ${valueSource === 'static' ? 'selected' : ''}>Static Value</option>
-                        <option value="data" ${valueSource === 'data' ? 'selected' : ''}>From Data Field</option>
-                        <option value="clipboard" ${valueSource === 'clipboard' ? 'selected' : ''}>Clipboard</option>
+                        ${this.renderStepValueSourceOptions(valueSource)}
                     </select>
                 </div>
                 <div class="form-group ${valueSource !== 'static' ? 'is-hidden' : ''}" id="staticValueGroup">
@@ -1292,6 +1482,7 @@ export const stepMethods = {
                     <label>Clipboard</label>
                     <small style="color: #666; font-size: 11px;">Uses the current clipboard text when the step runs.</small>
                 </div>
+                ${this.renderGeneratedValueSourceFields(valueSource)}
                 <div class="form-group">
                     <label>Display Text (for reference)</label>
                     <input type="text" id="stepDisplayText" class="form-control" 
@@ -1308,15 +1499,13 @@ export const stepMethods = {
                     </div>
                     <small style="color: #666; font-size: 11px;">Waits up to 5 seconds for D365 to process lookup fields like Item number</small>
                 </div>
+                ${this.renderComboMethodOverrideField()}
             `;
 
             // Add event listener for value source change
             setTimeout(() => {
                 document.getElementById('stepValueSource').addEventListener('change', (e) => {
-                    const source = e.target.value;
-                    document.getElementById('staticValueGroup').classList.toggle('is-hidden', source !== 'static');
-                    document.getElementById('dataFieldGroup').classList.toggle('is-hidden', source !== 'data');
-                    document.getElementById('clipboardValueGroup').classList.toggle('is-hidden', source !== 'clipboard');
+                    this.toggleStepValueSourceGroups(e.target.value);
                 });
             }, 0);
         }
@@ -1366,13 +1555,7 @@ export const stepMethods = {
             select.addEventListener('change', () => {
                 // Handle value source toggle
                 if (select.id === 'stepValueSource') {
-                    const source = select.value;
-                    const staticGroup = document.getElementById('staticValueGroup');
-                    const dataGroup = document.getElementById('dataFieldGroup');
-                    const clipboardGroup = document.getElementById('clipboardValueGroup');
-                    if (staticGroup) staticGroup.classList.toggle('is-hidden', source !== 'static');
-                    if (dataGroup) dataGroup.classList.toggle('is-hidden', source !== 'data');
-                    if (clipboardGroup) clipboardGroup.classList.toggle('is-hidden', source !== 'clipboard');
+                    this.toggleStepValueSourceGroups(select.value);
                 }
                 if (select.id.endsWith('ConditionType')) {
                     const type = select.value;
@@ -1662,17 +1845,7 @@ export const stepMethods = {
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
 
             const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.currentStep.valueSource = valueSource;
-            if (valueSource === 'static') {
-                this.currentStep.value = document.getElementById('stepValue')?.value || '';
-                this.currentStep.fieldMapping = '';
-            } else if (valueSource === 'data') {
-                this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
-                this.currentStep.value = '';
-            } else {
-                this.currentStep.value = '';
-                this.currentStep.fieldMapping = '';
-            }
+            this.applyStepValueSourceFields(valueSource);
         } else if (this.currentStep.type === 'checkbox') {
             this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
@@ -1718,17 +1891,7 @@ export const stepMethods = {
             this.currentStep.filterMethod = document.getElementById('stepFilterMethod')?.value || 'is exactly';
 
             const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.currentStep.valueSource = valueSource;
-            if (valueSource === 'static') {
-                this.currentStep.value = document.getElementById('stepValue')?.value || '';
-                this.currentStep.fieldMapping = '';
-            } else if (valueSource === 'data') {
-                this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
-                this.currentStep.value = '';
-            } else {
-                this.currentStep.value = '';
-                this.currentStep.fieldMapping = '';
-            }
+            this.applyStepValueSourceFields(valueSource);
         } else if (this.currentStep.type === 'navigate') {
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
             this.currentStep.navigateMethod = document.getElementById('stepNavigateMethod')?.value || 'menuItem';
@@ -1761,17 +1924,7 @@ export const stepMethods = {
             this.currentStep.closeDialogAfter = document.getElementById('stepCloseDialogAfter')?.value || '';
             
             const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.currentStep.valueSource = valueSource;
-            if (valueSource === 'static') {
-                this.currentStep.value = document.getElementById('stepValue')?.value || '';
-                this.currentStep.fieldMapping = '';
-            } else if (valueSource === 'data') {
-                this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
-                this.currentStep.value = '';
-            } else {
-                this.currentStep.value = '';
-                this.currentStep.fieldMapping = '';
-            }
+            this.applyStepValueSourceFields(valueSource);
         } else if (this.currentStep.type === 'batch-processing') {
             this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
             this.currentStep.batchEnabled = document.getElementById('stepBatchEnabled')?.value || 'false';
@@ -1803,17 +1956,18 @@ export const stepMethods = {
             this.currentStep.waitForValidation = document.getElementById('stepWaitForValidation')?.checked || false;
 
             const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.currentStep.valueSource = valueSource;
-            if (valueSource === 'static') {
-                this.currentStep.value = document.getElementById('stepValue')?.value || '';
-                this.currentStep.fieldMapping = '';
-            } else if (valueSource === 'data') {
-                this.currentStep.fieldMapping = document.getElementById('stepFieldMapping')?.value || '';
-                this.currentStep.value = '';
+            this.applyStepValueSourceFields(valueSource);
+        }
+
+        if (this.supportsComboMethodOverride(this.currentStep.type)) {
+            const comboMethodOverride = document.getElementById('stepComboSelectMode')?.value || 'default';
+            if (comboMethodOverride && comboMethodOverride !== 'default') {
+                this.currentStep.comboSelectMode = comboMethodOverride;
             } else {
-                this.currentStep.value = '';
-                this.currentStep.fieldMapping = '';
+                delete this.currentStep.comboSelectMode;
             }
+        } else {
+            delete this.currentStep.comboSelectMode;
         }
 
         const waitOptions = this.getWaitOptionsFromUI();
@@ -1869,6 +2023,7 @@ export const stepMethods = {
         this.saveStep();
         this.currentStep = null;
         this.hideStepEditor();
+        this.displaySteps();
     },
 
     deleteCurrentStep() {
@@ -1894,6 +2049,8 @@ export const stepMethods = {
 
         if (!this.currentWorkflow || this.currentWorkflow.steps.length === 0) {
             container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No steps yet. Click "Add Step" to begin.</p>';
+            this.currentStep = null;
+            this.hideStepEditor();
             this.ensureStepSelectionState();
             this.selectedStepIds.clear();
             this.updateSelectAllState();
@@ -1907,6 +2064,10 @@ export const stepMethods = {
         Array.from(this.selectedStepIds).forEach(id => {
             if (!stepIdSet.has(id)) this.selectedStepIds.delete(id);
         });
+        if (this.currentStep?.id && !stepIdSet.has(this.currentStep.id)) {
+            this.currentStep = null;
+            this.hideStepEditor();
+        }
 
         // Track which steps are inside loops
         let loopDepth = 0;
@@ -1917,6 +2078,9 @@ export const stepMethods = {
             item.className = 'step-item';
             item.draggable = true;
             item.dataset.stepIndex = index;
+            if (this.currentStep?.id === step.id) {
+                item.classList.add('is-selected');
+            }
 
             // Handle loop styling
             if (step.type === 'loop-start') {
@@ -1941,21 +2105,15 @@ export const stepMethods = {
                 stepDesc = `Click "${step.displayText || step.controlName}"${waitFlags}`;
             } else if (step.type === 'input') {
                 stepIcon = 'IN';
-                const inputVal = step.valueSource === 'clipboard'
-                    ? 'clipboard'
-                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
+                const inputVal = this.formatStepValueSourceForDisplay(step);
                 stepDesc = `Enter "${inputVal}" into ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'select') {
                 stepIcon = 'SEL';
-                const selectVal = step.valueSource === 'clipboard'
-                    ? 'clipboard'
-                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
+                const selectVal = this.formatStepValueSourceForDisplay(step);
                 stepDesc = `Select "${selectVal}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'lookupSelect') {
                 stepIcon = 'LOOK';
-                const lookupVal = step.valueSource === 'clipboard'
-                    ? 'clipboard'
-                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
+                const lookupVal = this.formatStepValueSourceForDisplay(step);
                 stepDesc = `Lookup "${lookupVal}" in ${step.displayText || step.controlName}${waitFlags}`;
             } else if (step.type === 'checkbox') {
                 stepIcon = 'CHK';
@@ -2010,15 +2168,11 @@ export const stepMethods = {
             } else if (step.type === 'filter') {
                 stepIcon = 'FLT';
                 const method = step.filterMethod || 'is exactly';
-                const filterVal = step.valueSource === 'clipboard'
-                    ? 'clipboard'
-                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
+                const filterVal = this.formatStepValueSourceForDisplay(step);
                 stepDesc = `Filter "${step.displayText || step.controlName}" ${method} "${filterVal}"`;
             } else if (step.type === 'grid-input') {
                 stepIcon = 'GRID';
-                const gridVal = step.valueSource === 'clipboard'
-                    ? 'clipboard'
-                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
+                const gridVal = this.formatStepValueSourceForDisplay(step);
                 stepDesc = `Set grid cell "${step.displayText || step.controlName}" to "${gridVal}"${waitFlags}`;
             } else if (step.type === 'wait-until') {
                 stepIcon = 'WAIT';
@@ -2040,9 +2194,7 @@ export const stepMethods = {
                 stepDesc = `${action} section "${step.displayText || step.controlName}"`;
             } else if (step.type === 'query-filter') {
                 stepIcon = '🔎';
-                const filterVal = step.valueSource === 'clipboard'
-                    ? 'clipboard'
-                    : (step.value || this.formatFieldMappingForDisplay(step.fieldMapping));
+                const filterVal = this.formatStepValueSourceForDisplay(step);
                 stepDesc = `Query filter: ${step.fieldName || 'field'} = "${filterVal}"`;
             } else if (step.type === 'batch-processing') {
                 stepIcon = '⚙️';
@@ -2124,10 +2276,15 @@ export const stepMethods = {
                 e.stopPropagation();
                 this.currentStep = { ...step };
                 this.showStepEditor();
+                this.displaySteps();
             });
 
             item.querySelector('.btn-delete').addEventListener('click', (e) => {
                 e.stopPropagation();
+                if (this.currentStep?.id === step.id) {
+                    this.currentStep = null;
+                    this.hideStepEditor();
+                }
                 this.currentWorkflow.steps.splice(index, 1);
                 this.displaySteps();
             });
@@ -2141,6 +2298,13 @@ export const stepMethods = {
                 }
                 this.updateSelectAllState();
                 this.updateCopyButtonState();
+            });
+
+            item.addEventListener('click', (e) => {
+                if (e.target.closest('button, input, label, a')) return;
+                this.currentStep = { ...step };
+                this.showStepEditor();
+                this.displaySteps();
             });
 
             container.appendChild(item);

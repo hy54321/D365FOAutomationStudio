@@ -622,14 +622,15 @@ export const workflowMethods = {
     async resolveRuntimeSharedDataSourcesForWorkflow(workflow) {
         const sourceIds = new Set(this.collectReferencedSharedSourceIds(workflow));
         const runtimeSources = (this.sharedDataSources || []).map(source => JSON.parse(JSON.stringify(source)));
+
         const dynamicSources = runtimeSources.filter(source =>
             sourceIds.has(source.id) && source.type === 'odata-dynamic'
         );
+        const fakerSources = runtimeSources.filter(source =>
+            sourceIds.has(source.id) && source.type === 'faker'
+        );
 
-        if (!dynamicSources.length) {
-            return runtimeSources;
-        }
-
+        // Resolve OData dynamic sources
         for (const source of dynamicSources) {
             const query = (source.odataQuery || '').trim();
             if (!query) {
@@ -648,6 +649,26 @@ export const workflowMethods = {
             source.fields = Object.keys(rows[0] || {});
             source.odataLastFetchedAt = Date.now();
             this.addLog('info', `Fetched dynamic OData source "${source.name || source.id}" (${rows.length} rows)`);
+        }
+
+        // Resolve faker sources - generate fresh random data at runtime
+        for (const source of fakerSources) {
+            const fakerFields = Array.isArray(source.fakerFields) ? source.fakerFields : [];
+            const rowCount = source.fakerRowCount || 10;
+            if (!fakerFields.length) {
+                throw new Error(`Faker source "${source.name || source.id}" has no field definitions`);
+            }
+
+            const rows = this.generateFakerRows
+                ? this.generateFakerRows(fakerFields, rowCount)
+                : [];
+            if (!rows.length) {
+                throw new Error(`Faker source "${source.name || source.id}" generated no rows`);
+            }
+
+            source.data = rows;
+            source.fields = Object.keys(rows[0] || {});
+            this.addLog('info', `Generated faker data source "${source.name || source.id}" (${rows.length} rows)`);
         }
 
         return runtimeSources;

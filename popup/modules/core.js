@@ -36,6 +36,9 @@ export const coreMethods = {
         if (this.initBuilderPanels) {
             await this.initBuilderPanels();
         }
+        if (this.initBuilderStepsSplit) {
+            await this.initBuilderStepsSplit();
+        }
 
         // Initialize nav button UI after DOM + listeners are ready
         if (this.initNavButtonsUI) {
@@ -259,6 +262,9 @@ export const coreMethods = {
                 if (tabName === 'builder' && this.refreshInterruptionHandlersPanelHeight) {
                     this.refreshInterruptionHandlersPanelHeight();
                 }
+                if (tabName === 'builder' && this.applyBuilderStepsPaneWidth) {
+                    this.applyBuilderStepsPaneWidth();
+                }
 
                 if (this.onTabActivated) {
                     this.onTabActivated(tabName);
@@ -309,6 +315,8 @@ export const coreMethods = {
         // Data Sources
         document.getElementById('primaryDataSourceType').addEventListener('change', (e) => this.updatePrimaryDataSourceUI(e.target.value));
         document.getElementById('validatePrimaryData').addEventListener('click', () => this.validatePrimaryData());
+        document.getElementById('addFakerField')?.addEventListener('click', () => this.addFakerField());
+        document.getElementById('validateFakerData')?.addEventListener('click', () => this.validateFakerData());
         document.getElementById('refreshSharedDataSources')?.addEventListener('click', () => this.refreshSharedDataSourcesUI());
         document.getElementById('newSharedDataSource')?.addEventListener('click', () => this.startNewSharedDataSource());
         document.getElementById('newSharedDataSourceSecondary')?.addEventListener('click', (event) => {

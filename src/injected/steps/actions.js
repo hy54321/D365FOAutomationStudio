@@ -7,8 +7,8 @@ import { coerceBoolean, normalizeText } from '../utils/text.js';
 import { NavigationInterruptError } from '../runtime/errors.js';
 import { parseGridAndColumn, buildFilterFieldPatterns, buildApplyButtonPatterns, getFilterMethodSearchTerms, textIncludesAny } from './action-helpers.js';
 
-function comboInputWithSelectedMethod(input, value) {
-    const method = window.d365CurrentWorkflowSettings?.comboSelectMode || 'method3';
+function comboInputWithSelectedMethod(input, value, comboMethodOverride = '') {
+    const method = comboMethodOverride || window.d365CurrentWorkflowSettings?.comboSelectMode || 'method3';
     return comboInputWithSelectedMethodWithMode(input, value, method);
 }
 
@@ -36,7 +36,7 @@ export async function clickElement(controlName) {
     await sleep(800);
 }
 
-export async function applyGridFilter(controlName, filterValue, filterMethod = 'is exactly') {
+export async function applyGridFilter(controlName, filterValue, filterMethod = 'is exactly', comboMethodOverride = '') {
     console.log(`Applying filter: ${controlName} ${filterMethod} "${filterValue}"`);
     
     // Extract grid name and column name from controlName
@@ -172,8 +172,11 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     filterInput.dispatchEvent(new Event('input', { bubbles: true }));
     await sleep(100);
     
-    // Set the value using native setter
-    setNativeValue(filterInput, filterValue);
+    // Type using the selected method so this can be overridden per step.
+    await comboInputWithSelectedMethod(filterInput, String(filterValue ?? ''), comboMethodOverride);
+    if (normalizeText(filterInput.value) !== normalizeText(filterValue)) {
+        setNativeValue(filterInput, String(filterValue ?? ''));
+    }
     filterInput.dispatchEvent(new Event('input', { bubbles: true }));
     filterInput.dispatchEvent(new Event('change', { bubbles: true }));
     await sleep(300);
@@ -284,19 +287,19 @@ export async function waitUntilCondition(controlName, condition, expectedValue, 
     throw new Error(`Timeout waiting for "${controlName}" to be ${condition} (waited ${timeout}ms)`);
 }
 
-export async function setInputValue(controlName, value, fieldType) {
+export async function setInputValue(controlName, value, fieldType, comboMethodOverride = '') {
     const element = findElementInActiveContext(controlName);
     if (!element) throw new Error(`Element not found: ${controlName}`);
 
     // For SegmentedEntry fields (Account, etc), use lookup button approach
     if (fieldType?.type === 'segmented-lookup' || isSegmentedEntry(element)) {
-        await setSegmentedEntryValue(element, value);
+        await setSegmentedEntryValue(element, value, comboMethodOverride);
         return;
     }
 
     // For ComboBox/enum fields, open dropdown and select
     if (fieldType?.inputType === 'enum' || element.getAttribute('data-dyn-role') === 'ComboBox') {
-        await setComboBoxValue(element, value);
+        await setComboBoxValue(element, value, comboMethodOverride);
         return;
     }
 
@@ -316,7 +319,7 @@ export async function setInputValue(controlName, value, fieldType) {
 
     if (input.tagName !== 'SELECT') {
         // Use the selected combobox input method
-        await comboInputWithSelectedMethod(input, value);
+        await comboInputWithSelectedMethod(input, value, comboMethodOverride);
     } else {
         setNativeValue(input, value);
     }
@@ -328,7 +331,7 @@ export async function setInputValue(controlName, value, fieldType) {
     await sleep(400);
 }
 
-export async function setGridCellValue(controlName, value, fieldType, waitForValidation = false) {
+export async function setGridCellValue(controlName, value, fieldType, waitForValidation = false, comboMethodOverride = '') {
     console.log(`Setting grid cell value: ${controlName} = "${value}" (waitForValidation=${waitForValidation})`);
     
     // Wait for the grid to have an active/selected row before finding the cell.
@@ -441,18 +444,18 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     const role = element.getAttribute('data-dyn-role');
     
     if (fieldType?.type === 'segmented-lookup' || role === 'SegmentedEntry' || isSegmentedEntry(element)) {
-        await setSegmentedEntryValue(element, value);
+        await setSegmentedEntryValue(element, value, comboMethodOverride);
         return;
     }
     
     if (fieldType?.inputType === 'enum' || role === 'ComboBox') {
-        await setComboBoxValue(element, value);
+        await setComboBoxValue(element, value, comboMethodOverride);
         return;
     }
     
     // Check for lookup fields
     if (role === 'Lookup' || role === 'ReferenceGroup' || hasLookupButton(element)) {
-        await setLookupSelectValue(controlName, value);
+        await setLookupSelectValue(controlName, value, comboMethodOverride);
         return;
     }
     
@@ -465,7 +468,7 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     await sleep(50);
     
     // Use the standard input method
-    await comboInputWithSelectedMethod(input, value);
+    await comboInputWithSelectedMethod(input, value, comboMethodOverride);
     
     // Dispatch events
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -636,7 +639,7 @@ export async function activateGridRow(controlName) {
     return false;
 }
 
-export async function setLookupSelectValue(controlName, value) {
+export async function setLookupSelectValue(controlName, value, comboMethodOverride = '') {
     const element = findElementInActiveContext(controlName);
     if (!element) throw new Error(`Element not found: ${controlName}`);
 
@@ -666,7 +669,7 @@ export async function setLookupSelectValue(controlName, value) {
         dockInput.click();
         dockInput.focus();
         await sleep(50);
-        await comboInputWithSelectedMethod(dockInput, value);
+        await comboInputWithSelectedMethod(dockInput, value, comboMethodOverride);
         dockInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
         dockInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
         await sleep(600);
@@ -1276,7 +1279,7 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
             if (input) {
                 input.click();
                 await sleep(300);
-                await setInputValueInForm(input, options.savedQuery);
+                await setInputValueInForm(input, options.savedQuery, options.comboSelectMode || '');
                 await sleep(500);
             }
         }
@@ -1313,7 +1316,7 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
         const lastTableCell = tableCell.length ? tableCell[tableCell.length - 1] : tableCell;
         if (lastTableCell) {
             const input = lastTableCell.querySelector('input') || lastTableCell;
-            await setInputValueInForm(input, tableName);
+            await setInputValueInForm(input, tableName, options.comboSelectMode || '');
             await sleep(300);
         }
     }
@@ -1327,7 +1330,7 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
             // Click to open dropdown/focus
             input.click?.();
             await sleep(200);
-            await setInputValueInForm(input, fieldName);
+            await setInputValueInForm(input, fieldName, options.comboSelectMode || '');
             await sleep(300);
         }
     }
@@ -1340,7 +1343,7 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
             const input = lastValueCell.querySelector('input') || lastValueCell;
             input.click?.();
             await sleep(200);
-            await setInputValueInForm(input, criteriaValue);
+            await setInputValueInForm(input, criteriaValue, options.comboSelectMode || '');
             await sleep(300);
         }
     }
@@ -1549,7 +1552,7 @@ export async function configureRecurrence(step) {
     logStep('Recurrence configured');
 }
 
-export async function setInputValueInForm(inputElement, value) {
+export async function setInputValueInForm(inputElement, value, comboMethodOverride = '') {
     if (!inputElement) return;
     
     // Focus the input
@@ -1559,8 +1562,12 @@ export async function setInputValueInForm(inputElement, value) {
     // Clear existing value
     inputElement.select?.();
     
-    // Set the value
-    inputElement.value = value;
+    if (comboMethodOverride && inputElement.tagName !== 'SELECT') {
+        await comboInputWithSelectedMethod(inputElement, value, comboMethodOverride);
+    } else {
+        // Keep existing behavior for callers that do not request an override
+        inputElement.value = value;
+    }
     
     // Dispatch events
     inputElement.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1703,7 +1710,7 @@ export async function setRadioButtonValue(element, value) {
     throw new Error(`Radio option not found for value: ${value}`);
 }
 
-export async function setSegmentedEntryValue(element, value) {
+export async function setSegmentedEntryValue(element, value, comboMethodOverride = '') {
     const input = element.querySelector('input, [role="textbox"]');
     if (!input) throw new Error('Input not found in SegmentedEntry');
 
@@ -1741,7 +1748,7 @@ export async function setSegmentedEntryValue(element, value) {
             dockInput.click?.();
             dockInput.focus();
             await sleep(50);
-            await comboInputWithSelectedMethod(dockInput, value);
+            await comboInputWithSelectedMethod(dockInput, value, comboMethodOverride);
             dockInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
             dockInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
             await sleep(800);
@@ -1754,7 +1761,7 @@ export async function setSegmentedEntryValue(element, value) {
         lookupInput.click?.();
         lookupInput.focus();
         await sleep(50);
-        await comboInputWithSelectedMethod(lookupInput, value);
+        await comboInputWithSelectedMethod(lookupInput, value, comboMethodOverride);
         lookupInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
         lookupInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
         await sleep(1000); // Wait for server filter
@@ -1794,7 +1801,7 @@ export async function setSegmentedEntryValue(element, value) {
     }
 }
 
-export async function setComboBoxValue(element, value) {
+export async function setComboBoxValue(element, value, comboMethodOverride = '') {
     const input = element.querySelector('input, [role="textbox"], select');
     if (!input) throw new Error('Input not found in ComboBox');
 
@@ -1823,7 +1830,7 @@ export async function setComboBoxValue(element, value) {
 
     // Try typing to filter when allowed (use selected input method)
     if (!input.readOnly && !input.disabled) {
-        await comboInputWithSelectedMethod(input, value);
+        await comboInputWithSelectedMethod(input, value, comboMethodOverride);
     }
 
     // Find listbox near the field or linked via aria-controls

@@ -1225,6 +1225,53 @@ async function executeWorkflow(workflow, data) {
     }
 }
 
+function getStepFakerRandomItem(list) {
+    if (!Array.isArray(list) || !list.length) return '';
+    return list[Math.floor(Math.random() * list.length)];
+}
+
+function generateStepFakerValue(generatorName) {
+    const firstNames = ['James', 'Mary', 'John', 'Patricia', 'Robert', 'Jennifer', 'Michael', 'Linda', 'David', 'Elizabeth', 'William', 'Barbara', 'Richard', 'Susan', 'Joseph', 'Jessica'];
+    const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Martinez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore'];
+    const words = ['alpha', 'bravo', 'charlie', 'delta', 'echo', 'foxtrot', 'apex', 'bolt', 'crest', 'dawn', 'ember', 'flint'];
+
+    const name = String(generatorName || 'First Name');
+    if (name === 'First Name') return getStepFakerRandomItem(firstNames);
+    if (name === 'Last Name') return getStepFakerRandomItem(lastNames);
+    if (name === 'Full Name') return `${getStepFakerRandomItem(firstNames)} ${getStepFakerRandomItem(lastNames)}`;
+    if (name === 'Email') {
+        const first = getStepFakerRandomItem(firstNames).toLowerCase();
+        const last = getStepFakerRandomItem(lastNames).toLowerCase();
+        return `${first}.${last}@example.com`;
+    }
+    if (name === 'Number') return String(Math.floor(Math.random() * 10000));
+    if (name === 'Decimal') return (Math.random() * 10000).toFixed(2);
+    if (name === 'Date') {
+        const offsetDays = Math.floor(Math.random() * 365 * 3);
+        const d = new Date(Date.now() - offsetDays * 24 * 60 * 60 * 1000);
+        return d.toISOString().slice(0, 10);
+    }
+    if (name === 'UUID') {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+            const r = Math.floor(Math.random() * 16);
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+    if (name === 'Boolean') return Math.random() < 0.5 ? 'true' : 'false';
+    if (name === 'Word') return getStepFakerRandomItem(words);
+    if (name === 'Lorem Sentence') {
+        const picked = [...words].sort(() => Math.random() - 0.5).slice(0, 5);
+        const sentence = picked.join(' ');
+        return sentence.charAt(0).toUpperCase() + sentence.slice(1);
+    }
+    if (name === 'Sequential') {
+        window.__d365StepFakerSeq = (window.__d365StepFakerSeq || 0) + 1;
+        return String(window.__d365StepFakerSeq);
+    }
+    return getStepFakerRandomItem(firstNames);
+}
+
 async function resolveStepValue(step, currentRow) {
     const source = step?.valueSource || (step?.fieldMapping ? 'data' : 'static');
 
@@ -1247,6 +1294,19 @@ async function resolveStepValue(step, currentRow) {
         if (!field) return '';
         const value = row[field];
         return value === undefined || value === null ? '' : String(value);
+    }
+
+    if (source === 'faker') {
+        return generateStepFakerValue(step?.fakerGenerator || 'First Name');
+    }
+
+    if (source === 'random-constant') {
+        const options = String(step?.randomValues || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+        if (!options.length) return '';
+        return options[Math.floor(Math.random() * options.length)];
     }
 
     return step?.value ?? '';
@@ -1335,11 +1395,11 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
 
             case 'input':
             case 'select':
-                await setInputValue(step.controlName, resolvedValue, step.fieldType);
+                await setInputValue(step.controlName, resolvedValue, step.fieldType, step.comboSelectMode || '');
                 break;
 
             case 'lookupSelect':
-                await setLookupSelectValue(step.controlName, resolvedValue);
+                await setLookupSelectValue(step.controlName, resolvedValue, step.comboSelectMode || '');
                 break;
 
             case 'checkbox':
@@ -1347,16 +1407,17 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
                 break;
 
             case 'gridInput':
-                await setGridCellValue(step.controlName, resolvedValue, step.fieldType, !!step.waitForValidation);
+                await setGridCellValue(step.controlName, resolvedValue, step.fieldType, !!step.waitForValidation, step.comboSelectMode || '');
                 break;
 
             case 'filter':
-                await applyGridFilter(step.controlName, resolvedValue, step.filterMethod || 'is exactly');
+                await applyGridFilter(step.controlName, resolvedValue, step.filterMethod || 'is exactly', step.comboSelectMode || '');
                 break;
             case 'queryFilter':
                 await configureQueryFilter(step.tableName, step.fieldName, resolvedValue, {
                     savedQuery: step.savedQuery,
-                    closeDialogAfter: step.closeDialogAfter
+                    closeDialogAfter: step.closeDialogAfter,
+                    comboSelectMode: step.comboSelectMode || ''
                 });
                 break;
 
