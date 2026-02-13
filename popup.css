@@ -858,6 +858,7 @@ header h1 {
 .builder-top-panels {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
     gap: 12px;
     margin: 6px 0 12px;
 }
@@ -1943,6 +1944,21 @@ header h1 {
     padding: 16px;
 }
 
+.run-learning-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.run-learning-row label {
+    margin: 0;
+    white-space: nowrap;
+}
+
+.run-learning-row select {
+    min-width: 190px;
+}
+
 .modal-footer {
     display: flex;
     justify-content: flex-end;
@@ -2437,12 +2453,40 @@ header h1 {
     margin: 0;
 }
 
+.builder-panel {
+    align-self: start;
+}
+
 .workflow-projects-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
     margin-bottom: 4px;
+}
+
+.builder-panel-header-clickable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.builder-panel-header-clickable::after {
+    content: '\25BE';
+    margin-left: auto;
+    font-size: 10px;
+    color: #64748b;
+}
+
+.builder-panel.is-collapsed .builder-panel-body {
+    display: none;
+}
+
+.builder-panel.is-collapsed .workflow-projects-header {
+    margin-bottom: 0;
+}
+
+.builder-panel.is-collapsed .workflow-projects-header::after {
+    content: '\25B8';
 }
 
 .workflow-projects-list {
@@ -2486,4 +2530,63 @@ header h1 {
 .muted {
     color: #6b7280;
     font-size: 12px;
+}
+
+.interruption-handlers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: var(--interruption-list-max-height, 220px);
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.interruption-handler-item {
+    background: #ffffff;
+    border: 1px solid #dbe4ef;
+    border-radius: 8px;
+    padding: 8px;
+    display: grid;
+    gap: 6px;
+}
+
+.interruption-handler-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.interruption-handler-trigger {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.interruption-handler-sub {
+    font-size: 11px;
+    color: #4b5563;
+    line-height: 1.35;
+}
+
+.interruption-handler-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.interruption-handler-actions select {
+    min-width: 110px;
+}
+
+.interruption-handler-actions label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+}
+
+.interruption-handler-delete {
+    padding: 4px 8px;
+    font-size: 11px;
 }

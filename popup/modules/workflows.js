@@ -1,4 +1,101 @@
 export const workflowMethods = {
+    async initBuilderPanels() {
+        if (this._builderPanelsInitialized) {
+            this.applyBuilderPanelState();
+            this.refreshInterruptionHandlersPanelHeight();
+            return;
+        }
+
+        const result = await this.chrome.storage.local.get(['builderPanelState']);
+        this.builderPanelState = (result?.builderPanelState && typeof result.builderPanelState === 'object')
+            ? result.builderPanelState
+            : {};
+
+        const panels = Array.from(document.querySelectorAll('.builder-panel[data-panel-key]'));
+        panels.forEach((panel) => {
+            const key = panel.getAttribute('data-panel-key');
+            const header = panel.querySelector('.workflow-projects-header');
+            if (!key || !header) return;
+            if (!header.classList.contains('builder-panel-header-clickable')) {
+                header.classList.add('builder-panel-header-clickable');
+                header.setAttribute('role', 'button');
+                header.setAttribute('tabindex', '0');
+                header.addEventListener('click', () => {
+                    const nextCollapsed = !panel.classList.contains('is-collapsed');
+                    this.setBuilderPanelCollapsed(key, nextCollapsed, true);
+                });
+                header.addEventListener('keydown', (event) => {
+                    if (event.key !== 'Enter' && event.key !== ' ') return;
+                    event.preventDefault();
+                    const nextCollapsed = !panel.classList.contains('is-collapsed');
+                    this.setBuilderPanelCollapsed(key, nextCollapsed, true);
+                });
+            }
+        });
+
+        if (!this._builderPanelsResizeBound) {
+            window.addEventListener('resize', () => this.refreshInterruptionHandlersPanelHeight());
+            this._builderPanelsResizeBound = true;
+        }
+
+        this._builderPanelsInitialized = true;
+        this.applyBuilderPanelState();
+        this.refreshInterruptionHandlersPanelHeight();
+    },
+
+    applyBuilderPanelState() {
+        const panels = Array.from(document.querySelectorAll('.builder-panel[data-panel-key]'));
+        panels.forEach((panel) => {
+            const key = panel.getAttribute('data-panel-key');
+            if (!key) return;
+            const collapsed = !!this.builderPanelState?.[key];
+            this.setBuilderPanelCollapsed(key, collapsed, false);
+        });
+    },
+
+    setBuilderPanelCollapsed(key, collapsed, persist = true) {
+        const panel = document.querySelector(`.builder-panel[data-panel-key="${key}"]`);
+        if (!panel) return;
+
+        panel.classList.toggle('is-collapsed', !!collapsed);
+        const header = panel.querySelector('.workflow-projects-header');
+        if (header) {
+            const expanded = !collapsed;
+            header.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            header.title = expanded ? 'Click to collapse panel' : 'Click to expand panel';
+        }
+
+        this.builderPanelState = this.builderPanelState || {};
+        this.builderPanelState[key] = !!collapsed;
+
+        if (persist) {
+            this.chrome.storage.local.set({ builderPanelState: this.builderPanelState }).catch(() => {});
+        }
+
+        if (key === 'interruption-handlers') {
+            this.refreshInterruptionHandlersPanelHeight();
+        }
+    },
+
+    refreshInterruptionHandlersPanelHeight() {
+        const panel = document.getElementById('workflowInterruptionHandlersPanel');
+        const list = document.getElementById('interruptionHandlersList');
+        const builderTab = document.getElementById('builder-tab');
+        if (!panel || !list || !builderTab) return;
+
+        if (panel.classList.contains('is-collapsed')) {
+            list.style.removeProperty('--interruption-list-max-height');
+            return;
+        }
+
+        if (!builderTab.classList.contains('active')) return;
+
+        const rect = list.getBoundingClientRect();
+        const available = Math.floor(window.innerHeight - rect.top - 16);
+        const maxHeight = Math.max(220, available);
+        list.style.setProperty('--interruption-list-max-height', `${maxHeight}px`);
+    },
+
     handleDirectBuilderTabAccess() {
         this.currentWorkflow = null;
         this.currentStep = null;
@@ -13,6 +110,7 @@ export const workflowMethods = {
         this.displaySteps();
         if (this.renderWorkflowProjects) this.renderWorkflowProjects();
         if (this.renderWorkflowConfigurations) this.renderWorkflowConfigurations();
+        if (this.renderInterruptionHandlersPanel) this.renderInterruptionHandlersPanel();
     },
 
     cancelWorkflowChanges() {
@@ -27,6 +125,9 @@ export const workflowMethods = {
             }
             if (this.renderWorkflowConfigurations) {
                 this.renderWorkflowConfigurations();
+            }
+            if (this.renderInterruptionHandlersPanel) {
+                this.renderInterruptionHandlersPanel();
             }
             this.showNotification('Changes discarded', 'info');
         }
@@ -71,6 +172,9 @@ export const workflowMethods = {
         if (this.renderWorkflowConfigurations) {
             this.renderWorkflowConfigurations();
         }
+        if (this.renderInterruptionHandlersPanel) {
+            this.renderInterruptionHandlersPanel();
+        }
 
         // Switch to builder tab
         document.querySelector('[data-tab="builder"]').click();
@@ -88,6 +192,9 @@ export const workflowMethods = {
         }
         if (this.renderConfigurationsManager) {
             this.renderConfigurationsManager();
+        }
+        if (this.renderInterruptionHandlersPanel) {
+            this.renderInterruptionHandlersPanel();
         }
     },
 
@@ -318,12 +425,132 @@ export const workflowMethods = {
         if (this.renderWorkflowConfigurations) {
             this.renderWorkflowConfigurations();
         }
+        if (this.renderInterruptionHandlersPanel) {
+            this.renderInterruptionHandlersPanel();
+        }
 
         // Switch to builder tab
         document.querySelector('[data-tab="builder"]').click();
     },
 
     loadDataSourcesFromWorkflow() {},
+
+    escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
+    async persistCurrentWorkflowHandlers() {
+        if (!this.currentWorkflow?.id) return;
+        const workflowId = this.currentWorkflow.id;
+        const index = (this.workflows || []).findIndex(w => w.id === workflowId);
+        if (index === -1) return;
+        this.workflows[index] = {
+            ...this.workflows[index],
+            unexpectedEventHandlers: JSON.parse(JSON.stringify(this.currentWorkflow.unexpectedEventHandlers || []))
+        };
+        await this.chrome.storage.local.set({ workflows: this.workflows });
+    },
+
+    renderInterruptionHandlersPanel() {
+        const container = document.getElementById('interruptionHandlersList');
+        if (!container) return;
+
+        if (!this.currentWorkflow) {
+            container.innerHTML = '<p class="empty-state">Open a workflow to view learned handlers.</p>';
+            this.refreshInterruptionHandlersPanelHeight();
+            return;
+        }
+
+        const handlers = Array.isArray(this.currentWorkflow.unexpectedEventHandlers)
+            ? this.currentWorkflow.unexpectedEventHandlers
+            : [];
+
+        if (!handlers.length) {
+            container.innerHTML = '<p class="empty-state">No interruption handlers yet. Run learning mode to create them.</p>';
+            this.refreshInterruptionHandlersPanelHeight();
+            return;
+        }
+
+        container.innerHTML = handlers.map((handler, index) => {
+            const triggerKind = this.escapeHtml(handler?.trigger?.kind || 'event');
+            const triggerText = this.escapeHtml(handler?.trigger?.textTemplate || '');
+            const actionList = Array.isArray(handler?.actions) && handler.actions.length
+                ? handler.actions
+                : (handler?.action ? [handler.action] : []);
+            const actionSummary = actionList.map((action) => {
+                const actionType = this.escapeHtml(action?.type || 'none');
+                const actionName = this.escapeHtml(action?.buttonControlName || action?.buttonText || '');
+                return `${actionType}${actionName ? ` (${actionName})` : ''}`;
+            }).join(' -> ');
+            const mode = handler?.mode === 'alwaysAsk' ? 'alwaysAsk' : 'auto';
+            const enabled = handler?.enabled !== false;
+            const outcome = this.escapeHtml(handler?.outcome || 'next-step');
+            const matchMode = this.escapeHtml(handler?.trigger?.matchMode || 'contains');
+            return `
+                <div class="interruption-handler-item" data-handler-index="${index}">
+                    <div class="interruption-handler-main">
+                        <div class="interruption-handler-trigger">${triggerKind}</div>
+                        <div class="interruption-handler-actions">
+                            <label><input type="checkbox" data-action="toggle-enabled" ${enabled ? 'checked' : ''}> enabled</label>
+                            <select data-action="set-mode" class="form-control form-control-sm">
+                                <option value="auto" ${mode === 'auto' ? 'selected' : ''}>Auto</option>
+                                <option value="alwaysAsk" ${mode === 'alwaysAsk' ? 'selected' : ''}>Always ask</option>
+                            </select>
+                            <button class="btn btn-danger interruption-handler-delete" data-action="delete">Delete</button>
+                        </div>
+                    </div>
+                    <div class="interruption-handler-sub">Trigger: ${triggerText || '(no text template)'}</div>
+                    <div class="interruption-handler-sub">Match: ${matchMode}</div>
+                    <div class="interruption-handler-sub">Action: ${actionSummary || 'none'}</div>
+                    <div class="interruption-handler-sub">Outcome: ${outcome}</div>
+                </div>
+            `;
+        }).join('');
+
+        container.querySelectorAll('[data-action="toggle-enabled"]').forEach((inputEl) => {
+            inputEl.addEventListener('change', async (event) => {
+                const row = event.target.closest('[data-handler-index]');
+                const index = Number(row?.getAttribute('data-handler-index'));
+                if (!Number.isFinite(index)) return;
+                const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
+                handlersList[index] = { ...(handlersList[index] || {}), enabled: !!event.target.checked };
+                this.currentWorkflow.unexpectedEventHandlers = handlersList;
+                await this.persistCurrentWorkflowHandlers();
+            });
+        });
+
+        container.querySelectorAll('[data-action="set-mode"]').forEach((selectEl) => {
+            selectEl.addEventListener('change', async (event) => {
+                const row = event.target.closest('[data-handler-index]');
+                const index = Number(row?.getAttribute('data-handler-index'));
+                if (!Number.isFinite(index)) return;
+                const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
+                handlersList[index] = { ...(handlersList[index] || {}), mode: event.target.value || 'auto' };
+                this.currentWorkflow.unexpectedEventHandlers = handlersList;
+                await this.persistCurrentWorkflowHandlers();
+            });
+        });
+
+        container.querySelectorAll('[data-action="delete"]').forEach((buttonEl) => {
+            buttonEl.addEventListener('click', async (event) => {
+                const row = event.target.closest('[data-handler-index]');
+                const index = Number(row?.getAttribute('data-handler-index'));
+                if (!Number.isFinite(index)) return;
+                const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
+                handlersList.splice(index, 1);
+                this.currentWorkflow.unexpectedEventHandlers = handlersList;
+                await this.persistCurrentWorkflowHandlers();
+                this.renderInterruptionHandlersPanel();
+            });
+        });
+
+        this.refreshInterruptionHandlersPanelHeight();
+    },
 
     updateDataSourceUIFromState() {},
 

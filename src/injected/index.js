@@ -6,7 +6,7 @@ import { NavigationInterruptError } from './runtime/errors.js';
 import { getStepErrorConfig, findLoopPairs, findIfPairs } from './runtime/engine-utils.js';
 import { evaluateCondition } from './runtime/conditions.js';
 import { clickElement, applyGridFilter, waitUntilCondition, setInputValue, setGridCellValue, setLookupSelectValue, setCheckboxValue, navigateToForm, activateTab, activateActionPaneTab, expandOrCollapseSection, configureQueryFilter, configureBatchProcessing, closeDialog, configureRecurrence } from './steps/actions.js';
-import { findElementInActiveContext, isElementVisible } from './utils/dom.js';
+import { findElementInActiveContext, isElementVisible, isD365Loading } from './utils/dom.js';
 
 
 export function startInjected({ windowObj = globalThis.window, documentObj = globalThis.document, inspectorFactory = () => new D365Inspector() } = {}) {
@@ -43,10 +43,14 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
         currentRowIndex: 0,
         totalRows: 0,
         currentDataRow: null,
+        pendingFlowSignal: 'none',
+        pendingInterruptionDecision: null,
         runOptions: {
             skipRows: 0,
             limitRows: 0,
-            dryRun: false
+            dryRun: false,
+            learningMode: false,
+            runUntilInterception: false
         }
     };
 
@@ -101,6 +105,10 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
         }
         if (event.data.type === 'D365_STOP_WORKFLOW') {
             executionControl.isStopped = true;
+            executionControl.isPaused = false;
+        }
+        if (event.data.type === 'D365_APPLY_INTERRUPTION_DECISION') {
+            executionControl.pendingInterruptionDecision = event.data.payload || null;
             executionControl.isPaused = false;
         }
     });
@@ -330,19 +338,787 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
         document.addEventListener('click', navButtonsOutsideClickHandler, true);
     }
 
+    const unhandledUnexpectedEventKeys = new Set();
+    // Track message bar messages already acknowledged during this execution run
+    // so the same non-blocking warning doesn't trigger repeated pauses.
+    const acknowledgedMessageBarKeys = new Set();
+
     // Helper to check and wait for pause/stop
     async function checkExecutionControl() {
-    if (executionControl.isStopped) {
-        throw new Error('Workflow stopped by user');
-    }
-    
-    while (executionControl.isPaused) {
-        await sleep(200);
         if (executionControl.isStopped) {
-            throw new Error('Workflow stopped by user');
+            throw createUserStopError();
+        }
+
+        while (executionControl.isPaused) {
+            await sleep(200);
+            if (executionControl.isStopped) {
+                throw createUserStopError();
+            }
         }
     }
-}
+
+    function getTemplateText(text) {
+        return normalizeText(text || '').replace(/\b[\d,.]+\b/g, '#').trim();
+    }
+
+    function createUserStopError(message = 'Workflow stopped by user') {
+        const err = new Error(message);
+        err.isUserStop = true;
+        err.noRetry = true;
+        return err;
+    }
+
+    function isMessageBarCloseVisible() {
+        const closeBtn = document.querySelector('[data-dyn-controlname="MessageBarClose"]');
+        return closeBtn && isElementVisible(closeBtn);
+    }
+
+    function shortenForLog(text, max = 220) {
+        const normalized = normalizeText(text || '');
+        if (normalized.length <= max) return normalized;
+        return `${normalized.slice(0, max)}...`;
+    }
+
+    function consumePendingFlowSignal() {
+        const signal = executionControl.pendingFlowSignal || 'none';
+        executionControl.pendingFlowSignal = 'none';
+        return signal;
+    }
+
+    function startInterruptionActionRecorder() {
+        const captured = [];
+        const clickHandler = (evt) => {
+            const target = evt.target instanceof Element ? evt.target : null;
+            if (!target) return;
+            const button = target.closest('button, [role="button"], [data-dyn-role="CommandButton"]');
+            if (!button || !isElementVisible(button)) return;
+            const controlName = button.getAttribute('data-dyn-controlname') || '';
+            const text = normalizeText(button.textContent || button.getAttribute('aria-label') || '');
+            if (!controlName && !text) return;
+            captured.push({
+                type: 'clickButton',
+                controlName,
+                text
+            });
+        };
+        document.addEventListener('click', clickHandler, true);
+        return {
+            stop() {
+                document.removeEventListener('click', clickHandler, true);
+                return captured.slice();
+            }
+        };
+    }
+
+    function collectDialogButtons(dialogEl) {
+        const selectors = 'button, [role="button"], [data-dyn-role="CommandButton"]';
+        const buttons = [];
+        const seen = new Set();
+        dialogEl.querySelectorAll(selectors).forEach((buttonEl) => {
+            if (!isElementVisible(buttonEl)) return;
+            const controlName = buttonEl.getAttribute('data-dyn-controlname') || '';
+            const text = normalizeText(buttonEl.textContent || buttonEl.getAttribute('aria-label') || '');
+            const key = `${controlName.toLowerCase()}|${text}`;
+            if (!controlName && !text) return;
+            if (seen.has(key)) return;
+            seen.add(key);
+            buttons.push({ controlName, text, element: buttonEl });
+        });
+        return buttons;
+    }
+
+    function isLikelyModalDialog(dialogEl, text, buttons) {
+        const textLength = normalizeText(text || '').length;
+        if (!buttons.length) return false;
+        if (textLength > 450) return false;
+
+        const formInputs = dialogEl.querySelectorAll('input, select, textarea');
+        if (formInputs.length > 8) return false;
+
+        const hasStaticText = !!dialogEl.querySelector('[data-dyn-controlname="FormStaticTextControl1"]');
+        const hasLightboxClass = dialogEl.classList?.contains('rootContent-lightBox');
+        const hasButtonGroup = !!dialogEl.querySelector('[data-dyn-controlname="ButtonGroup"]');
+
+        return hasStaticText || hasLightboxClass || hasButtonGroup;
+    }
+
+    function detectUnexpectedEvents() {
+        const events = [];
+        const seenEventKeys = new Set();
+
+        // --- Dialogs ---
+        const dialogSelectors = '[role="dialog"], [data-dyn-role="Dialog"], .dialog-container';
+        document.querySelectorAll(dialogSelectors).forEach((dialogEl) => {
+            if (!isElementVisible(dialogEl)) return;
+            // Prefer the dedicated static-text control, then heading tags.
+            // Avoid the overly-broad [class*="content"] which can match wrapper
+            // elements whose textContent includes button labels.
+            const textEl =
+                dialogEl.querySelector('[data-dyn-controlname="FormStaticTextControl1"]') ||
+                dialogEl.querySelector('h1, h2, h3') ||
+                dialogEl.querySelector('[class*="message"]');
+            const text = normalizeText(textEl?.textContent || dialogEl.textContent || '');
+            const buttons = collectDialogButtons(dialogEl);
+            if (!isLikelyModalDialog(dialogEl, text, buttons)) return;
+            const templateText = getTemplateText(text);
+            const key = `dialog|${templateText}`;
+            if (!templateText || seenEventKeys.has(key)) return;
+            seenEventKeys.add(key);
+            events.push({
+                kind: 'dialog',
+                text,
+                templateText,
+                buttons,
+                element: dialogEl
+            });
+        });
+
+        // --- Message bar entries ---
+        document.querySelectorAll('.messageBar-messageEntry').forEach((entryEl) => {
+            if (!isElementVisible(entryEl)) return;
+            const messageEl = entryEl.querySelector('.messageBar-message') || entryEl;
+            const text = normalizeText(messageEl.textContent || '');
+            const templateText = getTemplateText(text);
+            const key = `messageBar|${templateText}`;
+            if (!templateText || seenEventKeys.has(key)) return;
+            seenEventKeys.add(key);
+
+            // Skip message-bar entries that were already acknowledged in this run
+            // so the same non-blocking warning doesn't cause repeated pauses.
+            if (acknowledgedMessageBarKeys.has(key)) return;
+
+            // Collect close / toggle controls plus contextual visible buttons
+            // (e.g. OK/Cancel on the active form) so the user can choose them.
+            const controls = [];
+            const controlKeys = new Set();
+            const pushControl = (control) => {
+                const key = `${normalizeText(control?.controlName || '')}|${normalizeText(control?.text || '')}`;
+                if (!key || controlKeys.has(key)) return;
+                controlKeys.add(key);
+                controls.push(control);
+            };
+
+            const closeButton =
+                entryEl.querySelector('[data-dyn-controlname="MessageBarClose"]') ||
+                Array.from(document.querySelectorAll('[data-dyn-controlname="MessageBarClose"]')).find(isElementVisible) ||
+                null;
+            const toggleButton =
+                entryEl.querySelector('[data-dyn-controlname="MessageBarToggle"]') ||
+                Array.from(document.querySelectorAll('[data-dyn-controlname="MessageBarToggle"]')).find(isElementVisible) ||
+                null;
+            if (closeButton && isElementVisible(closeButton)) {
+                pushControl({ controlName: 'MessageBarClose', text: normalizeText(closeButton.textContent || ''), element: closeButton, visible: true });
+            }
+            if (toggleButton && isElementVisible(toggleButton)) {
+                pushControl({ controlName: 'MessageBarToggle', text: normalizeText(toggleButton.textContent || ''), element: toggleButton, visible: true });
+            }
+
+            const contextRoot =
+                entryEl.closest('[data-dyn-form-name], [role="dialog"], .rootContent, .rootContent-lightBox') ||
+                document;
+            const buttonSelectors = '[data-dyn-role="CommandButton"], button, [role="button"]';
+            contextRoot.querySelectorAll(buttonSelectors).forEach((btn) => {
+                const controlName = btn.getAttribute('data-dyn-controlname') || '';
+                const textValue = normalizeText(btn.textContent || btn.getAttribute('aria-label') || '');
+                const token = normalizeText(controlName || textValue);
+                const isPrimaryAction =
+                    ['ok', 'cancel', 'yes', 'no', 'close', 'remove', 'delete', 'save', 'new'].includes(token) ||
+                    token.includes('remove') ||
+                    token.includes('delete') ||
+                    token.includes('cancel') ||
+                    token.includes('close') ||
+                    token.includes('linestrip') ||
+                    textValue === 'remove' ||
+                    textValue === 'delete';
+                if (!isElementVisible(btn) || (!controlName && !textValue) || !isPrimaryAction) return;
+                pushControl({ controlName, text: textValue, element: btn, visible: true });
+            });
+
+            // Fallback: scan globally for visible remediation actions that may be
+            // outside the message-bar/form wrapper (e.g. LineStripDelete in toolbar).
+            document.querySelectorAll(buttonSelectors).forEach((btn) => {
+                const controlName = btn.getAttribute('data-dyn-controlname') || '';
+                const textValue = normalizeText(btn.textContent || btn.getAttribute('aria-label') || '');
+                const token = normalizeText(controlName || textValue);
+                const isLikelyFixAction =
+                    token.includes('remove') ||
+                    token.includes('delete') ||
+                    token.includes('cancel') ||
+                    token.includes('close') ||
+                    token.includes('linestripdelete') ||
+                    textValue === 'remove' ||
+                    textValue === 'delete';
+                if (!isElementVisible(btn) || !isLikelyFixAction) return;
+                pushControl({ controlName, text: textValue, element: btn, visible: true });
+            });
+
+            events.push({
+                kind: 'messageBar',
+                text,
+                templateText,
+                controls,
+                element: entryEl
+            });
+        });
+
+        return events;
+    }
+
+    function matchHandlerToEvent(handler, event) {
+        const trigger = handler?.trigger || {};
+        if (trigger.kind !== event.kind) return false;
+        const triggerTemplate = generalizeInterruptionText(trigger.textTemplate || '');
+        const eventTemplate = generalizeInterruptionText(event.templateText || event.text || '');
+        const triggerMatchMode = normalizeText(trigger.matchMode || '');
+        const matchMode = triggerMatchMode === 'exact' ? 'exact' : 'contains';
+
+        if (triggerTemplate) {
+            if (matchMode === 'exact') {
+                if (triggerTemplate !== eventTemplate) return false;
+            } else if (!(eventTemplate.includes(triggerTemplate) || triggerTemplate.includes(eventTemplate))) {
+                return false;
+            }
+        }
+
+        if (triggerMatchMode === 'regex') {
+            try {
+                const pattern = trigger.regex || trigger.textTemplate || '';
+                if (!pattern || !(new RegExp(pattern, 'i')).test(event.templateText || event.text || '')) {
+                    return false;
+                }
+            } catch (error) {
+                return false;
+            }
+        }
+
+        const requiredControls = Array.isArray(trigger.requiredControls) ? trigger.requiredControls : [];
+        if (requiredControls.length && event.kind === 'messageBar') {
+            const available = new Set((event.controls || []).map(ctrl => normalizeText(ctrl.controlName || ctrl.text || '')));
+            if (!requiredControls.every(name => available.has(normalizeText(name)))) {
+                return false;
+            }
+        }
+
+        const requiredButtons = Array.isArray(trigger.requiredButtons) ? trigger.requiredButtons : [];
+        if (requiredButtons.length && event.kind === 'dialog') {
+            const available = new Set((event.buttons || []).map(btn => normalizeText(btn.controlName || btn.text || '')));
+            return requiredButtons.every(name => available.has(normalizeText(name)));
+        }
+        return true;
+    }
+
+    function generalizeInterruptionText(rawText) {
+        let value = normalizeText(rawText || '');
+        if (!value) return '';
+
+        value = value
+            .replace(/\bcustomer\s+\d+\b/gi, 'customer {number}')
+            .replace(/\bitem number\s+[a-z0-9_-]+\b/gi, 'item number {value}')
+            .replace(/\b\d[\d,./-]*\b/g, '{number}');
+
+        // Normalize duplicate-record style messages so varying key values
+        // (e.g. "1, 1" vs "FR-EU-NR, FR-EU-NR") map to one handler.
+        value = value.replace(
+            /(\b[a-z][a-z0-9 _()/-]*\s*:\s*)([^.]+?)(\.\s*the record already exists\.?)/i,
+            '$1{value}$3'
+        );
+
+        return normalizeText(value);
+    }
+
+    function findMatchingHandler(event) {
+        const handlers = Array.isArray(currentWorkflow?.unexpectedEventHandlers)
+            ? currentWorkflow.unexpectedEventHandlers
+            : [];
+        const sorted = handlers
+            .filter(Boolean)
+            .slice()
+            .sort((a, b) => Number(b?.priority || 0) - Number(a?.priority || 0));
+
+        for (const handler of sorted) {
+            if (handler?.enabled === false) continue;
+            if (matchHandlerToEvent(handler, event)) {
+                return handler;
+            }
+        }
+        return null;
+    }
+
+    function findDialogButton(event, targetName) {
+        const expected = normalizeText(targetName || '');
+        if (!expected) return null;
+        const buttons = Array.isArray(event?.buttons) ? event.buttons : [];
+        return buttons.find(btn => {
+            const byControl = normalizeText(btn.controlName || '');
+            const byText = normalizeText(btn.text || '');
+            return byControl === expected || byText === expected;
+        }) || null;
+    }
+
+    function findMessageBarControl(event, targetName) {
+        const expected = normalizeText(targetName || '');
+        if (!expected) return null;
+        const controls = Array.isArray(event?.controls) ? event.controls : [];
+        return controls.find(ctrl => {
+            const byControl = normalizeText(ctrl.controlName || '');
+            const byText = normalizeText(ctrl.text || '');
+            return byControl === expected || byText === expected;
+        }) || null;
+    }
+
+    function collectGlobalRemediationControls() {
+        const controls = [];
+        const seen = new Set();
+        const buttonSelectors = '[data-dyn-role="CommandButton"], button, [role="button"]';
+        document.querySelectorAll(buttonSelectors).forEach((btn) => {
+            if (!isElementVisible(btn)) return;
+            const controlName = btn.getAttribute('data-dyn-controlname') || '';
+            const text = normalizeText(btn.textContent || btn.getAttribute('aria-label') || '');
+            const token = normalizeText(controlName || text);
+            const isRemediationAction =
+                token.includes('remove') ||
+                token.includes('delete') ||
+                token.includes('cancel') ||
+                token.includes('close') ||
+                token === 'ok' ||
+                token === 'yes' ||
+                token === 'no';
+            if (!isRemediationAction) return;
+            const key = `${normalizeText(controlName)}|${text}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            controls.push({ controlName, text, element: btn, visible: true });
+        });
+        return controls;
+    }
+
+    function findGlobalClickable(targetName) {
+        const expected = normalizeText(targetName || '');
+        if (!expected) return null;
+        const controls = collectGlobalRemediationControls();
+        return controls.find((ctrl) => {
+            const byControl = normalizeText(ctrl.controlName || '');
+            const byText = normalizeText(ctrl.text || '');
+            return byControl === expected || byText === expected;
+        }) || null;
+    }
+
+    function normalizeHandlerActions(handler) {
+        if (Array.isArray(handler?.actions) && handler.actions.length) {
+            return handler.actions.filter(Boolean);
+        }
+        if (handler?.action) {
+            return [handler.action];
+        }
+        return [];
+    }
+
+    function recordLearnedRule(rule) {
+        if (!currentWorkflow || !rule) return;
+        currentWorkflow.unexpectedEventHandlers = Array.isArray(currentWorkflow.unexpectedEventHandlers)
+            ? currentWorkflow.unexpectedEventHandlers
+            : [];
+
+        const key = JSON.stringify({
+            trigger: rule.trigger,
+            actions: Array.isArray(rule?.actions) ? rule.actions : [rule?.action].filter(Boolean),
+            outcome: rule?.outcome || 'next-step'
+        });
+        const exists = currentWorkflow.unexpectedEventHandlers.some(existing =>
+            JSON.stringify({
+                trigger: existing?.trigger,
+                actions: Array.isArray(existing?.actions) ? existing.actions : [existing?.action].filter(Boolean),
+                outcome: existing?.outcome || 'next-step'
+            }) === key
+        );
+        if (exists) return;
+
+        currentWorkflow.unexpectedEventHandlers.push(rule);
+        window.postMessage({
+            type: 'D365_WORKFLOW_LEARNING_RULE',
+            payload: {
+                workflowId: currentWorkflow?.id || '',
+                rule
+            }
+        }, '*');
+    }
+
+    function createRuleFromEvent(event, actions, outcome = 'next-step', matchMode = 'contains') {
+        const requiredButtons = event.kind === 'dialog'
+            ? (event.buttons || []).map(btn => btn.controlName || btn.text).filter(Boolean)
+            : [];
+        const requiredControls = event.kind === 'messageBar'
+            ? (event.controls || []).map(ctrl => ctrl.controlName || ctrl.text).filter(Boolean)
+            : [];
+        const actionList = Array.isArray(actions) ? actions.filter(Boolean) : [];
+        return {
+            id: `rule_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+            createdAt: Date.now(),
+            priority: 100,
+            mode: 'auto',
+            trigger: {
+                kind: event.kind,
+                textTemplate: generalizeInterruptionText(event.templateText || event.text || ''),
+                matchMode: normalizeText(matchMode || '') === 'exact' ? 'exact' : 'contains',
+                requiredButtons,
+                requiredControls
+            },
+            actions: actionList,
+            action: actionList[0] || null,
+            outcome: normalizeFlowOutcome(outcome)
+        };
+    }
+
+    function normalizeFlowOutcome(rawOutcome) {
+        const value = normalizeText(rawOutcome || '');
+        if (value === 'continue-loop' || value === 'continue') return 'continue-loop';
+        if (value === 'repeat-loop' || value === 'repeat' || value === 'retry-loop') return 'repeat-loop';
+        if (value === 'break-loop' || value === 'break') return 'break-loop';
+        if (value === 'stop' || value === 'fail') return 'stop';
+        return 'next-step';
+    }
+
+    function isBenignMessageBarEvent(event) {
+        if (!event || event.kind !== 'messageBar') return false;
+        const text = normalizeText(event.text || '');
+        return text.includes('newrecordaction button should not re-trigger the new task');
+    }
+
+    async function waitForFlowTransitionStability() {
+        const maxChecks = 16;
+        for (let i = 0; i < maxChecks; i++) {
+            const loading = isD365Loading();
+            const visibleDialog = document.querySelector('[role="dialog"]:not([style*="display: none"]), [data-dyn-role="Dialog"]:not([style*="display: none"])');
+            if (!loading && !visibleDialog) {
+                break;
+            }
+            await sleep(120);
+        }
+    }
+
+    function buildRuleActionFromOption(event, option) {
+        const normalizedControl = normalizeText(option?.controlName || '');
+        if (event.kind === 'messageBar' && normalizedControl === 'messagebarclose') {
+            return {
+                type: 'closeMessageBar',
+                buttonControlName: option.controlName || '',
+                buttonText: option.text || ''
+            };
+        }
+        return {
+            type: 'clickButton',
+            buttonControlName: option?.controlName || '',
+            buttonText: option?.text || ''
+        };
+    }
+
+    async function applySingleAction(event, action) {
+        if (action?.type === 'clickButton' && event.kind === 'dialog') {
+            const button = findDialogButton(event, action.buttonControlName || action.buttonText);
+            if (button?.element) {
+                button.element.click();
+                await sleep(350);
+                return true;
+            }
+        }
+
+        if (action?.type === 'clickButton' && event.kind === 'messageBar') {
+            const control = findMessageBarControl(event, action.buttonControlName || action.buttonText);
+            if (control?.element) {
+                control.element.click();
+                await sleep(350);
+                return true;
+            }
+        }
+
+        if (action?.type === 'clickButton') {
+            const globalControl = findGlobalClickable(action.buttonControlName || action.buttonText);
+            if (!globalControl?.element) return false;
+            globalControl.element.click();
+            await sleep(350);
+            return true;
+        }
+
+        if (action?.type === 'closeMessageBar' && event.kind === 'messageBar') {
+            const fromOption = findMessageBarControl(event, action.buttonControlName || action.buttonText);
+            const fromControls = (event.controls || []).find(ctrl => normalizeText(ctrl.controlName || '') === 'messagebarclose');
+            const fromEntry =
+                event.element?.querySelector?.('[data-dyn-controlname="MessageBarClose"]') || null;
+            const fromPage = Array.from(document.querySelectorAll('[data-dyn-controlname="MessageBarClose"]')).find(isElementVisible) || null;
+            const closeElement = fromOption?.element || fromControls?.element || fromEntry || fromPage;
+            if (!closeElement || !isElementVisible(closeElement)) return false;
+            closeElement.click();
+            await sleep(250);
+            return true;
+        }
+
+        if (action?.type === 'stop') {
+            throw createUserStopError();
+        }
+
+        return action?.type === 'none';
+    }
+
+    async function applyHandler(event, handler) {
+        const actions = normalizeHandlerActions(handler);
+        if (!actions.length) return true;
+        let handled = false;
+        for (const action of actions) {
+            const currentEvents = detectUnexpectedEvents();
+            const activeEvent = currentEvents[0] || event;
+            const applied = await applySingleAction(activeEvent, action);
+            handled = handled || applied;
+        }
+        return handled;
+    }
+
+    // askUserAndHandleEvent removed — learning mode uses the recorder-based
+    // approach in handleUnexpectedEvents which captures user clicks on the
+    // actual D365 page and automatically creates rules from them.
+
+    function inferFlowOutcomeFromAction(action, event) {
+        const token = normalizeText(action?.controlName || action?.text || '');
+        if (!token) return 'next-step';
+        if (token.includes('stop')) return 'stop';
+        if (token.includes('cancel') || token.includes('close') || token === 'no') {
+            if (event?.kind === 'messageBar') {
+                return 'continue-loop';
+            }
+            return 'next-step';
+        }
+        return 'next-step';
+    }
+
+    function buildInterruptionOptions(event) {
+        const dedupe = new Set();
+        const all = [];
+        const pushUnique = (item) => {
+            const option = {
+                controlName: item?.controlName || '',
+                text: item?.text || ''
+            };
+            const key = `${normalizeText(option.controlName)}|${normalizeText(option.text)}`;
+            if (dedupe.has(key)) return;
+            dedupe.add(key);
+            all.push(option);
+        };
+
+        if (event.kind === 'dialog') {
+            (event.buttons || []).forEach(pushUnique);
+            collectGlobalRemediationControls().forEach(pushUnique);
+        } else {
+            (event.controls || []).forEach(pushUnique);
+            collectGlobalRemediationControls().forEach(pushUnique);
+        }
+
+        const score = (opt) => {
+            const token = normalizeText(opt.controlName || opt.text || '');
+            if (token === 'remove' || token.includes('remove') || token === 'delete' || token.includes('delete')) return -1;
+            if (token === 'cancel' || token.includes('cancel')) return 0;
+            if (token === 'close' || token.includes('close')) return 1;
+            if (token === 'no') return 2;
+            if (token.startsWith('messagebar')) return 10;
+            return 5;
+        };
+        return all.sort((a, b) => score(a) - score(b));
+    }
+
+    function findEventOptionElement(event, option) {
+        const expectedControl = normalizeText(option?.controlName || '');
+        const expectedText = normalizeText(option?.text || '');
+        const dialogButton = (event.buttons || []).find(btn => {
+            const byControl = normalizeText(btn.controlName || '');
+            const byText = normalizeText(btn.text || '');
+            return (expectedControl && byControl === expectedControl) || (expectedText && byText === expectedText);
+        })?.element || null;
+        if (dialogButton) return dialogButton;
+
+        const messageControl = (event.controls || []).find(ctrl => {
+            const byControl = normalizeText(ctrl.controlName || '');
+            const byText = normalizeText(ctrl.text || '');
+            return (expectedControl && byControl === expectedControl) || (expectedText && byText === expectedText);
+        })?.element || null;
+        if (messageControl) return messageControl;
+
+        return findGlobalClickable(option?.controlName || option?.text || '')?.element || null;
+    }
+
+    async function requestInterruptionDecision(event) {
+        const requestId = `intr_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+        executionControl.pendingInterruptionDecision = null;
+        executionControl.isPaused = true;
+        window.postMessage({
+            type: 'D365_WORKFLOW_PROGRESS',
+            progress: {
+                phase: 'pausedForInterruption',
+                kind: event.kind,
+                message: shortenForLog(event.text, 180),
+                stepIndex: executionControl.currentStepIndex
+            }
+        }, '*');
+        window.postMessage({
+            type: 'D365_WORKFLOW_INTERRUPTION',
+            payload: {
+                requestId,
+                workflowId: currentWorkflow?.id || '',
+                stepIndex: executionControl.currentStepIndex,
+                kind: event.kind,
+                text: shortenForLog(event.text, 600),
+                options: buildInterruptionOptions(event)
+            }
+        }, '*');
+
+        while (!executionControl.isStopped) {
+            const decision = executionControl.pendingInterruptionDecision;
+            if (decision && decision.requestId === requestId) {
+                executionControl.pendingInterruptionDecision = null;
+                executionControl.isPaused = false;
+                return decision;
+            }
+            await sleep(150);
+        }
+        throw createUserStopError();
+    }
+
+    async function applyInterruptionDecision(event, decision) {
+        const actionType = decision?.actionType || 'none';
+        if (actionType === 'stop') {
+            throw createUserStopError();
+        }
+
+        let clickedOption = null;
+        let clickedFollowupOption = null;
+        if (actionType === 'clickOption') {
+            const option = decision?.selectedOption || {};
+            const element = findEventOptionElement(event, option);
+            if (element && typeof element.click === 'function') {
+                element.click();
+                clickedOption = option;
+                await sleep(350);
+                const followup = decision?.selectedFollowupOption || null;
+                if (followup && normalizeText(followup.controlName || followup.text || '') !== normalizeText(option.controlName || option.text || '')) {
+                    const refreshEvents = detectUnexpectedEvents();
+                    const followupEvent = refreshEvents[0] || event;
+                    const followupElement = findEventOptionElement(followupEvent, followup);
+                    if (followupElement && typeof followupElement.click === 'function') {
+                        followupElement.click();
+                        clickedFollowupOption = followup;
+                        await sleep(350);
+                    } else {
+                        sendLog('warning', `Selected follow-up option not found: ${followup.controlName || followup.text || 'unknown'}`);
+                    }
+                }
+            } else {
+                sendLog('warning', `Selected interruption option not found: ${option.controlName || option.text || 'unknown'}`);
+            }
+        }
+
+        if (decision?.saveRule && clickedOption) {
+            const actions = [buildRuleActionFromOption(event, clickedOption)];
+            if (clickedFollowupOption) {
+                actions.push(buildRuleActionFromOption(event, clickedFollowupOption));
+            }
+            recordLearnedRule(createRuleFromEvent(event, actions, decision?.outcome || 'next-step', decision?.matchMode || 'contains'));
+            sendLog('success', `Learned ${event.kind} handler: ${clickedOption.controlName || clickedOption.text || 'action'}${clickedFollowupOption ? ' -> follow-up' : ''}`);
+        }
+
+        const outcome = normalizeFlowOutcome(decision?.outcome || 'next-step');
+        if (outcome === 'stop') {
+            throw createUserStopError();
+        }
+        if (outcome === 'continue-loop' || outcome === 'break-loop' || outcome === 'repeat-loop') {
+            await waitForFlowTransitionStability();
+            return { signal: outcome };
+        }
+        return { signal: 'none' };
+    }
+
+    async function handleUnexpectedEvents(learningMode) {
+        const maxDepth = 6;
+        for (let depth = 0; depth < maxDepth; depth++) {
+            const events = detectUnexpectedEvents();
+            if (!events.length) return { signal: 'none' };
+
+            const event = events[0];
+
+            if (isBenignMessageBarEvent(event)) {
+                const key = `messageBar|${event.templateText}`;
+                if (!acknowledgedMessageBarKeys.has(key)) {
+                    sendLog('info', `Ignoring benign message bar: ${shortenForLog(event.text, 120)}`);
+                }
+                acknowledgedMessageBarKeys.add(key);
+                continue;
+            }
+
+            // --- Try saved handlers first (works in BOTH modes) ---
+            const handler = findMatchingHandler(event);
+            if (handler && handler.mode !== 'alwaysAsk') {
+                const handled = await applyHandler(event, handler);
+                if (handled) {
+                    sendLog('info', `Applied learned handler for ${event.kind}: ${shortenForLog(event.text)}`);
+                    const handlerOutcome = normalizeFlowOutcome(handler?.outcome || 'next-step');
+                    if (handlerOutcome === 'stop') {
+                        throw createUserStopError();
+                    }
+                    if (handlerOutcome === 'continue-loop' || handlerOutcome === 'break-loop' || handlerOutcome === 'repeat-loop') {
+                        await waitForFlowTransitionStability();
+                        return { signal: handlerOutcome };
+                    }
+                    // Mark message bar as acknowledged so it doesn't re-trigger if
+                    // the bar persists after the handler ran (e.g. close button hidden).
+                    if (event.kind === 'messageBar') {
+                        acknowledgedMessageBarKeys.add(`messageBar|${event.templateText}`);
+                    }
+                    continue;
+                }
+            }
+
+            // --- Non-blocking message bar handling ---
+            // Message bars don't block the UI. In learning mode we pause ONCE to
+            // let the user decide, then acknowledge the key so it doesn't repeat.
+            if (event.kind === 'messageBar') {
+                if (learningMode) {
+                    sendLog('warning', `Learning mode: message bar detected, decision required: ${shortenForLog(event.text)}`);
+                    const decision = await requestInterruptionDecision(event);
+                    const result = await applyInterruptionDecision(event, decision);
+                    if (result?.signal && result.signal !== 'none') {
+                        acknowledgedMessageBarKeys.add(`messageBar|${event.templateText}`);
+                        return result;
+                    }
+                } else {
+                    // Non-learning mode: just log once
+                    const key = `messageBar|${event.templateText}`;
+                    if (!unhandledUnexpectedEventKeys.has(key)) {
+                        unhandledUnexpectedEventKeys.add(key);
+                        sendLog('warning', `Message bar detected with no handler: ${shortenForLog(event.text)}`);
+                    }
+                }
+                // Mark as acknowledged so it doesn't re-trigger on subsequent steps
+                acknowledgedMessageBarKeys.add(`messageBar|${event.templateText}`);
+                continue;
+            }
+
+            // --- Blocking dialog handling ---
+            if (learningMode) {
+                sendLog('warning', `Learning mode: dialog requires decision: ${shortenForLog(event.text)}`);
+                const decision = await requestInterruptionDecision(event);
+                const result = await applyInterruptionDecision(event, decision);
+                if (result?.signal && result.signal !== 'none') {
+                    return result;
+                }
+                continue;
+            }
+
+            // Non-learning mode with no handler: log once and return
+            const key = `${event.kind}|${event.templateText}`;
+            if (!unhandledUnexpectedEventKeys.has(key)) {
+                unhandledUnexpectedEventKeys.add(key);
+                sendLog('warning', `Unexpected ${event.kind} detected with no handler: ${shortenForLog(event.text)}`);
+            }
+            return { signal: 'none' };
+        }
+        return { signal: 'none' };
+    }
 
 async function executeWorkflow(workflow, data) {
     try {
@@ -361,9 +1137,12 @@ async function executeWorkflow(workflow, data) {
         // Reset execution control
         executionControl.isPaused = false;
         executionControl.isStopped = false;
-        executionControl.runOptions = workflow.runOptions || { skipRows: 0, limitRows: 0, dryRun: false };
+        executionControl.pendingInterruptionDecision = null;
+        executionControl.runOptions = workflow.runOptions || { skipRows: 0, limitRows: 0, dryRun: false, learningMode: false, runUntilInterception: false };
         executionControl.stepIndexOffset = workflow?._originalStartIndex || 0;
         executionControl.currentStepIndex = executionControl.stepIndexOffset;
+        unhandledUnexpectedEventKeys.clear();
+        acknowledgedMessageBarKeys.clear();
         currentWorkflow = workflow;
         
         // Always refresh original-workflow pointer to avoid stale resume state
@@ -460,7 +1239,7 @@ async function resolveStepValue(step, currentRow) {
 }
 
 // Execute a single step (maps step.type to action functions)
-async function executeSingleStep(step, stepIndex, currentRow, detailSources, settings, dryRun) {
+async function executeSingleStep(step, stepIndex, currentRow, detailSources, settings, dryRun, learningMode) {
     executionControl.currentStepIndex = typeof step._absoluteIndex === 'number'
         ? step._absoluteIndex
         : (executionControl.stepIndexOffset || 0) + stepIndex;
@@ -471,10 +1250,42 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
         type: 'D365_WORKFLOW_PROGRESS',
         progress: { phase: 'stepStart', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
     }, '*');
+    let waitTarget = '';
+    let shouldWaitBefore = false;
+    let shouldWaitAfter = false;
     try {
         // Normalize step type (allow both camelCase and dash-separated types)
         const stepType = (step.type || '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
         logStep(`Step ${absoluteStepIndex + 1}: ${stepType} -> ${stepLabel}`);
+
+        // In learning mode:
+        // 1. Check for unexpected events (dialogs/messages) from the previous step.
+        //    If one is found the user is paused to handle it, so we skip the
+        //    separate confirmation pause to avoid a double-pause.
+        // 2. If no interruption was found, pause for step confirmation.
+        const runUntilInterception = !!executionControl.runOptions?.runUntilInterception;
+        if (learningMode) {
+            const interruption = await handleUnexpectedEvents(true);
+            if (interruption?.signal && interruption.signal !== 'none') {
+                return interruption;
+            }
+
+            // Only pause for confirmation if handleUnexpectedEvents didn't
+            // already pause (i.e. there were no events to handle).
+            if (!runUntilInterception) {
+                sendLog('info', `Learning mode: confirm step ${absoluteStepIndex + 1} (${stepLabel}). Resume to continue.`);
+                executionControl.isPaused = true;
+                window.postMessage({
+                    type: 'D365_WORKFLOW_PROGRESS',
+                    progress: {
+                        phase: 'pausedForConfirmation',
+                        stepName: stepLabel,
+                        stepIndex: absoluteStepIndex
+                    }
+                }, '*');
+                await checkExecutionControl();
+            }
+        }
 
         // Respect dry run mode
         if (dryRun) {
@@ -483,7 +1294,7 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
                 type: 'D365_WORKFLOW_PROGRESS',
                 progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
             }, '*');
-            return;
+            return { signal: 'none' };
         }
 
         let resolvedValue = null;
@@ -491,9 +1302,9 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
             resolvedValue = await resolveStepValue(step, currentRow);
         }
 
-        const waitTarget = step.waitTargetControlName || step.controlName || '';
-        const shouldWaitBefore = !!step.waitUntilVisible;
-        const shouldWaitAfter = !!step.waitUntilHidden;
+        waitTarget = step.waitTargetControlName || step.controlName || '';
+        shouldWaitBefore = !!step.waitUntilVisible;
+        shouldWaitAfter = !!step.waitUntilHidden;
 
         if ((shouldWaitBefore || shouldWaitAfter) && !waitTarget) {
             sendLog('warning', `Wait option set but no control name on step ${absoluteStepIndex + 1}`);
@@ -582,20 +1393,57 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
             await waitUntilCondition(waitTarget, 'hidden', null, 5000);
         }
 
+        const postInterruption = await handleUnexpectedEvents(learningMode);
+        if (postInterruption?.signal && postInterruption.signal !== 'none') {
+            return postInterruption;
+        }
+
         window.postMessage({
             type: 'D365_WORKFLOW_PROGRESS',
             progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
         }, '*');
+        const pendingSignal = consumePendingFlowSignal();
+        return { signal: pendingSignal };
     } catch (err) {
         // Re-throw navigation interrupts for upstream handling
         if (err && err.isNavigationInterrupt) throw err;
+
+        // Learning-mode recovery path: if a dialog/message appeared during the step,
+        // handle it first, then re-check post-action wait condition once.
+        if (learningMode && !err?.isUserStop) {
+            const pending = detectUnexpectedEvents();
+            if (pending.length) {
+                sendLog('warning', `Learning mode: interruption detected during step ${absoluteStepIndex + 1}. Asking for handling...`);
+                await handleUnexpectedEvents(true);
+                if (shouldWaitAfter && waitTarget) {
+                    try {
+                        await waitUntilCondition(waitTarget, 'hidden', null, 2500);
+                        window.postMessage({
+                            type: 'D365_WORKFLOW_PROGRESS',
+                            progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
+                        }, '*');
+                        const pendingSignal = consumePendingFlowSignal();
+                        return { signal: pendingSignal };
+                    } catch (_) {
+                        sendLog('warning', `Learning mode override: continuing even though "${waitTarget}" is still visible after interruption handling.`);
+                        window.postMessage({
+                            type: 'D365_WORKFLOW_PROGRESS',
+                            progress: { phase: 'stepDone', stepName: stepLabel, stepIndex: absoluteStepIndex, localStepIndex: stepIndex }
+                        }, '*');
+                        const pendingSignal = consumePendingFlowSignal();
+                        return { signal: pendingSignal };
+                    }
+                }
+            }
+        }
+
         sendLog('error', `Error executing step ${absoluteStepIndex + 1}: ${err?.message || String(err)}`);
         throw err;
     }
 }
 async function executeStepsWithLoops(steps, primaryData, detailSources, relationships, settings) {
     // Apply skip/limit rows from run options
-    const { skipRows = 0, limitRows = 0, dryRun = false } = executionControl.runOptions;
+    const { skipRows = 0, limitRows = 0, dryRun = false, learningMode = false } = executionControl.runOptions;
     
     const originalTotalRows = primaryData.length;
     let startRowNumber = 0; // The starting row number for display
@@ -646,7 +1494,7 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
             window.postMessage({ type: 'D365_WORKFLOW_PROGRESS', progress: rowProgress }, '*');
 
             const result = await executeRange(0, steps.length, row);
-            if (result?.signal === 'break-loop' || result?.signal === 'continue-loop') {
+            if (result?.signal === 'break-loop' || result?.signal === 'continue-loop' || result?.signal === 'repeat-loop') {
                 throw new Error('Loop control signal used outside of a loop');
             }
         }
@@ -733,10 +1581,19 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
 
         while (true) {
             try {
-                await executeSingleStep(step, stepIndex, currentDataRow, detailSources, settings, dryRun);
+                const stepResult = await executeSingleStep(step, stepIndex, currentDataRow, detailSources, settings, dryRun, learningMode);
+                if (stepResult?.signal && stepResult.signal !== 'none') {
+                    consumePendingFlowSignal();
+                    return { signal: stepResult.signal };
+                }
+                const pendingSignal = consumePendingFlowSignal();
+                if (pendingSignal !== 'none') {
+                    return { signal: pendingSignal };
+                }
                 return { signal: 'none' };
             } catch (err) {
                 if (err && err.isNavigationInterrupt) throw err;
+                if (err && (err.isUserStop || err.noRetry)) throw err;
 
                 if (retryCount > 0 && attempt < retryCount) {
                     attempt += 1;
@@ -756,6 +1613,8 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                         return { signal: 'break-loop' };
                     case 'continue-loop':
                         return { signal: 'continue-loop' };
+                    case 'repeat-loop':
+                        return { signal: 'repeat-loop' };
                     case 'fail':
                     default:
                         throw err;
@@ -835,6 +1694,10 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                 return { signal: 'continue-loop' };
             }
 
+            if (step.type === 'repeat-loop') {
+                return { signal: 'repeat-loop' };
+            }
+
             if (step.type === 'break-loop') {
                 return { signal: 'break-loop' };
             }
@@ -860,6 +1723,10 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                         const result = await executeRange(idx + 1, loopEndIdx, currentDataRow);
                         if (result?.signal === 'break-loop') break;
                         if (result?.signal === 'continue-loop') continue;
+                        if (result?.signal === 'repeat-loop') {
+                            iterIndex = Math.max(-1, iterIndex - 1);
+                            continue;
+                        }
                         if (result?.signal === 'goto') return result;
                     }
 
@@ -886,6 +1753,9 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                         if (result?.signal === 'break-loop') break;
                         if (result?.signal === 'continue-loop') {
                             iterIndex++;
+                            continue;
+                        }
+                        if (result?.signal === 'repeat-loop') {
                             continue;
                         }
                         if (result?.signal === 'goto') return result;
@@ -947,6 +1817,10 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                     const result = await executeRange(idx + 1, loopEndIdx, iterRow);
                     if (result?.signal === 'break-loop') break;
                     if (result?.signal === 'continue-loop') continue;
+                    if (result?.signal === 'repeat-loop') {
+                        iterIndex = Math.max(-1, iterIndex - 1);
+                        continue;
+                    }
                     if (result?.signal === 'goto') return result;
                 }
 
@@ -975,7 +1849,7 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                 idx = targetIndex;
                 continue;
             }
-            if (result?.signal === 'break-loop' || result?.signal === 'continue-loop') {
+            if (result?.signal === 'break-loop' || result?.signal === 'continue-loop' || result?.signal === 'repeat-loop') {
                 return result;
             }
             idx++;
@@ -984,7 +1858,7 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
     }
 
     const finalResult = await executeRange(0, steps.length, initialDataRow);
-    if (finalResult?.signal === 'break-loop' || finalResult?.signal === 'continue-loop') {
+    if (finalResult?.signal === 'break-loop' || finalResult?.signal === 'continue-loop' || finalResult?.signal === 'repeat-loop') {
         throw new Error('Loop control signal used outside of a loop');
     }
 }

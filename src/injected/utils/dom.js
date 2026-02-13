@@ -116,32 +116,39 @@ export function findGridCellElement(controlName) {
             }
         }
 
-        // Try finding in body rows
+        // Try finding in body rows - prefer the LAST visible cell.
+        // After "Add line", D365 appends a new row at the bottom.
+        // If the active-row attribute hasn't been set yet (race condition),
+        // returning the first cell would target row 1 instead of the new row.
         const bodyContainer = grid.querySelector('.fixedDataTableLayout_body, .fixedDataTableLayout_rowsContainer');
         if (bodyContainer) {
             const cells = bodyContainer.querySelectorAll(`[data-dyn-controlname="${controlName}"]`);
+            let lastVisibleCell = null;
             for (const cell of cells) {
                 // Skip if in header
                 const isInHeader = cell.closest('.fixedDataTableLayout_header, .dyn-headerCell');
                 if (!isInHeader && cell.offsetParent !== null) {
-                    return cell;
+                    lastVisibleCell = cell;
                 }
             }
+            if (lastVisibleCell) return lastVisibleCell;
         }
     }
 
-    // Try to find in traditional D365 grid context
+    // Try to find in traditional D365 grid context - prefer last visible cell
     const grids = document.querySelectorAll('[data-dyn-role="Grid"]');
     for (const grid of grids) {
         // Find all matching cells and prefer visible/editable ones
         const cells = grid.querySelectorAll(`[data-dyn-controlname="${controlName}"]`);
+        let lastVisibleCell = null;
         for (const cell of cells) {
             // Check if it's in a data row (not header)
             const isInHeader = cell.closest('[data-dyn-role="ColumnHeader"], [role="columnheader"], thead');
             if (!isInHeader && cell.offsetParent !== null) {
-                return cell;
+                lastVisibleCell = cell;
             }
         }
+        if (lastVisibleCell) return lastVisibleCell;
     }
 
     // Fallback to standard element finding

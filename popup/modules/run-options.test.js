@@ -13,7 +13,9 @@ describe('run options methods', () => {
             runSkipRows: { value: '3' },
             runLimitRows: { value: '20' },
             runDryMode: { checked: true },
-            runWithLogs: { checked: true }
+            runWithLogs: { checked: true },
+            runLearningMode: { checked: true },
+            runLearningModeBehavior: { value: 'until-interception' }
         };
         const originalDocument = global.document;
         global.document = createDoc(elements);
@@ -34,7 +36,9 @@ describe('run options methods', () => {
             skipRows: 3,
             limitRows: 20,
             dryRun: true,
-            showLogs: true
+            showLogs: true,
+            learningMode: true,
+            runUntilInterception: true
         });
 
         global.document = originalDocument;
@@ -68,7 +72,9 @@ describe('run options methods', () => {
             skipRows: 5,
             limitRows: 3,
             dryRun: false,
-            showLogs: true
+            showLogs: true,
+            learningMode: false,
+            runUntilInterception: false
         });
         expect(storageSet).toHaveBeenCalledWith({ resumeSkipByWorkflow: { 'wf-2': 5 } });
         expect(ctx.hideResumeModal).toHaveBeenCalled();

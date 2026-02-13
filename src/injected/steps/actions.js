@@ -331,6 +331,13 @@ export async function setInputValue(controlName, value, fieldType) {
 export async function setGridCellValue(controlName, value, fieldType, waitForValidation = false) {
     console.log(`Setting grid cell value: ${controlName} = "${value}" (waitForValidation=${waitForValidation})`);
     
+    // Wait for the grid to have an active/selected row before finding the cell.
+    // After "Add line", D365's React grid may take a moment to mark the new row
+    // as active.  Without this wait the fallback scan in findGridCellElement can
+    // return a cell from a different (earlier) row, causing data to be written
+    // to the wrong line.
+    await waitForActiveGridRow(controlName);
+    
     // Find the cell element - prefer the one in an active/selected row
     let element = findGridCellElement(controlName);
     
@@ -552,6 +559,41 @@ export async function waitForD365Validation(controlName, timeout = 5000) {
     }
     
     console.log('    Validation wait completed (timeout or no loading detected)');
+    return false;
+}
+
+/**
+ * Wait for the grid to have an active/selected row that contains the target
+ * control.  D365 React grids update `aria-selected` asynchronously after
+ * actions like "Add line", so we poll for a short period before giving up.
+ */
+async function waitForActiveGridRow(controlName, timeout = 2000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+        // Traditional grid selected rows
+        const selectedRows = document.querySelectorAll(
+            '[data-dyn-selected="true"], [aria-selected="true"], .dyn-selectedRow'
+        );
+        for (const row of selectedRows) {
+            const cell = row.querySelector(`[data-dyn-controlname="${controlName}"]`);
+            if (cell && cell.offsetParent !== null) return true;
+        }
+        // React FixedDataTable active row
+        const reactGrids = document.querySelectorAll('.reactGrid');
+        for (const grid of reactGrids) {
+            const activeRow = grid.querySelector(
+                '.fixedDataTableRowLayout_main[aria-selected="true"], ' +
+                '.fixedDataTableRowLayout_main[data-dyn-row-active="true"]'
+            );
+            if (activeRow) {
+                const cell = activeRow.querySelector(`[data-dyn-controlname="${controlName}"]`);
+                if (cell && cell.offsetParent !== null) return true;
+            }
+        }
+        await sleep(100);
+    }
+    // No active row found within timeout – caller will proceed with fallback
+    console.log(`[D365] waitForActiveGridRow: no active row found for ${controlName} within ${timeout}ms, proceeding with fallback`);
     return false;
 }
 

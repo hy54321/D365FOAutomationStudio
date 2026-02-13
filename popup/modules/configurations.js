@@ -513,7 +513,9 @@ export const configurationMethods = {
                 skipRows: 0,
                 limitRows: 0,
                 dryRun: false,
-                showLogs: true
+                showLogs: true,
+                learningMode: false,
+                runUntilInterception: false
             }
         };
 

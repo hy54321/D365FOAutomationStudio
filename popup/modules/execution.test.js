@@ -388,4 +388,95 @@ describe('execution methods', () => {
         expect(ctx.addLog).toHaveBeenCalledWith('error', 'Failed to resume workflow: send failed');
         vi.unstubAllGlobals();
     });
+
+    // ---------- handleWorkflowLearningRule ----------
+
+    it('handleWorkflowLearningRule saves a new rule to the workflow', async () => {
+        const ctx = createExecutionContext({
+            workflows: [{ id: 'wf-1', name: 'WF1' }]
+        });
+        const rule = {
+            id: 'rule_1',
+            trigger: { kind: 'dialog', textTemplate: 'item number #' },
+            action: { type: 'clickButton', buttonControlName: 'Ok' }
+        };
+
+        await executionMethods.handleWorkflowLearningRule.call(ctx, {
+            workflowId: 'wf-1',
+            rule
+        });
+
+        expect(ctx.workflows[0].unexpectedEventHandlers).toEqual([rule]);
+        expect(ctx.chrome.storage.local.set).toHaveBeenCalledWith({ workflows: ctx.workflows });
+        expect(ctx.addLog).toHaveBeenCalledWith('success', expect.stringContaining('Learned interruption handler'));
+    });
+
+    it('handleWorkflowLearningRule deduplicates identical rules', async () => {
+        const rule = {
+            id: 'rule_1',
+            trigger: { kind: 'dialog', textTemplate: 'item number #' },
+            action: { type: 'clickButton', buttonControlName: 'Ok' }
+        };
+        const ctx = createExecutionContext({
+            workflows: [{ id: 'wf-1', name: 'WF1', unexpectedEventHandlers: [rule] }]
+        });
+
+        await executionMethods.handleWorkflowLearningRule.call(ctx, {
+            workflowId: 'wf-1',
+            rule
+        });
+
+        expect(ctx.workflows[0].unexpectedEventHandlers).toHaveLength(1);
+        expect(ctx.addLog).toHaveBeenCalledWith('info', expect.stringContaining('already exists'));
+    });
+
+    it('handleWorkflowLearningRule ignores unknown workflow', async () => {
+        const ctx = createExecutionContext({ workflows: [] });
+
+        await executionMethods.handleWorkflowLearningRule.call(ctx, {
+            workflowId: 'wf-unknown',
+            rule: { id: 'r1', trigger: {}, action: {} }
+        });
+
+        expect(ctx.chrome.storage.local.set).not.toHaveBeenCalled();
+        expect(ctx.addLog).toHaveBeenCalledWith('warning', expect.stringContaining('unknown workflow'));
+    });
+
+    it('handleWorkflowLearningRule handles missing payload gracefully', async () => {
+        const ctx = createExecutionContext();
+        await executionMethods.handleWorkflowLearningRule.call(ctx, {});
+        expect(ctx.chrome.storage.local.set).not.toHaveBeenCalled();
+    });
+
+    // ---------- Learning mode progress phases ----------
+
+    it('handleWorkflowProgress handles pausedForConfirmation phase', () => {
+        const ctx = createExecutionContext();
+        ctx.executionState.isPaused = false;
+
+        executionMethods.handleWorkflowProgress.call(ctx, {
+            phase: 'pausedForConfirmation',
+            stepIndex: 2
+        });
+
+        expect(ctx.executionState.isPaused).toBe(true);
+        expect(ctx.executionState.currentStepIndex).toBe(2);
+        expect(ctx.updateExecutionBar).toHaveBeenCalled();
+        expect(ctx.addLog).toHaveBeenCalledWith('warning', expect.stringContaining('Learning mode paused'));
+    });
+
+    it('handleWorkflowProgress handles pausedForInterruption phase', () => {
+        const ctx = createExecutionContext();
+
+        executionMethods.handleWorkflowProgress.call(ctx, {
+            phase: 'pausedForInterruption',
+            stepIndex: 1,
+            kind: 'dialog',
+            message: 'Item number will be replaced'
+        });
+
+        expect(ctx.executionState.isPaused).toBe(true);
+        expect(ctx.executionState.currentStepIndex).toBe(1);
+        expect(ctx.addLog).toHaveBeenCalledWith('warning', expect.stringContaining('Interruption detected'));
+    });
 });

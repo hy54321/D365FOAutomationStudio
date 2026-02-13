@@ -1,4 +1,11 @@
 export const runOptionsMethods = {
+    syncLearningModeBehaviorUI() {
+        const learningModeInput = document.getElementById('runLearningMode');
+        const behaviorSelect = document.getElementById('runLearningModeBehavior');
+        if (!learningModeInput || !behaviorSelect) return;
+        behaviorSelect.disabled = !learningModeInput.checked;
+    },
+
     showRunOptionsModal(workflow) {
         this.pendingWorkflow = workflow;
 
@@ -7,6 +14,18 @@ export const runOptionsMethods = {
         document.getElementById('runLimitRows').value = '0';
         document.getElementById('runDryMode').checked = false;
         document.getElementById('runWithLogs').checked = true;
+        const learningModeInput = document.getElementById('runLearningMode');
+        if (learningModeInput) {
+            learningModeInput.checked = false;
+        }
+        const behaviorSelect = document.getElementById('runLearningModeBehavior');
+        if (behaviorSelect) {
+            behaviorSelect.value = 'until-interception';
+        }
+        if (learningModeInput) {
+            learningModeInput.onchange = () => this.syncLearningModeBehaviorUI();
+        }
+        this.syncLearningModeBehaviorUI();
 
         // Calculate total rows
         let totalRows = 0;
@@ -104,7 +123,9 @@ export const runOptionsMethods = {
             skipRows: Math.max(0, resumeSkip),
             limitRows: resumeLimit,
             dryRun: !!baseRunOptions.dryRun,
-            showLogs: typeof baseRunOptions.showLogs === 'boolean' ? baseRunOptions.showLogs : true
+            showLogs: typeof baseRunOptions.showLogs === 'boolean' ? baseRunOptions.showLogs : true,
+            learningMode: !!baseRunOptions.learningMode,
+            runUntilInterception: !!baseRunOptions.runUntilInterception
         };
 
         this.resumeSkipByWorkflow = this.resumeSkipByWorkflow || {};
@@ -121,11 +142,15 @@ export const runOptionsMethods = {
         // Save workflow reference BEFORE hiding modal (which sets pendingWorkflow to null)
         const workflow = this.pendingWorkflow;
 
+        const learningModeEnabled = !!document.getElementById('runLearningMode')?.checked;
+        const learningBehavior = document.getElementById('runLearningModeBehavior')?.value || 'until-interception';
         const runOptions = {
             skipRows: parseInt(document.getElementById('runSkipRows').value) || 0,
             limitRows: parseInt(document.getElementById('runLimitRows').value) || 0,
             dryRun: document.getElementById('runDryMode').checked,
-            showLogs: document.getElementById('runWithLogs').checked
+            showLogs: document.getElementById('runWithLogs').checked,
+            learningMode: learningModeEnabled,
+            runUntilInterception: learningModeEnabled && learningBehavior === 'until-interception'
         };
 
         // Open logs panel if requested

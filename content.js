@@ -65,6 +65,20 @@ if (!window.d365ContentScriptLoaded) {
                     log: event.data.log
                 });
             }
+
+            if (event.data.type === 'D365_WORKFLOW_LEARNING_RULE') {
+                chrome.runtime.sendMessage({
+                    action: 'workflowLearningRule',
+                    payload: event.data.payload
+                });
+            }
+
+            if (event.data.type === 'D365_WORKFLOW_INTERRUPTION') {
+                chrome.runtime.sendMessage({
+                    action: 'workflowInterruption',
+                    payload: event.data.payload
+                });
+            }
             
             // Handle navigation event - save workflow state before page reload
             if (event.data.type === 'D365_WORKFLOW_NAVIGATING') {
@@ -695,6 +709,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === 'stopWorkflow') {
         window.postMessage({ type: 'D365_STOP_WORKFLOW' }, '*');
+        sendResponse({ success: true });
+        return true;
+    }
+
+    if (request.action === 'applyInterruptionDecision') {
+        window.postMessage({
+            type: 'D365_APPLY_INTERRUPTION_DECISION',
+            payload: request.payload
+        }, '*');
         sendResponse({ success: true });
         return true;
     }

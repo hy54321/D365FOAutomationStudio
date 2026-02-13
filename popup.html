@@ -124,28 +124,28 @@
                                 </div>
 
                 <div class="builder-top-panels">
-                    <div class="workflow-projects-panel">
+                    <div id="workflowConfigurationsPanel" class="workflow-projects-panel builder-panel" data-panel-key="configurations">
                         <div class="workflow-projects-header">
                             <h3>Configurations</h3>
                             <span class="muted">Assign this workflow to one or more configurations.</span>
                         </div>
-                        <div id="workflowConfigurationsList" class="workflow-projects-list"></div>
+                        <div id="workflowConfigurationsList" class="workflow-projects-list builder-panel-body"></div>
                     </div>
 
-                    <div class="workflow-projects-panel">
+                    <div id="workflowProjectsPanel" class="workflow-projects-panel builder-panel" data-panel-key="projects">
                         <div class="workflow-projects-header">
                             <h3>Projects</h3>
                             <span class="muted">Assign this workflow to one or more projects.</span>
                         </div>
-                        <div id="workflowProjectsList" class="workflow-projects-list"></div>
+                        <div id="workflowProjectsList" class="workflow-projects-list builder-panel-body"></div>
                     </div>
 
-                    <div class="workflow-defaults-panel">
+                    <div id="workflowDefaultsPanel" class="workflow-defaults-panel builder-panel" data-panel-key="workflow-defaults">
                         <div class="workflow-projects-header">
                             <h3>Workflow Defaults</h3>
                             <span class="muted">Default error handling and retries for this workflow.</span>
                         </div>
-                        <div class="workflow-defaults-grid">
+                        <div class="workflow-defaults-grid builder-panel-body">
                             <div class="form-group">
                                 <label>On Error (default)</label>
                                 <select id="workflowErrorDefaultMode" class="form-control">
@@ -170,6 +170,16 @@
                                     <option value="">No labels defined</option>
                                 </select>
                             </div>
+                        </div>
+                    </div>
+
+                    <div id="workflowInterruptionHandlersPanel" class="workflow-defaults-panel builder-panel" data-panel-key="interruption-handlers">
+                        <div class="workflow-projects-header">
+                            <h3>Interruption Handlers</h3>
+                            <span class="muted">Learned rules for dialogs and warnings.</span>
+                        </div>
+                        <div id="interruptionHandlersList" class="interruption-handlers-list builder-panel-body">
+                            <p class="empty-state">Open a workflow to view learned handlers.</p>
                         </div>
                     </div>
                 </div>
@@ -630,10 +640,73 @@
                         <label><input type="checkbox" id="runDryMode"> 🔬 Dry run (preview only, no actions)</label>
                         <small>See what would happen without making changes</small>
                     </div>
+                    <div class="form-group">
+                        <div class="run-learning-row">
+                            <label><input type="checkbox" id="runLearningMode"> Learning mode</label>
+                            <select id="runLearningModeBehavior" class="form-control form-control-sm">
+                                <option value="until-interception" selected>Until next interception</option>
+                                <option value="confirm-each-step">Confirm each step</option>
+                            </select>
+                        </div>
+                        <small>Learn interruption handlers. Choose whether to pause only on interruptions or before every step.</small>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button id="cancelRun" class="btn btn-secondary">Cancel</button>
                     <button id="confirmRun" class="btn btn-success">▶️ Start</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Learning Interruption Modal -->
+        <div class="modal-overlay is-hidden" id="interruptionModal">
+            <div class="modal">
+                <div class="modal-header">
+                    <h3>Interruption Detected</h3>
+                    <button class="btn-close" id="closeInterruptionModal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Type</label>
+                        <div id="interruptionKindText">-</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Message</label>
+                        <div id="interruptionMessageText" style="font-size: 12px; line-height: 1.4; max-height: 120px; overflow: auto; background: #f8fafc; border: 1px solid #dbeafe; border-radius: 6px; padding: 8px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Choose D365 operation</label>
+                        <select id="interruptionActionSelect" class="form-control"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Then click (optional)</label>
+                        <select id="interruptionFollowupActionSelect" class="form-control"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>After action</label>
+                        <select id="interruptionOutcomeSelect" class="form-control">
+                            <option value="next-step">Continue with next step</option>
+                            <option value="continue-loop">Continue loop (next iteration)</option>
+                            <option value="repeat-loop">Repeat current loop iteration</option>
+                            <option value="break-loop">Break current loop</option>
+                            <option value="stop">Stop workflow</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Rule matching</label>
+                        <select id="interruptionMatchModeSelect" class="form-control">
+                            <option value="contains">Dynamic text match (recommended)</option>
+                            <option value="exact">Exact text match</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="interruptionSaveRule" checked> Save as automatic handler rule</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="interruptionStopBtn" class="btn btn-danger">Stop</button>
+                    <button id="interruptionSkipBtn" class="btn btn-secondary">No click, continue</button>
+                    <button id="interruptionApplyBtn" class="btn btn-success">Apply selected action</button>
                 </div>
             </div>
         </div>

@@ -63,7 +63,9 @@ class PopupController {
                 skipRows: 0,
                 limitRows: 0,
                 dryRun: false,
-                showLogs: false
+                showLogs: false,
+                learningMode: false,
+                runUntilInterception: false
             }
         };
 
@@ -79,6 +81,7 @@ class PopupController {
         this.configurations = [];
         this.selectedConfigurationId = 'all';
         this.configurationRunState = null;
+        this.pendingInterruptionRequest = null;
 
         if (autoInit) {
             this.init();

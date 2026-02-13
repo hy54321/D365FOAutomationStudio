@@ -1,10 +1,222 @@
 export const executionMethods = {
+    handleWorkflowInterruption(payload) {
+        if (!payload?.requestId) return;
+        this.pendingInterruptionRequest = payload;
+        const kindEl = document.getElementById('interruptionKindText');
+        const messageEl = document.getElementById('interruptionMessageText');
+        const actionSelect = document.getElementById('interruptionActionSelect');
+        const followupSelect = document.getElementById('interruptionFollowupActionSelect');
+        const outcomeSelect = document.getElementById('interruptionOutcomeSelect');
+        const matchModeSelect = document.getElementById('interruptionMatchModeSelect');
+        const saveRule = document.getElementById('interruptionSaveRule');
+
+        if (kindEl) kindEl.textContent = payload.kind || 'event';
+        if (messageEl) messageEl.textContent = payload.text || '';
+
+        const options = Array.isArray(payload.options) ? payload.options : [];
+        if (actionSelect) {
+            actionSelect.innerHTML = '';
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '__none__';
+            defaultOption.textContent = 'No click action';
+            actionSelect.appendChild(defaultOption);
+            options.forEach((opt, idx) => {
+                const optionEl = document.createElement('option');
+                optionEl.value = String(idx);
+                const label = [opt.controlName, opt.text].filter(Boolean).join(' - ') || `Option ${idx + 1}`;
+                optionEl.textContent = label;
+                actionSelect.appendChild(optionEl);
+            });
+            actionSelect.value = options.length ? '0' : '__none__';
+        }
+        if (followupSelect) {
+            followupSelect.innerHTML = '';
+            const noneOption = document.createElement('option');
+            noneOption.value = '__none__';
+            noneOption.textContent = 'No follow-up action';
+            followupSelect.appendChild(noneOption);
+            options.forEach((opt, idx) => {
+                const optionEl = document.createElement('option');
+                optionEl.value = String(idx);
+                const label = [opt.controlName, opt.text].filter(Boolean).join(' - ') || `Option ${idx + 1}`;
+                optionEl.textContent = label;
+                followupSelect.appendChild(optionEl);
+            });
+            followupSelect.value = '__none__';
+        }
+        const refreshFollowupChoices = () => {
+            if (!actionSelect || !followupSelect) return;
+            const selectedPrimary = actionSelect.value;
+            Array.from(followupSelect.options).forEach((opt) => {
+                if (opt.value === '__none__') return;
+                opt.disabled = opt.value === selectedPrimary && selectedPrimary !== '__none__';
+            });
+            if (followupSelect.value === selectedPrimary && selectedPrimary !== '__none__') {
+                followupSelect.value = '__none__';
+            }
+        };
+        if (actionSelect) {
+            actionSelect.onchange = refreshFollowupChoices;
+            refreshFollowupChoices();
+        }
+
+        if (outcomeSelect) {
+            outcomeSelect.value = payload.kind === 'messageBar' ? 'continue-loop' : 'next-step';
+        }
+        if (matchModeSelect) {
+            matchModeSelect.value = 'contains';
+        }
+        if (saveRule) saveRule.checked = true;
+
+        this.executionState.isPaused = true;
+        this.updateExecutionBar();
+        this.addLog('warning', `Interruption decision required (${payload.kind || 'event'})`);
+        const modal = document.getElementById('interruptionModal');
+        if (modal) modal.classList.remove('is-hidden');
+    },
+
+    hideInterruptionModal() {
+        const modal = document.getElementById('interruptionModal');
+        if (modal) modal.classList.add('is-hidden');
+    },
+
+    async submitInterruptionDecision(mode = 'apply') {
+        if (!this.pendingInterruptionRequest) return;
+        const actionSelect = document.getElementById('interruptionActionSelect');
+        const followupSelect = document.getElementById('interruptionFollowupActionSelect');
+        const outcomeSelect = document.getElementById('interruptionOutcomeSelect');
+        const matchModeSelect = document.getElementById('interruptionMatchModeSelect');
+        const saveRule = document.getElementById('interruptionSaveRule');
+        const request = this.pendingInterruptionRequest;
+        const options = Array.isArray(request.options) ? request.options : [];
+
+        let selectedOption = null;
+        let selectedFollowupOption = null;
+        let actionType = 'none';
+        if (mode === 'stop') {
+            actionType = 'stop';
+        } else if (mode === 'apply') {
+            const selectedValue = actionSelect?.value ?? '__none__';
+            if (selectedValue !== '__none__') {
+                const idx = Number(selectedValue);
+                if (Number.isFinite(idx) && idx >= 0 && idx < options.length) {
+                    selectedOption = options[idx];
+                    actionType = 'clickOption';
+                }
+            }
+            const followupValue = followupSelect?.value ?? '__none__';
+            if (followupValue !== '__none__') {
+                const followupIdx = Number(followupValue);
+                if (Number.isFinite(followupIdx) && followupIdx >= 0 && followupIdx < options.length) {
+                    selectedFollowupOption = options[followupIdx];
+                }
+            }
+        }
+
+        const decision = {
+            requestId: request.requestId,
+            actionType,
+            selectedOption,
+            selectedFollowupOption,
+            outcome: mode === 'stop' ? 'stop' : (outcomeSelect?.value || 'next-step'),
+            matchMode: matchModeSelect?.value === 'exact' ? 'exact' : 'contains',
+            saveRule: !!saveRule?.checked
+        };
+
+        const tab = await this.getLinkedOrActiveTab();
+        if (!tab) {
+            this.addLog('error', 'No D365 tab found to submit interruption decision');
+            return;
+        }
+
+        try {
+            await this.chrome.tabs.sendMessage(tab.id, {
+                action: 'applyInterruptionDecision',
+                payload: decision
+            });
+        } catch (error) {
+            this.addLog('error', `Failed to submit interruption decision: ${error?.message || String(error)}`);
+            return;
+        }
+
+        this.pendingInterruptionRequest = null;
+        this.hideInterruptionModal();
+    },
+
+    async handleWorkflowLearningRule(payload) {
+        const workflowId = payload?.workflowId || '';
+        const rule = payload?.rule || null;
+        if (!workflowId || !rule) return;
+
+        const workflows = Array.isArray(this.workflows) ? this.workflows : [];
+        const workflowIndex = workflows.findIndex(w => w.id === workflowId);
+        if (workflowIndex === -1) {
+            this.addLog('warning', `Received learned rule for unknown workflow: ${workflowId}`);
+            return;
+        }
+
+        const workflow = workflows[workflowIndex];
+        const handlers = Array.isArray(workflow.unexpectedEventHandlers)
+            ? workflow.unexpectedEventHandlers
+            : [];
+        const ruleKey = JSON.stringify({
+            trigger: rule.trigger,
+            actions: Array.isArray(rule?.actions) ? rule.actions : [rule?.action].filter(Boolean),
+            outcome: rule?.outcome || 'next-step'
+        });
+        const alreadyExists = handlers.some(existing => {
+            const existingKey = JSON.stringify({
+                trigger: existing?.trigger,
+                actions: Array.isArray(existing?.actions) ? existing.actions : [existing?.action].filter(Boolean),
+                outcome: existing?.outcome || 'next-step'
+            });
+            return existingKey === ruleKey;
+        });
+        if (alreadyExists) {
+            this.addLog('info', 'Learned handler already exists, skipping duplicate');
+            return;
+        }
+
+        workflow.unexpectedEventHandlers = [...handlers, rule];
+        this.workflows[workflowIndex] = workflow;
+        if (this.currentWorkflow?.id === workflowId) {
+            this.currentWorkflow = JSON.parse(JSON.stringify(workflow));
+            if (this.renderInterruptionHandlersPanel) {
+                this.renderInterruptionHandlersPanel();
+            }
+        }
+
+        try {
+            await this.chrome.storage.local.set({ workflows: this.workflows });
+        } catch (error) {
+            this.addLog('error', `Failed to persist learned handler: ${error?.message || String(error)}`);
+            return;
+        }
+
+        this.addLog('success', `Learned interruption handler saved for "${workflow.name || workflowId}"`);
+    },
+
     handleWorkflowProgress(progress) {
         if (progress.phase === 'stepStart') {
+            this.executionState.isPaused = false;
             this.setStepStatus(progress.stepIndex, 'running');
             this.executionState.currentStepIndex = progress.stepIndex;
             this.updateExecutionBar();
             this.addLog('info', `Starting step ${progress.stepIndex + 1}: ${progress.stepName || 'Step'}`);
+        } else if (progress.phase === 'pausedForConfirmation') {
+            this.executionState.isPaused = true;
+            this.executionState.currentStepIndex = typeof progress.stepIndex === 'number'
+                ? progress.stepIndex
+                : this.executionState.currentStepIndex;
+            this.updateExecutionBar();
+            this.addLog('warning', `Learning mode paused before step ${this.executionState.currentStepIndex + 1}. Click Resume to continue.`);
+        } else if (progress.phase === 'pausedForInterruption') {
+            this.executionState.isPaused = true;
+            this.executionState.currentStepIndex = typeof progress.stepIndex === 'number'
+                ? progress.stepIndex
+                : this.executionState.currentStepIndex;
+            this.updateExecutionBar();
+            this.addLog('warning', `Interruption detected (${progress.kind || 'event'}): ${progress.message || 'Review the page and click Resume when done.'}`);
         } else if (progress.phase === 'stepDone') {
             this.setStepStatus(progress.stepIndex, 'success');
             this.addLog('success', `Completed step ${progress.stepIndex + 1}`);
@@ -36,6 +248,10 @@ export const executionMethods = {
 
     handleWorkflowComplete() {
         const workflowId = this.executionState.currentWorkflowId;
+        this.pendingInterruptionRequest = null;
+        if (this.hideInterruptionModal) {
+            this.hideInterruptionModal();
+        }
         this.executionState.isRunning = false;
         this.executionState.isLaunching = false;
         this.executionState.isPaused = false;
@@ -74,6 +290,10 @@ export const executionMethods = {
     },
 
     handleWorkflowError(err) {
+        this.pendingInterruptionRequest = null;
+        if (this.hideInterruptionModal) {
+            this.hideInterruptionModal();
+        }
         const workflowId = this.executionState.currentWorkflowId;
         const stepIndex = typeof err.stepIndex === 'number' ? err.stepIndex : null;
         if (stepIndex !== null) {

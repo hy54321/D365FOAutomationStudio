@@ -33,6 +33,9 @@ export const coreMethods = {
 
         // Set up event listeners
         this.setupEventListeners();
+        if (this.initBuilderPanels) {
+            await this.initBuilderPanels();
+        }
 
         // Initialize nav button UI after DOM + listeners are ready
         if (this.initNavButtonsUI) {
@@ -248,6 +251,9 @@ export const coreMethods = {
                 if (tabName === 'data-sources' && this.renderSharedDataSourcesUI) {
                     this.renderSharedDataSourcesUI();
                 }
+                if (tabName === 'builder' && this.refreshInterruptionHandlersPanelHeight) {
+                    this.refreshInterruptionHandlersPanelHeight();
+                }
 
                 if (this.onTabActivated) {
                     this.onTabActivated(tabName);
@@ -353,6 +359,10 @@ export const coreMethods = {
         document.getElementById('resumeCancel')?.addEventListener('click', () => this.hideResumeModal());
         document.getElementById('resumeThisRecord')?.addEventListener('click', () => this.resumeFromFailure('current'));
         document.getElementById('resumeNextRecord')?.addEventListener('click', () => this.resumeFromFailure('next'));
+        document.getElementById('closeInterruptionModal')?.addEventListener('click', () => this.submitInterruptionDecision('skip'));
+        document.getElementById('interruptionApplyBtn')?.addEventListener('click', () => this.submitInterruptionDecision('apply'));
+        document.getElementById('interruptionSkipBtn')?.addEventListener('click', () => this.submitInterruptionDecision('skip'));
+        document.getElementById('interruptionStopBtn')?.addEventListener('click', () => this.submitInterruptionDecision('stop'));
 
         // Active form filter checkbox
         document.getElementById('activeFormOnly')?.addEventListener('change', () => this.refreshElements());
@@ -381,6 +391,12 @@ export const coreMethods = {
             }
             if (request.action === 'workflowLog') {
                 this.addLog(request.log.level, request.log.message);
+            }
+            if (request.action === 'workflowLearningRule') {
+                this.handleWorkflowLearningRule(request.payload);
+            }
+            if (request.action === 'workflowInterruption') {
+                this.handleWorkflowInterruption(request.payload);
             }
             // Handle workflow navigation state save
             if (request.action === 'saveWorkflowState') {
