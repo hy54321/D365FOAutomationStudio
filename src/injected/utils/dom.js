@@ -76,7 +76,8 @@ export function isD365Loading() {
         '.dyn-messageBusy:not([style*="display: none"])',
         '[data-dyn-loading="true"]',
         '.busy-indicator',
-        '.dyn-loadingStub:not([style*="display: none"])'
+        '.dyn-loadingStub:not([style*="display: none"])',
+        '.dyn-processingMsg:not([style*="display: none"])'
     ];
 
     for (const selector of loadingSelectors) {
@@ -91,11 +92,91 @@ export function isD365Loading() {
         return window.$dyn.isProcessing();
     }
 
+    // Check for "Please wait" processing message overlays.
+    // D365 shows these during server-side operations (e.g. after clicking OK
+    // on the Create Sales Order dialog).
+    if (isD365ProcessingMessage()) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Detect the "Please wait. We're processing your request." message overlay
+ * and similar D365 processing/blocking messages.
+ * These are modal-style message boxes that block the UI while the server
+ * processes a request.
+ */
+export function isD365ProcessingMessage() {
+    // Pattern 1: D365 message bar / info box with "Please wait" text
+    const messageSelectors = [
+        '.messageBar',
+        '.dyn-messageBar',
+        '.dyn-msgBox',
+        '.dyn-infoBox',
+        '[data-dyn-role="MsgBox"]',
+        '[data-dyn-role="InfoBox"]',
+        '.dialog-container',
+        '[role="dialog"]',
+        '[role="alertdialog"]',
+        '.sysBoxContent',
+        '.processing-dialog'
+    ];
+
+    const waitPhrases = [
+        'please wait',
+        'processing your request',
+        'we\'re processing',
+        'being processed',
+        'please be patient',
+        'operation in progress'
+    ];
+
+    for (const selector of messageSelectors) {
+        const elements = document.querySelectorAll(selector);
+        for (const el of elements) {
+            if (el && el.offsetParent !== null) {
+                const text = (el.textContent || '').toLowerCase();
+                if (waitPhrases.some(phrase => text.includes(phrase))) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // Pattern 2: Any visible element containing the processing text that
+    // looks like a blocking overlay or modal
+    const overlays = document.querySelectorAll(
+        '.modal, .overlay, [class*="overlay"], [class*="modal"], [class*="blocking"]'
+    );
+    for (const el of overlays) {
+        if (el && el.offsetParent !== null) {
+            const text = (el.textContent || '').toLowerCase();
+            if (waitPhrases.some(phrase => text.includes(phrase))) {
+                return true;
+            }
+        }
+    }
+
     return false;
 }
 
 export function findGridCellElement(controlName) {
-    // First, try to find in an active/selected row (traditional D365 grids)
+    // Priority 0: If we have a pending-new-row marker (set by waitForNewGridRow
+    // after an "Add line" click), look in THAT specific row first.
+    // This eliminates the race condition where the old row is still selected.
+    const pendingNew = window.__d365_pendingNewRow;
+    if (pendingNew && pendingNew.rowElement && (Date.now() - pendingNew.timestamp < 15000)) {
+        const cell = pendingNew.rowElement.querySelector(
+            `[data-dyn-controlname="${controlName}"]`
+        );
+        if (cell && cell.offsetParent !== null) {
+            return cell;
+        }
+    }
+
+    // Priority 1: Find in an active/selected row (traditional D365 grids)
     const selectedRows = document.querySelectorAll('[data-dyn-selected="true"], [aria-selected="true"], .dyn-selectedRow');
     for (const row of selectedRows) {
         const cell = row.querySelector(`[data-dyn-controlname="${controlName}"]`);
@@ -104,7 +185,7 @@ export function findGridCellElement(controlName) {
         }
     }
 
-    // Try React FixedDataTable grids - find active row
+    // Priority 2: React FixedDataTable grids - find active row
     const reactGrids = document.querySelectorAll('.reactGrid');
     for (const grid of reactGrids) {
         // Look for active/selected row
@@ -116,7 +197,7 @@ export function findGridCellElement(controlName) {
             }
         }
 
-        // Try finding in body rows - prefer the LAST visible cell.
+        // Priority 3: In body rows - prefer the LAST visible cell.
         // After "Add line", D365 appends a new row at the bottom.
         // If the active-row attribute hasn't been set yet (race condition),
         // returning the first cell would target row 1 instead of the new row.
@@ -135,7 +216,7 @@ export function findGridCellElement(controlName) {
         }
     }
 
-    // Try to find in traditional D365 grid context - prefer last visible cell
+    // Priority 4: Traditional D365 grid context - prefer last visible cell
     const grids = document.querySelectorAll('[data-dyn-role="Grid"]');
     for (const grid of grids) {
         // Find all matching cells and prefer visible/editable ones
@@ -197,6 +278,150 @@ export function pickNearestRows(rows, targetElement) {
         const db = Math.abs(rb.left - targetRect.left) + Math.abs(rb.top - targetRect.bottom);
         return da - db;
     });
+}
+
+/**
+ * Count visible data rows in all grids on the page.
+ * Returns the total count across React FixedDataTable and traditional D365 grids.
+ */
+export function getGridRowCount() {
+    let count = 0;
+
+    // React FixedDataTable grids
+    const reactGrids = document.querySelectorAll('.reactGrid');
+    for (const grid of reactGrids) {
+        const bodyContainer = grid.querySelector('.fixedDataTableLayout_body, .fixedDataTableLayout_rowsContainer');
+        if (bodyContainer) {
+            const rows = bodyContainer.querySelectorAll(
+                '.fixedDataTableRowLayout_main, [role="row"]:not([role="columnheader"])'
+            );
+            // Only count rows that are visible and have content (not empty spacer rows)
+            for (const row of rows) {
+                if (row.offsetParent !== null && !row.closest('.fixedDataTableLayout_header')) {
+                    count++;
+                }
+            }
+        }
+    }
+
+    // Traditional D365 grids
+    if (count === 0) {
+        const grids = document.querySelectorAll('[data-dyn-role="Grid"]');
+        for (const grid of grids) {
+            const rows = grid.querySelectorAll(
+                '[data-dyn-role="Row"]:not([data-dyn-role="ColumnHeader"]), ' +
+                '[role="row"]:not([role="columnheader"]):not(thead [role="row"]), ' +
+                'tbody tr'
+            );
+            for (const row of rows) {
+                if (row.offsetParent !== null) count++;
+            }
+        }
+    }
+
+    return count;
+}
+
+/**
+ * Get the DOM element of the currently selected/active grid row.
+ * Returns { row, rowIndex } or null.
+ */
+export function getGridSelectedRow() {
+    // React grids
+    const reactGrids = document.querySelectorAll('.reactGrid');
+    for (const grid of reactGrids) {
+        const bodyContainer = grid.querySelector('.fixedDataTableLayout_body, .fixedDataTableLayout_rowsContainer');
+        if (!bodyContainer) continue;
+        const allRows = Array.from(bodyContainer.querySelectorAll(
+            '.fixedDataTableRowLayout_main'
+        )).filter(r => r.offsetParent !== null && !r.closest('.fixedDataTableLayout_header'));
+
+        for (let i = 0; i < allRows.length; i++) {
+            if (allRows[i].getAttribute('aria-selected') === 'true' ||
+                allRows[i].getAttribute('data-dyn-row-active') === 'true') {
+                return { row: allRows[i], rowIndex: i, totalRows: allRows.length };
+            }
+        }
+    }
+
+    // Traditional grids
+    const selectedRows = document.querySelectorAll(
+        '[data-dyn-selected="true"], [aria-selected="true"], .dyn-selectedRow'
+    );
+    for (const row of selectedRows) {
+        if (row.offsetParent !== null) {
+            return { row, rowIndex: -1, totalRows: -1 };
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Collect comprehensive grid state information for diagnostics.
+ */
+export function inspectGridState() {
+    const grids = [];
+
+    // React FixedDataTable grids
+    const reactGridEls = document.querySelectorAll('.reactGrid');
+    for (const grid of reactGridEls) {
+        const bodyContainer = grid.querySelector('.fixedDataTableLayout_body, .fixedDataTableLayout_rowsContainer');
+        if (!bodyContainer) continue;
+        const allRows = Array.from(bodyContainer.querySelectorAll(
+            '.fixedDataTableRowLayout_main'
+        )).filter(r => r.offsetParent !== null && !r.closest('.fixedDataTableLayout_header'));
+
+        const rowDetails = allRows.map((row, idx) => {
+            const isSelected = row.getAttribute('aria-selected') === 'true';
+            const isActive = row.getAttribute('data-dyn-row-active') === 'true';
+            const cellControls = Array.from(row.querySelectorAll('[data-dyn-controlname]'))
+                .map(c => c.getAttribute('data-dyn-controlname'));
+            const hasInput = !!row.querySelector('input:not([type="hidden"]), textarea, select');
+            return { index: idx, isSelected, isActive, cellControls, hasInput };
+        });
+
+        grids.push({
+            type: 'ReactGrid',
+            totalRows: allRows.length,
+            selectedRows: rowDetails.filter(r => r.isSelected).map(r => r.index),
+            activeRows: rowDetails.filter(r => r.isActive).map(r => r.index),
+            rows: rowDetails
+        });
+    }
+
+    // Traditional D365 grids
+    const tradGrids = document.querySelectorAll('[data-dyn-role="Grid"]');
+    for (const grid of tradGrids) {
+        const controlName = grid.getAttribute('data-dyn-controlname') || 'unknown';
+        const rows = Array.from(grid.querySelectorAll(
+            '[data-dyn-role="Row"], [role="row"]:not(thead [role="row"]), tbody tr'
+        )).filter(r => r.offsetParent !== null);
+
+        const rowDetails = rows.map((row, idx) => {
+            const isSelected = row.getAttribute('data-dyn-selected') === 'true' ||
+                              row.getAttribute('aria-selected') === 'true' ||
+                              row.classList.contains('dyn-selectedRow');
+            const cellControls = Array.from(row.querySelectorAll('[data-dyn-controlname]'))
+                .map(c => c.getAttribute('data-dyn-controlname'));
+            return { index: idx, isSelected, cellControls };
+        });
+
+        grids.push({
+            type: 'TraditionalGrid',
+            controlName,
+            totalRows: rows.length,
+            selectedRows: rowDetails.filter(r => r.isSelected).map(r => r.index),
+            rows: rowDetails
+        });
+    }
+
+    return {
+        gridCount: grids.length,
+        grids,
+        pendingNewRow: !!window.__d365_pendingNewRow,
+        pendingNewRowData: window.__d365_pendingNewRow || null
+    };
 }
 
 export function findLookupFilterInput(lookupDock) {

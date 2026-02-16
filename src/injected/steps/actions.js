@@ -1,15 +1,24 @@
 import { logStep } from '../utils/logging.js';
 import { setNativeValue, sleep } from '../utils/async.js';
-import { findElementInActiveContext, isElementVisible, isD365Loading, findGridCellElement, hasLookupButton, findLookupButton, findLookupFilterInput } from '../utils/dom.js';
+import { findElementInActiveContext, isElementVisible, isD365Loading, isD365ProcessingMessage, findGridCellElement, hasLookupButton, findLookupButton, findLookupFilterInput, getGridRowCount, getGridSelectedRow } from '../utils/dom.js';
 import { waitForLookupPopup, waitForLookupRows, waitForLookupDockForElement, waitForListboxForInput, collectComboOptions, findComboBoxButton } from '../utils/lookup.js';
 import { typeValueSlowly, typeValueWithInputEvents, waitForInputValue, setValueOnce, setValueWithVerify, comboInputWithSelectedMethod as comboInputWithSelectedMethodWithMode, commitComboValue, dispatchClickSequence } from '../utils/combobox.js';
 import { coerceBoolean, normalizeText } from '../utils/text.js';
 import { NavigationInterruptError } from '../runtime/errors.js';
+import { getWorkflowTimings } from '../runtime/timing.js';
 import { parseGridAndColumn, buildFilterFieldPatterns, buildApplyButtonPatterns, getFilterMethodSearchTerms, textIncludesAny } from './action-helpers.js';
 
 function comboInputWithSelectedMethod(input, value, comboMethodOverride = '') {
     const method = comboMethodOverride || window.d365CurrentWorkflowSettings?.comboSelectMode || 'method3';
     return comboInputWithSelectedMethodWithMode(input, value, method);
+}
+
+function getTimings() {
+    return getWorkflowTimings(window.d365CurrentWorkflowSettings || {});
+}
+
+async function waitForTiming(key) {
+    await sleep(getTimings()[key]);
 }
 
 function isSegmentedEntry(element) {
@@ -31,19 +40,174 @@ function isSegmentedEntry(element) {
 export async function clickElement(controlName) {
     const element = findElementInActiveContext(controlName);
     if (!element) throw new Error(`Element not found: ${controlName}`);
-    
+
+    // Detect if this is an "Add line" / "New" button click on a grid.
+    // If so, we record the row count before clicking so we can wait for
+    // the new row to actually appear and become selected afterwards.
+    const isAddLineClick = isGridAddLineButton(controlName, element);
+    let rowCountBefore = 0;
+    let selectedRowBefore = null;
+    if (isAddLineClick) {
+        rowCountBefore = getGridRowCount();
+        selectedRowBefore = getGridSelectedRow();
+        logStep(`Add-line detected ("${controlName}"). Rows before: ${rowCountBefore}, ` +
+                `selected row index: ${selectedRowBefore?.rowIndex ?? 'none'}`);
+    }
+
     element.click();
-    await sleep(800);
+    await waitForTiming('CLICK_ANIMATION_DELAY');
+
+    // After the fixed delay, poll briefly while D365 is still loading.
+    // This prevents the step from completing before a server-triggered
+    // dialog (e.g. delete confirmation) has been rendered into the DOM.
+    const maxLoadingPolls = 20;           // up to ~2 s additional wait
+    for (let i = 0; i < maxLoadingPolls; i++) {
+        if (!isD365Loading()) break;
+        await sleep(100);
+    }
+
+    // Wait for "Please wait. We're processing your request." messages.
+    // D365 shows these during server-side operations (e.g. after clicking OK
+    // on the Create Sales Order dialog).  We poll with a generous timeout
+    // since these operations can take 30+ seconds.
+    if (isD365ProcessingMessage()) {
+        logStep(`Processing message detected after clicking "${controlName}". Waiting for it to clear...`);
+        const processingStart = Date.now();
+        const maxProcessingWait = 120000; // up to 2 minutes for heavy operations
+        while (Date.now() - processingStart < maxProcessingWait) {
+            await sleep(500);
+            if (!isD365ProcessingMessage() && !isD365Loading()) {
+                // Extra stabilisation: D365 may flash new UI elements
+                await sleep(300);
+                if (!isD365ProcessingMessage() && !isD365Loading()) {
+                    logStep(`Processing message cleared after ${Math.round((Date.now() - processingStart) / 1000)}s`);
+                    break;
+                }
+            }
+        }
+        if (isD365ProcessingMessage()) {
+            logStep(`Warning: Processing message still visible after ${maxProcessingWait / 1000}s`);
+        }
+    }
+
+    // For "Add line" clicks, wait until the new row actually appears in
+    // the DOM and is marked as selected/active.  This closes the race
+    // condition where `setGridCellValue` would target the old row.
+    if (isAddLineClick) {
+        await waitForNewGridRow(rowCountBefore, selectedRowBefore, 8000);
+    }
+}
+
+/**
+ * Detect whether a controlName / element represents a grid "Add line" or
+ * "New" button.  Checks both the control name and the element's label/text.
+ */
+function isGridAddLineButton(controlName, element) {
+    const name = (controlName || '').toLowerCase();
+    // Common D365 control names for add-line buttons
+    const addLineNames = [
+        'systemdefinednewbutton', 'linestripnew', 'newline',
+        'addline', 'add_line', 'gridaddnew', 'buttoncreate',
+        'newbutton', 'systemdefinedaddbutton'
+    ];
+    if (addLineNames.some(n => name.includes(n))) return true;
+
+    // Check visible label / aria-label
+    const label = (element?.textContent || '').trim().toLowerCase();
+    const ariaLabel = (element?.getAttribute('aria-label') || '').toLowerCase();
+    const combined = `${label} ${ariaLabel}`;
+    if (/\badd\s*line\b/.test(combined) || /\bnew\s*line\b/.test(combined) ||
+        /\+\s*add\s*line/i.test(combined)) {
+        return true;
+    }
+
+    // Check if element is inside a grid toolbar area
+    const toolbar = element?.closest('[data-dyn-role="ActionPane"], [role="toolbar"], .buttonStrip');
+    if (toolbar && /\bnew\b/i.test(combined)) return true;
+
+    return false;
+}
+
+/**
+ * After clicking an "Add line" button, wait for the grid to reflect the
+ * new row.  We require:
+ *   1. The visible row count has increased, OR
+ *   2. A different row is now selected (its index changed), AND
+ *   3. The newly selected row is NOT the same row that was selected before.
+ *
+ * We also store a marker on `window.__d365_pendingNewRow` so that
+ * `findGridCellElement` can prefer the correct row if the `aria-selected`
+ * attribute hasn't flipped yet.
+ */
+async function waitForNewGridRow(rowCountBefore, selectedRowBefore, timeout = 8000) {
+    const start = Date.now();
+    const prevIdx = selectedRowBefore?.rowIndex ?? -1;
+    let settled = false;
+
+    while (Date.now() - start < timeout) {
+        // Wait for loading to complete first
+        if (isD365Loading()) {
+            await sleep(100);
+            continue;
+        }
+
+        const currentCount = getGridRowCount();
+        const currentSelected = getGridSelectedRow();
+        const curIdx = currentSelected?.rowIndex ?? -1;
+
+        // Success conditions:
+        //   a) Row count went up AND a row is now selected
+        //   b) A row is selected AND its index is higher than the old one
+        //      (handles cases where DOM row count stays the same due to
+        //       virtualisation but D365 moved the selection to a new row)
+        const rowCountIncreased = currentCount > rowCountBefore;
+        const selectionChangedToNewerRow = curIdx >= 0 && curIdx !== prevIdx && curIdx >= prevIdx;
+        const selectionExists = curIdx >= 0;
+
+        if ((rowCountIncreased && selectionExists) || selectionChangedToNewerRow) {
+            // Extra stabilisation: wait a short period and verify the selection is stable
+            await sleep(150);
+            const verifySelected = getGridSelectedRow();
+            if (verifySelected && verifySelected.rowIndex === curIdx) {
+                // Store this row element so findGridCellElement can use it
+                window.__d365_pendingNewRow = {
+                    rowElement: currentSelected.row,
+                    rowIndex: curIdx,
+                    timestamp: Date.now()
+                };
+                logStep(`New grid row confirmed. Rows: ${rowCountBefore} -> ${currentCount}, ` +
+                        `selected row: ${prevIdx} -> ${curIdx}`);
+                settled = true;
+                break;
+            }
+        }
+
+        await sleep(120);
+    }
+
+    if (!settled) {
+        // Even if we timed out, try to mark the last visible row as pending
+        // so findGridCellElement has a better fallback.
+        const lastSelected = getGridSelectedRow();
+        if (lastSelected) {
+            window.__d365_pendingNewRow = {
+                rowElement: lastSelected.row,
+                rowIndex: lastSelected.rowIndex,
+                timestamp: Date.now()
+            };
+        }
+        logStep(`Warning: waitForNewGridRow timed out after ${timeout}ms. ` +
+                `Rows: ${rowCountBefore} -> ${getGridRowCount()}, ` +
+                `selected: ${prevIdx} -> ${lastSelected?.rowIndex ?? 'none'}`);
+    }
 }
 
 export async function applyGridFilter(controlName, filterValue, filterMethod = 'is exactly', comboMethodOverride = '') {
-    console.log(`Applying filter: ${controlName} ${filterMethod} "${filterValue}"`);
     
     // Extract grid name and column name from controlName
     // Format: GridName_ColumnName (e.g., "GridReadOnlyMarkupTable_MarkupCode")
     const { gridName, columnName } = parseGridAndColumn(controlName);
     
-    console.log(`  Grid: ${gridName}, Column: ${columnName}`);
     
     // Helper function to find filter input with multiple patterns
     async function findFilterInput() {
@@ -60,7 +224,6 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
                 filterInput = filterFieldContainer.querySelector('input:not([type="hidden"])') || 
                              filterFieldContainer.querySelector('input');
                 if (filterInput && filterInput.offsetParent !== null) {
-                    console.log(`  Found filter field: ${pattern}`);
                     return { filterInput, filterFieldContainer };
                 }
             }
@@ -71,7 +234,6 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
         for (const container of partialMatches) {
             filterInput = container.querySelector('input:not([type="hidden"])');
             if (filterInput && filterInput.offsetParent !== null) {
-                console.log(`  Found filter field (partial match): ${container.getAttribute('data-dyn-controlname')}`);
                 return { filterInput, filterFieldContainer: container };
             }
         }
@@ -82,7 +244,6 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
         for (const container of filterContainers) {
             filterInput = container.querySelector('input:not([type="hidden"]):not([readonly])');
             if (filterInput && filterInput.offsetParent !== null) {
-                console.log(`  Found filter input in filter container`);
                 return { filterInput, filterFieldContainer: container };
             }
         }
@@ -92,7 +253,6 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
         for (const inp of visibleFilterInputs) {
             if (inp.offsetParent !== null) {
                 filterFieldContainer = inp.closest('[data-dyn-controlname*="FilterField"]');
-                console.log(`  Found visible filter field: ${filterFieldContainer?.getAttribute('data-dyn-controlname')}`);
                 return { filterInput: inp, filterFieldContainer };
             }
         }
@@ -105,7 +265,6 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     
     // If filter input not found, we need to click the column header to open the filter dropdown
     if (!filterInput) {
-        console.log(`  Filter panel not open, clicking header to open...`);
         
         // Find the actual header cell
         const allHeaders = document.querySelectorAll(`[data-dyn-controlname="${controlName}"]`);
@@ -136,24 +295,17 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
         }
         
         clickTarget.click();
-        await sleep(800); // Wait longer for dropdown to open
+        await waitForTiming('CLICK_ANIMATION_DELAY'); // Wait longer for dropdown to open
         
         // Retry finding the filter input with a wait loop
         for (let attempt = 0; attempt < 10; attempt++) {
             ({ filterInput, filterFieldContainer } = await findFilterInput());
             if (filterInput) break;
-            await sleep(200);
+            await waitForTiming('ANIMATION_DELAY');
         }
     }
     
     if (!filterInput) {
-        // Debug: Log what elements we can find
-        const allFilterFields = document.querySelectorAll('[data-dyn-controlname*="FilterField"]');
-        console.log(`  Debug: Found ${allFilterFields.length} FilterField elements:`);
-        allFilterFields.forEach(el => {
-            console.log(`    - ${el.getAttribute('data-dyn-controlname')}, visible: ${el.offsetParent !== null}`);
-        });
-        
         throw new Error(`Filter input not found. Make sure the filter dropdown is open. Expected pattern: FilterField_${gridName}_${columnName}_${columnName}_Input_0`);
     }
     
@@ -164,13 +316,13 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     
     // Step 5: Enter the filter value
     filterInput.focus();
-    await sleep(100);
+    await waitForTiming('INPUT_SETTLE_DELAY');
     filterInput.select();
     
     // Clear existing value first
     filterInput.value = '';
     filterInput.dispatchEvent(new Event('input', { bubbles: true }));
-    await sleep(100);
+    await waitForTiming('INPUT_SETTLE_DELAY');
     
     // Type using the selected method so this can be overridden per step.
     await comboInputWithSelectedMethod(filterInput, String(filterValue ?? ''), comboMethodOverride);
@@ -179,7 +331,7 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     }
     filterInput.dispatchEvent(new Event('input', { bubbles: true }));
     filterInput.dispatchEvent(new Event('change', { bubbles: true }));
-    await sleep(300);
+    await waitForTiming('UI_UPDATE_DELAY');
     
     // Step 6: Apply the filter - find and click the Apply button
     // IMPORTANT: The pattern is {GridName}_{ColumnName}_ApplyFilters, not just {GridName}_ApplyFilters
@@ -189,7 +341,6 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     for (const pattern of applyBtnPatterns) {
         applyBtn = document.querySelector(`[data-dyn-controlname="${pattern}"]`);
         if (applyBtn && applyBtn.offsetParent !== null) {
-            console.log(`  Found apply button: ${pattern}`);
             break;
         }
     }
@@ -207,8 +358,7 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
     
     if (applyBtn) {
         applyBtn.click();
-        await sleep(1000);
-        console.log(`  ✓ Filter applied: "${filterValue}"`);
+        await waitForTiming('VALIDATION_WAIT');
     } else {
         // Try pressing Enter as alternative
         filterInput.dispatchEvent(new KeyboardEvent('keydown', { 
@@ -217,17 +367,30 @@ export async function applyGridFilter(controlName, filterValue, filterMethod = '
         filterInput.dispatchEvent(new KeyboardEvent('keyup', { 
             key: 'Enter', keyCode: 13, code: 'Enter', bubbles: true 
         }));
-        await sleep(1000);
-        console.log(`  ✓ Filter applied via Enter: "${filterValue}"`);
+        await waitForTiming('VALIDATION_WAIT');
     }
 }
 
 export async function waitUntilCondition(controlName, condition, expectedValue, timeout) {
-    console.log(`Waiting for: ${controlName} to be ${condition} (timeout: ${timeout}ms)`);
     
     const startTime = Date.now();
+    // Track whether D365 is actively processing – if so we extend the deadline
+    // so that "Please wait" messages don't cause spurious timeouts.
+    let effectiveTimeout = timeout;
     
-    while (Date.now() - startTime < timeout) {
+    while (Date.now() - startTime < effectiveTimeout) {
+        // If D365 is showing a "Please wait" processing message, extend the
+        // deadline so we don't time out during server-side operations.
+        if (isD365Loading() || isD365ProcessingMessage()) {
+            const elapsed = Date.now() - startTime;
+            // Extend by up to 60 s total (on top of original timeout)
+            if (effectiveTimeout - elapsed < 5000) {
+                effectiveTimeout = Math.min(elapsed + 10000, timeout + 60000);
+            }
+            await sleep(500);
+            continue;
+        }
+
         const element = document.querySelector(`[data-dyn-controlname="${controlName}"]`);
         
         let conditionMet = false;
@@ -276,12 +439,11 @@ export async function waitUntilCondition(controlName, condition, expectedValue, 
         }
         
         if (conditionMet) {
-            console.log(`  ✓ Condition met: ${controlName} is ${condition}`);
-            await sleep(200); // Small stability delay
+            await waitForTiming('ANIMATION_DELAY'); // Small stability delay
             return;
         }
         
-        await sleep(100);
+        await waitForTiming('INPUT_SETTLE_DELAY');
     }
     
     throw new Error(`Timeout waiting for "${controlName}" to be ${condition} (waited ${timeout}ms)`);
@@ -315,7 +477,7 @@ export async function setInputValue(controlName, value, fieldType, comboMethodOv
 
     // Focus the input first
     input.focus();
-    await sleep(150);
+    await waitForTiming('MEDIUM_SETTLE_DELAY');
 
     if (input.tagName !== 'SELECT') {
         // Use the selected combobox input method
@@ -328,11 +490,10 @@ export async function setInputValue(controlName, value, fieldType, comboMethodOv
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
     input.dispatchEvent(new Event('blur', { bubbles: true }));
-    await sleep(400);
+    await waitForTiming('POST_INPUT_DELAY');
 }
 
 export async function setGridCellValue(controlName, value, fieldType, waitForValidation = false, comboMethodOverride = '') {
-    console.log(`Setting grid cell value: ${controlName} = "${value}" (waitForValidation=${waitForValidation})`);
     
     // Wait for the grid to have an active/selected row before finding the cell.
     // After "Add line", D365's React grid may take a moment to mark the new row
@@ -347,7 +508,7 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     if (!element) {
         // Try clicking on the grid row first to activate it
         await activateGridRow(controlName);
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
         element = findGridCellElement(controlName);
     }
     
@@ -361,14 +522,13 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     const isReactGrid = !!element.closest('.reactGrid');
     
     // Click on the cell to activate it for editing
-    console.log(`  Clicking cell to activate: isReactGrid=${isReactGrid}`);
     reactCell.click();
-    await sleep(300);
+    await waitForTiming('UI_UPDATE_DELAY');
     
     // For React grids, D365 renders input fields dynamically after clicking
     // We need to re-find the element after clicking as D365 may have replaced the DOM
     if (isReactGrid) {
-        await sleep(200); // Extra wait for React to render input
+        await waitForTiming('ANIMATION_DELAY'); // Extra wait for React to render input
         element = findGridCellElement(controlName);
         if (!element) {
             throw new Error(`Grid cell element not found after click: ${controlName}`);
@@ -389,7 +549,7 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     // If no input found directly, try getting it after click activation with retry
     if (!input) {
         for (let attempt = 0; attempt < 5; attempt++) {
-            await sleep(200);
+            await waitForTiming('ANIMATION_DELAY');
             input = element.querySelector('input:not([type="hidden"]), textarea, select');
             if (input && input.offsetParent !== null) break;
             
@@ -430,13 +590,6 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     }
     
     if (!input) {
-        // Log available elements for debugging
-        const gridContainer = element.closest('.reactGrid, [data-dyn-role="Grid"]');
-        const allInputs = gridContainer?.querySelectorAll('input:not([type="hidden"])');
-        console.log('Available inputs in grid:', Array.from(allInputs || []).map(i => ({
-            name: i.closest('[data-dyn-controlname]')?.getAttribute('data-dyn-controlname'),
-            visible: i.offsetParent !== null
-        })));
         throw new Error(`Input not found in grid cell: ${controlName}. The cell may need to be clicked to become editable.`);
     }
     
@@ -461,11 +614,11 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     
     // Standard input - focus and set value
     input.focus();
-    await sleep(100);
+    await waitForTiming('INPUT_SETTLE_DELAY');
     
     // Clear existing value
     input.select?.();
-    await sleep(50);
+    await waitForTiming('QUICK_RETRY_DELAY');
     
     // Use the standard input method
     await comboInputWithSelectedMethod(input, value, comboMethodOverride);
@@ -473,7 +626,7 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     // Dispatch events
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
-    await sleep(200);
+    await waitForTiming('ANIMATION_DELAY');
     
     // For grid cells, we need to properly commit the value
     // D365 React grids require the cell to lose focus for validation to occur
@@ -481,16 +634,16 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
     // Method 1: Press Enter to confirm the value (important for lookup fields like ItemId)
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
     input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true }));
-    await sleep(300);
+    await waitForTiming('UI_UPDATE_DELAY');
     
     // Method 2: Tab out to move to next cell (triggers blur and validation)
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
     input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', code: 'Tab', keyCode: 9, which: 9, bubbles: true }));
-    await sleep(200);
+    await waitForTiming('ANIMATION_DELAY');
     
     // Method 3: Dispatch blur event explicitly
     input.dispatchEvent(new FocusEvent('blur', { bubbles: true, relatedTarget: null }));
-    await sleep(200);
+    await waitForTiming('ANIMATION_DELAY');
     
     // Method 4: Click outside the cell to ensure focus is lost
     // Find another cell or the row container to click
@@ -499,24 +652,22 @@ export async function setGridCellValue(controlName, value, fieldType, waitForVal
         const otherCell = row.querySelector('.fixedDataTableCellLayout_main:not(:focus-within)');
         if (otherCell && otherCell !== input.closest('.fixedDataTableCellLayout_main')) {
             otherCell.click();
-            await sleep(200);
+            await waitForTiming('ANIMATION_DELAY');
         }
     }
     
     // Wait for D365 to process/validate the value (server-side lookup for ItemId, etc.)
-    await sleep(500);
+    await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
     
     // If waitForValidation is enabled, wait for D365 to complete the lookup validation
     // This is important for fields like ItemId that trigger server-side validation
     if (waitForValidation) {
-        console.log(`  Waiting for D365 validation of ${controlName}...`);
         
         // Wait for any loading indicators to appear and disappear
         // D365 shows a loading spinner during server-side lookups
         await waitForD365Validation(controlName, 5000);
     }
     
-    console.log(`  Grid cell value set: ${controlName} = "${value}"`);
 }
 
 export async function waitForD365Validation(controlName, timeout = 5000) {
@@ -529,11 +680,9 @@ export async function waitForD365Validation(controlName, timeout = 5000) {
         const isLoading = isD365Loading();
         
         if (isLoading && !lastLoadingState) {
-            console.log('    D365 validation started (loading indicator appeared)');
             seenLoading = true;
         } else if (!isLoading && lastLoadingState && seenLoading) {
-            console.log('    D365 validation completed (loading indicator gone)');
-            await sleep(300); // Extra buffer after loading completes
+            await waitForTiming('UI_UPDATE_DELAY'); // Extra buffer after loading completes
             return true;
         }
         
@@ -546,22 +695,19 @@ export async function waitForD365Validation(controlName, timeout = 5000) {
             const cellText = cell.textContent || '';
             const hasMultipleValues = cellText.split(/\s{2,}|\n/).filter(t => t.trim()).length > 1;
             if (hasMultipleValues) {
-                console.log('    D365 validation completed (cell content updated)');
-                await sleep(200);
+                await waitForTiming('ANIMATION_DELAY');
                 return true;
             }
         }
         
-        await sleep(100);
+        await waitForTiming('INPUT_SETTLE_DELAY');
     }
     
     // If we saw loading at some point, wait a bit more after timeout
     if (seenLoading) {
-        console.log('    Validation timeout reached, but saw loading - waiting extra time');
-        await sleep(500);
+        await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
     }
     
-    console.log('    Validation wait completed (timeout or no loading detected)');
     return false;
 }
 
@@ -569,15 +715,46 @@ export async function waitForD365Validation(controlName, timeout = 5000) {
  * Wait for the grid to have an active/selected row that contains the target
  * control.  D365 React grids update `aria-selected` asynchronously after
  * actions like "Add line", so we poll for a short period before giving up.
+ *
+ * IMPORTANT: If a pending-new-row marker exists (set by `waitForNewGridRow`
+ * after an "Add line" click), we verify that the selected row matches that
+ * marker.  This prevents returning `true` when the OLD row is still
+ * aria-selected but the NEW row hasn't been marked yet.
  */
 async function waitForActiveGridRow(controlName, timeout = 2000) {
     const start = Date.now();
+    const pendingNew = window.__d365_pendingNewRow;
+    // Consider the marker stale after 15 seconds
+    const markerFresh = pendingNew && (Date.now() - pendingNew.timestamp < 15000);
+
     while (Date.now() - start < timeout) {
+        // If we have a pending-new-row marker, try to find controlName in
+        // THAT specific row first.
+        if (markerFresh && pendingNew.rowElement) {
+            const cell = pendingNew.rowElement.querySelector(
+                `[data-dyn-controlname="${controlName}"]`
+            );
+            if (cell && cell.offsetParent !== null) {
+                // The pending row contains our control - good, but verify it
+                // is actually selected / active now.
+                const isSelected = pendingNew.rowElement.getAttribute('aria-selected') === 'true' ||
+                                   pendingNew.rowElement.getAttribute('data-dyn-selected') === 'true' ||
+                                   pendingNew.rowElement.getAttribute('data-dyn-row-active') === 'true' ||
+                                   pendingNew.rowElement.classList.contains('dyn-selectedRow');
+                if (isSelected) return true;
+            }
+        }
+
         // Traditional grid selected rows
         const selectedRows = document.querySelectorAll(
             '[data-dyn-selected="true"], [aria-selected="true"], .dyn-selectedRow'
         );
         for (const row of selectedRows) {
+            // If we have a pending marker, skip rows that don't match it –
+            // this prevents returning true for the old/previous row.
+            if (markerFresh && pendingNew.rowElement && row !== pendingNew.rowElement) {
+                continue;
+            }
             const cell = row.querySelector(`[data-dyn-controlname="${controlName}"]`);
             if (cell && cell.offsetParent !== null) return true;
         }
@@ -589,14 +766,21 @@ async function waitForActiveGridRow(controlName, timeout = 2000) {
                 '.fixedDataTableRowLayout_main[data-dyn-row-active="true"]'
             );
             if (activeRow) {
+                if (markerFresh && pendingNew.rowElement && activeRow !== pendingNew.rowElement) {
+                    continue;
+                }
                 const cell = activeRow.querySelector(`[data-dyn-controlname="${controlName}"]`);
                 if (cell && cell.offsetParent !== null) return true;
             }
         }
-        await sleep(100);
+        await waitForTiming('INPUT_SETTLE_DELAY');
     }
-    // No active row found within timeout – caller will proceed with fallback
-    console.log(`[D365] waitForActiveGridRow: no active row found for ${controlName} within ${timeout}ms, proceeding with fallback`);
+    // Timed out – clear the pending marker so we don't keep blocking
+    // future calls if something went wrong.
+    if (markerFresh) {
+        logStep(`waitForActiveGridRow: timed out waiting for pending new row to contain "${controlName}". Clearing marker.`);
+        delete window.__d365_pendingNewRow;
+    }
     return false;
 }
 
@@ -613,7 +797,7 @@ export async function activateGridRow(controlName) {
                 if (row) {
                     // Click on the row to select it
                     row.click();
-                    await sleep(200);
+                    await waitForTiming('ANIMATION_DELAY');
                     return true;
                 }
             }
@@ -631,7 +815,7 @@ export async function activateGridRow(controlName) {
             if (row) {
                 // Click on the row to select it
                 row.click();
-                await sleep(200);
+                await waitForTiming('ANIMATION_DELAY');
                 return true;
             }
         }
@@ -649,11 +833,11 @@ export async function setLookupSelectValue(controlName, value, comboMethodOverri
     const lookupButton = findLookupButton(element);
     if (lookupButton) {
         lookupButton.click();
-        await sleep(800);
+        await waitForTiming('CLICK_ANIMATION_DELAY');
     } else {
         // Try to open by focusing and keyboard
         input.focus();
-        await sleep(100);
+        await waitForTiming('INPUT_SETTLE_DELAY');
         await setValueWithVerify(input, value);
         await openLookupByKeyboard(input);
     }
@@ -668,11 +852,11 @@ export async function setLookupSelectValue(controlName, value, comboMethodOverri
     if (dockInput) {
         dockInput.click();
         dockInput.focus();
-        await sleep(50);
+        await waitForTiming('QUICK_RETRY_DELAY');
         await comboInputWithSelectedMethod(dockInput, value, comboMethodOverride);
         dockInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
         dockInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
-        await sleep(600);
+        await waitForTiming('SAVE_SETTLE_DELAY');
     }
 
     const rows = await waitForLookupRows(lookupDock, element);
@@ -692,7 +876,7 @@ export async function setLookupSelectValue(controlName, value, comboMethodOverri
             target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
             target.click();
             matched = true;
-            await sleep(500);
+            await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
             // Some D365 lookups require Enter or double-click to commit selection
             target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
             input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
@@ -702,7 +886,7 @@ export async function setLookupSelectValue(controlName, value, comboMethodOverri
             if (!applied) {
                 // Try a second commit pass if the value did not stick
                 target.click();
-                await sleep(200);
+                await waitForTiming('ANIMATION_DELAY');
                 input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
                 input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
                 await commitLookupValue(input);
@@ -774,7 +958,7 @@ export async function setCheckboxValue(controlName, value) {
     // Only click if state needs to change
     if (shouldCheck !== isCurrentlyChecked) {
         checkbox.click();
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
         
         // For custom toggles, also try dispatching events if click didn't work
         if (isCustomToggle) {
@@ -786,14 +970,14 @@ export async function setCheckboxValue(controlName, value) {
 
 export async function openLookupByKeyboard(input) {
     input.focus();
-    await sleep(50);
+    await waitForTiming('QUICK_RETRY_DELAY');
     // Try Alt+Down then F4 (common D365/Win controls)
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', code: 'ArrowDown', altKey: true, bubbles: true }));
     input.dispatchEvent(new KeyboardEvent('keyup', { key: 'ArrowDown', code: 'ArrowDown', altKey: true, bubbles: true }));
-    await sleep(150);
+    await waitForTiming('MEDIUM_SETTLE_DELAY');
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'F4', code: 'F4', bubbles: true }));
     input.dispatchEvent(new KeyboardEvent('keyup', { key: 'F4', code: 'F4', bubbles: true }));
-    await sleep(300);
+    await waitForTiming('UI_UPDATE_DELAY');
 }
 
 export async function commitLookupValue(input) {
@@ -804,7 +988,7 @@ export async function commitLookupValue(input) {
     input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
     input.dispatchEvent(new Event('blur', { bubbles: true }));
-    await sleep(800);
+    await waitForTiming('CLICK_ANIMATION_DELAY');
 }
 
 export async function closeDialog(formName, action = 'ok') {
@@ -829,7 +1013,7 @@ export async function closeDialog(formName, action = 'ok') {
     const button = form.querySelector(`[data-dyn-controlname="${buttonName}"]`);
     if (button) {
         button.click();
-        await sleep(500);
+        await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
         logStep(`Dialog ${formName} closed with ${action.toUpperCase()}`);
     } else {
         logStep(`Warning: ${action.toUpperCase()} button not found in ${formName}`);
@@ -935,7 +1119,7 @@ export async function navigateToForm(step) {
     if (openInNewTab) {
         window.open(targetUrl, '_blank', 'noopener');
         logStep('Opened navigation target in a new tab');
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
         return;
     }
 
@@ -977,7 +1161,7 @@ export async function navigateToForm(step) {
     // Wait longer to ensure the full chain completes:
     // postMessage -> content.js -> background.js -> popup -> chrome.scripting.executeScript
     // This chain involves multiple async hops, so we need sufficient time
-    await sleep(500);
+    await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
     
     // Navigate - this will cause page reload, script context will be lost
     window.location.href = targetUrl;
@@ -1035,14 +1219,14 @@ export async function activateTab(controlName) {
     
     // Focus and click
     if (clickTarget.focus) clickTarget.focus();
-    await sleep(100);
+    await waitForTiming('INPUT_SETTLE_DELAY');
     
     // Dispatch full click sequence
     clickTarget.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
     clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
     clickTarget.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     
-    await sleep(300);
+    await waitForTiming('UI_UPDATE_DELAY');
     
     // Also try triggering the D365 internal control
     if (typeof $dyn !== 'undefined' && $dyn.controls) {
@@ -1066,7 +1250,7 @@ export async function activateTab(controlName) {
     }
     
     // Wait for tab content to load
-    await sleep(800);
+    await waitForTiming('CLICK_ANIMATION_DELAY');
     
     // Verify the tab is now active by checking for visible content
     const tabContent = document.querySelector(`[data-dyn-controlname="${controlName}"]`);
@@ -1128,7 +1312,7 @@ export async function activateActionPaneTab(controlName) {
     }
 
     if (clickTarget?.focus) clickTarget.focus();
-    await sleep(100);
+    await waitForTiming('INPUT_SETTLE_DELAY');
     dispatchClickSequence(clickTarget);
 
     if (typeof $dyn !== 'undefined' && $dyn.controls) {
@@ -1146,7 +1330,7 @@ export async function activateActionPaneTab(controlName) {
         }
     }
 
-    await sleep(600);
+    await waitForTiming('SAVE_SETTLE_DELAY');
     logStep(`Action pane tab ${controlName} activated`);
 }
 
@@ -1212,7 +1396,7 @@ export async function expandOrCollapseSection(controlName, action) {
         clickTarget.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         clickTarget.click();
         
-        await sleep(500);
+        await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
         
         // Try D365 internal control API
         if (typeof $dyn !== 'undefined' && $dyn.controls) {
@@ -1240,7 +1424,7 @@ export async function expandOrCollapseSection(controlName, action) {
             }
         }
         
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
     } else {
         logStep(`Section ${controlName} already ${action}ed, no toggle needed`);
     }
@@ -1259,7 +1443,7 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
                             document.querySelector('[data-dyn-form-name="SysOperationTemplateForm"] [data-dyn-controlname*="Query"]');
         if (filterButton) {
             filterButton.click();
-            await sleep(1000);
+            await waitForTiming('VALIDATION_WAIT');
             queryForm = document.querySelector('[data-dyn-form-name="SysQueryForm"]');
         }
     }
@@ -1278,9 +1462,9 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
             const input = savedQueryBox.querySelector('input');
             if (input) {
                 input.click();
-                await sleep(300);
+                await waitForTiming('UI_UPDATE_DELAY');
                 await setInputValueInForm(input, options.savedQuery, options.comboSelectMode || '');
-                await sleep(500);
+                await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
             }
         }
     }
@@ -1289,14 +1473,14 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
     const rangeTab = findInQuery('RangeTab') || findInQuery('RangeTab_header');
     if (rangeTab && !rangeTab.classList.contains('active') && rangeTab.getAttribute('aria-selected') !== 'true') {
         rangeTab.click();
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
     }
     
     // Click Add to add a new filter row
     const addButton = findInQuery('RangeAdd');
     if (addButton) {
         addButton.click();
-        await sleep(500);
+        await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
     }
     
     // The grid uses ReactList - find the last row (newly added) and fill in values
@@ -1317,7 +1501,7 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
         if (lastTableCell) {
             const input = lastTableCell.querySelector('input') || lastTableCell;
             await setInputValueInForm(input, tableName, options.comboSelectMode || '');
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     }
     
@@ -1329,9 +1513,9 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
             const input = lastFieldCell.querySelector('input') || lastFieldCell;
             // Click to open dropdown/focus
             input.click?.();
-            await sleep(200);
+            await waitForTiming('ANIMATION_DELAY');
             await setInputValueInForm(input, fieldName, options.comboSelectMode || '');
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     }
     
@@ -1342,9 +1526,9 @@ export async function configureQueryFilter(tableName, fieldName, criteriaValue, 
         if (lastValueCell) {
             const input = lastValueCell.querySelector('input') || lastValueCell;
             input.click?.();
-            await sleep(200);
+            await waitForTiming('ANIMATION_DELAY');
             await setInputValueInForm(input, criteriaValue, options.comboSelectMode || '');
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     }
     
@@ -1355,7 +1539,7 @@ export async function configureBatchProcessing(enabled, taskDescription, batchGr
     logStep(`Configuring batch processing: ${enabled ? 'enabled' : 'disabled'}`);
     
     // Wait for dialog to be ready
-    await sleep(300);
+    await waitForTiming('UI_UPDATE_DELAY');
     
     // Find the batch processing checkbox - control name is Fld1_1 in SysOperationTemplateForm
     const batchToggle = document.querySelector('[data-dyn-form-name="SysOperationTemplateForm"] [data-dyn-controlname="Fld1_1"]') ||
@@ -1375,7 +1559,7 @@ export async function configureBatchProcessing(enabled, taskDescription, batchGr
         if (currentState !== enabled) {
             const clickTarget = checkbox || batchToggle.querySelector('button, .toggle-switch, label') || batchToggle;
             clickTarget.click();
-            await sleep(500);
+            await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
         }
     } else {
         logStep('Warning: Batch processing toggle (Fld1_1) not found');
@@ -1384,30 +1568,30 @@ export async function configureBatchProcessing(enabled, taskDescription, batchGr
     // Set task description if provided and batch is enabled (Fld2_1)
     if (enabled && taskDescription) {
         await setInputValue('Fld2_1', taskDescription);
-        await sleep(200);
+        await waitForTiming('ANIMATION_DELAY');
     }
     
     // Set batch group if provided and batch is enabled (Fld3_1)
     if (enabled && batchGroup) {
         await setInputValue('Fld3_1', batchGroup);
-        await sleep(200);
+        await waitForTiming('ANIMATION_DELAY');
     }
     
     // Set Private and Critical options if provided (Fld4_1 and Fld5_1)
     if (enabled && options.private !== undefined) {
         await setCheckbox('Fld4_1', options.private);
-        await sleep(200);
+        await waitForTiming('ANIMATION_DELAY');
     }
     
     if (enabled && options.criticalJob !== undefined) {
         await setCheckbox('Fld5_1', options.criticalJob);
-        await sleep(200);
+        await waitForTiming('ANIMATION_DELAY');
     }
     
     // Set Monitoring category if specified (Fld6_1)
     if (enabled && options.monitoringCategory) {
         await setComboBoxValue('Fld6_1', options.monitoringCategory);
-        await sleep(200);
+        await waitForTiming('ANIMATION_DELAY');
     }
     
     logStep('Batch processing configured');
@@ -1427,7 +1611,7 @@ export async function configureRecurrence(step) {
                                 findElementInActiveContext('MnuItm_1');
         if (recurrenceButton) {
             recurrenceButton.click();
-            await sleep(1000);
+            await waitForTiming('VALIDATION_WAIT');
             recurrenceForm = document.querySelector('[data-dyn-form-name="SysRecurrence"]');
         }
     }
@@ -1446,7 +1630,7 @@ export async function configureRecurrence(step) {
                               findInRecurrence('StartDate');
         if (startDateInput) {
             await setInputValueInForm(startDateInput, startDate);
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     }
     
@@ -1456,7 +1640,7 @@ export async function configureRecurrence(step) {
                               findInRecurrence('StartTime');
         if (startTimeInput) {
             await setInputValueInForm(startTimeInput, startTime);
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     }
     
@@ -1467,9 +1651,9 @@ export async function configureRecurrence(step) {
             const input = timezoneControl.querySelector('input');
             if (input) {
                 input.click();
-                await sleep(200);
+                await waitForTiming('ANIMATION_DELAY');
                 await setInputValueInForm(input, timezone);
-                await sleep(300);
+                await waitForTiming('UI_UPDATE_DELAY');
             }
         }
     }
@@ -1482,13 +1666,13 @@ export async function configureRecurrence(step) {
             const radioInputs = patternUnitControl.querySelectorAll('input[type="radio"]');
             if (radioInputs.length > patternUnit) {
                 radioInputs[patternUnit].click();
-                await sleep(500); // Wait for UI to update with appropriate interval field
+                await waitForTiming('DEFAULT_WAIT_STEP_DELAY'); // Wait for UI to update with appropriate interval field
             } else {
                 // Try clicking the nth option label/button
                 const radioOptions = patternUnitControl.querySelectorAll('[role="radio"], label, button');
                 if (radioOptions.length > patternUnit) {
                     radioOptions[patternUnit].click();
-                    await sleep(500);
+                    await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
                 }
             }
         }
@@ -1504,7 +1688,7 @@ export async function configureRecurrence(step) {
         if (countControl) {
             const input = countControl.querySelector('input') || countControl;
             await setInputValueInForm(input, patternCount.toString());
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     }
     
@@ -1515,7 +1699,7 @@ export async function configureRecurrence(step) {
         if (noEndDateGroup) {
             const radio = noEndDateGroup.querySelector('input[type="radio"], [role="radio"]') || noEndDateGroup;
             radio.click();
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     } else if (endDateOption === 'endAfter' && endAfterCount) {
         // Click on "End after" group (EndDate2) and set count
@@ -1523,14 +1707,14 @@ export async function configureRecurrence(step) {
         if (endAfterGroup) {
             const radio = endAfterGroup.querySelector('input[type="radio"], [role="radio"]') || endAfterGroup;
             radio.click();
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
         // Set the count (EndDateInt)
         const countControl = findInRecurrence('EndDateInt');
         if (countControl) {
             const input = countControl.querySelector('input') || countControl;
             await setInputValueInForm(input, endAfterCount.toString());
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     } else if (endDateOption === 'endBy' && endByDate) {
         // Click on "End by" group (EndDate3) and set date
@@ -1538,14 +1722,14 @@ export async function configureRecurrence(step) {
         if (endByGroup) {
             const radio = endByGroup.querySelector('input[type="radio"], [role="radio"]') || endByGroup;
             radio.click();
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
         // Set the end date (EndDateDate)
         const dateControl = findInRecurrence('EndDateDate');
         if (dateControl) {
             const input = dateControl.querySelector('input') || dateControl;
             await setInputValueInForm(input, endByDate);
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
         }
     }
     
@@ -1557,7 +1741,7 @@ export async function setInputValueInForm(inputElement, value, comboMethodOverri
     
     // Focus the input
     inputElement.focus();
-    await sleep(100);
+    await waitForTiming('INPUT_SETTLE_DELAY');
     
     // Clear existing value
     inputElement.select?.();
@@ -1594,14 +1778,13 @@ export async function setFilterMethod(filterContainer, method) {
     }
     
     if (!operatorDropdown) {
-        console.log(`  ⚠ Filter operator dropdown not found, using default method`);
         return;
     }
     
     // Click to open the dropdown
     const dropdownButton = operatorDropdown.querySelector('button, [role="combobox"], .dyn-comboBox-button') || operatorDropdown;
     dropdownButton.click();
-    await sleep(300);
+    await waitForTiming('UI_UPDATE_DELAY');
     
     // Find and click the matching option
     const searchTerms = getFilterMethodSearchTerms(method);
@@ -1612,8 +1795,7 @@ export async function setFilterMethod(filterContainer, method) {
         const text = opt.textContent.toLowerCase();
         if (textIncludesAny(text, searchTerms)) {
             opt.click();
-            await sleep(200);
-            console.log(`  Set filter method: ${method}`);
+            await waitForTiming('ANIMATION_DELAY');
             return;
         }
     }
@@ -1626,14 +1808,12 @@ export async function setFilterMethod(filterContainer, method) {
             if (textIncludesAny(text, searchTerms)) {
                 selectEl.value = opt.value;
                 selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-                await sleep(200);
-                console.log(`  Set filter method: ${method}`);
+                await waitForTiming('ANIMATION_DELAY');
                 return;
             }
         }
     }
     
-    console.log(`  ⚠ Could not set filter method "${method}", using default`);
 }
 
 export async function setRadioButtonValue(element, value) {
@@ -1680,7 +1860,7 @@ export async function setRadioButtonValue(element, value) {
             targetOption.dispatchEvent(new Event('change', { bubbles: true }));
         }
         
-        await sleep(500);
+        await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
         return;
     }
     
@@ -1702,7 +1882,7 @@ export async function setRadioButtonValue(element, value) {
                 option.dispatchEvent(new Event('change', { bubbles: true }));
             }
             
-            await sleep(500);
+            await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
             return;
         }
     }
@@ -1726,7 +1906,7 @@ export async function setSegmentedEntryValue(element, value, comboMethodOverride
     // Click the lookup button to open the dropdown
     if (lookupButton) {
         lookupButton.click();
-        await sleep(800); // Wait for lookup to load
+        await waitForTiming('CLICK_ANIMATION_DELAY'); // Wait for lookup to load
     }
 
     // Find the lookup popup/flyout
@@ -1747,11 +1927,11 @@ export async function setSegmentedEntryValue(element, value, comboMethodOverride
         if (dockInput) {
             dockInput.click?.();
             dockInput.focus();
-            await sleep(50);
+            await waitForTiming('QUICK_RETRY_DELAY');
             await comboInputWithSelectedMethod(dockInput, value, comboMethodOverride);
             dockInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
             dockInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
-            await sleep(800);
+            await waitForTiming('CLICK_ANIMATION_DELAY');
         }
     }
 
@@ -1760,11 +1940,11 @@ export async function setSegmentedEntryValue(element, value, comboMethodOverride
     if (lookupInput) {
         lookupInput.click?.();
         lookupInput.focus();
-        await sleep(50);
+        await waitForTiming('QUICK_RETRY_DELAY');
         await comboInputWithSelectedMethod(lookupInput, value, comboMethodOverride);
         lookupInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
         lookupInput.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
-        await sleep(1000); // Wait for server filter
+        await waitForTiming('VALIDATION_WAIT'); // Wait for server filter
     } else {
         await setValueWithVerify(input, value);
     }
@@ -1779,7 +1959,7 @@ export async function setSegmentedEntryValue(element, value, comboMethodOverride
             const cell = row.querySelector('[role="gridcell"], td');
             (cell || row).click();
             foundMatch = true;
-            await sleep(500);
+            await waitForTiming('DEFAULT_WAIT_STEP_DELAY');
             await commitLookupValue(input);
             break;
         }
@@ -1795,7 +1975,7 @@ export async function setSegmentedEntryValue(element, value, comboMethodOverride
         if (closeBtn) closeBtn.click();
         
         // Fallback to direct typing
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
         await setValueWithVerify(input, value);
         await commitLookupValue(input);
     }
@@ -1814,7 +1994,7 @@ export async function setComboBoxValue(element, value, comboMethodOverride = '')
         input.value = target.value;
         input.dispatchEvent(new Event('change', { bubbles: true }));
         input.dispatchEvent(new Event('blur', { bubbles: true }));
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
         return;
     }
 
@@ -1826,7 +2006,7 @@ export async function setComboBoxValue(element, value, comboMethodOverride = '')
         input.click?.();
     }
     input.focus();
-    await sleep(200);
+    await waitForTiming('ANIMATION_DELAY');
 
     // Try typing to filter when allowed (use selected input method)
     if (!input.readOnly && !input.disabled) {
@@ -1839,7 +2019,7 @@ export async function setComboBoxValue(element, value, comboMethodOverride = '')
         // Fallback: press Enter to commit typed value
         input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
         input.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
-        await sleep(300);
+        await waitForTiming('UI_UPDATE_DELAY');
         return;
     }
 
@@ -1873,7 +2053,7 @@ export async function setComboBoxValue(element, value, comboMethodOverride = '')
             }
 
             // Force input value update for D365 comboboxes
-            await sleep(400);
+            await waitForTiming('POST_INPUT_DELAY');
             if (normalizeText(input.value) !== normalizeText(optionText)) {
                 commitComboValue(input, optionText, element);
             } else {
@@ -1881,7 +2061,7 @@ export async function setComboBoxValue(element, value, comboMethodOverride = '')
             }
 
             matched = true;
-            await sleep(300);
+            await waitForTiming('UI_UPDATE_DELAY');
             break;
         }
     }

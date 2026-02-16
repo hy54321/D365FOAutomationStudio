@@ -1,7 +1,7 @@
 export const coreMethods = {
     async init() {
         if (this.loadSettings) {
-            this.settings = this.loadSettings();
+            this.settings = await this.loadSettings();
         }
         await this.loadResumeState();
         // Get the linked tab from background
@@ -335,8 +335,6 @@ export const coreMethods = {
             this.toggleDataSourceEditorPane();
         });
         window.addEventListener('resize', () => this.applyDataSourcesPaneWidth?.());
-        document.getElementById('addDetailDataSource')?.addEventListener('click', () => this.addDetailDataSource());
-
         // Data Sources Panel Toggle
         document.getElementById('dataSourcesHeader')?.addEventListener('click', () => this.toggleDataSourcesPanel());
 
@@ -347,8 +345,16 @@ export const coreMethods = {
         document.getElementById('elementTypeFilter').addEventListener('change', (e) => this.filterElements());
 
         // Settings tab
-        document.getElementById('saveSettings').addEventListener('click', () => this.saveSettings());
-        document.getElementById('resetSettings').addEventListener('click', () => this.resetSettings());
+        document.getElementById('saveSettings').addEventListener('click', () => {
+            this.saveSettings().catch((error) => {
+                this.showNotification(`Failed to save settings: ${error?.message || String(error)}`, 'error');
+            });
+        });
+        document.getElementById('resetSettings').addEventListener('click', () => {
+            this.resetSettings().catch((error) => {
+                this.showNotification(`Failed to reset settings: ${error?.message || String(error)}`, 'error');
+            });
+        });
 
         // Execution controls
         document.getElementById('toggleLogs')?.addEventListener('click', () => this.toggleLogsPanel());
@@ -477,6 +483,186 @@ export const coreMethods = {
         if (this.renderProjectTree) this.renderProjectTree();
         if (this.renderConfigurationTree) this.renderConfigurationTree();
         this.displayWorkflows();
+    },
+
+    showInlinePromptDialog({
+        title = 'Enter value',
+        message = '',
+        placeholder = '',
+        initialValue = '',
+        confirmText = 'Save',
+        cancelText = 'Cancel',
+        confirmClass = 'btn-primary'
+    } = {}) {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+
+            const header = document.createElement('div');
+            header.className = 'modal-header';
+            const heading = document.createElement('h3');
+            heading.textContent = title;
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'btn-close';
+            closeBtn.textContent = 'x';
+            header.appendChild(heading);
+            header.appendChild(closeBtn);
+
+            const body = document.createElement('div');
+            body.className = 'modal-body';
+            const formGroup = document.createElement('div');
+            formGroup.className = 'form-group';
+            if (message) {
+                const label = document.createElement('label');
+                label.textContent = message;
+                formGroup.appendChild(label);
+            }
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control';
+            input.placeholder = placeholder;
+            input.value = initialValue || '';
+            formGroup.appendChild(input);
+            body.appendChild(formGroup);
+
+            const footer = document.createElement('div');
+            footer.className = 'modal-footer';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'btn btn-secondary';
+            cancelBtn.textContent = cancelText;
+            const confirmBtn = document.createElement('button');
+            confirmBtn.type = 'button';
+            confirmBtn.className = `btn ${confirmClass}`;
+            confirmBtn.textContent = confirmText;
+            footer.appendChild(cancelBtn);
+            footer.appendChild(confirmBtn);
+
+            modal.appendChild(header);
+            modal.appendChild(body);
+            modal.appendChild(footer);
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            const cleanup = (result) => {
+                document.removeEventListener('keydown', onKeyDown);
+                overlay.remove();
+                resolve(result);
+            };
+
+            const onKeyDown = (event) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cleanup(null);
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    cleanup(input.value);
+                }
+            };
+
+            closeBtn.addEventListener('click', () => cleanup(null));
+            cancelBtn.addEventListener('click', () => cleanup(null));
+            confirmBtn.addEventListener('click', () => cleanup(input.value));
+            overlay.addEventListener('click', (event) => {
+                if (event.target === overlay) {
+                    cleanup(null);
+                }
+            });
+            document.addEventListener('keydown', onKeyDown);
+
+            setTimeout(() => {
+                input.focus();
+                input.select();
+            }, 0);
+        });
+    },
+
+    showInlineConfirmDialog({
+        title = 'Confirm',
+        message = '',
+        confirmText = 'Confirm',
+        cancelText = 'Cancel',
+        confirmClass = 'btn-danger'
+    } = {}) {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+
+            const header = document.createElement('div');
+            header.className = 'modal-header';
+            const heading = document.createElement('h3');
+            heading.textContent = title;
+            const closeBtn = document.createElement('button');
+            closeBtn.type = 'button';
+            closeBtn.className = 'btn-close';
+            closeBtn.textContent = 'x';
+            header.appendChild(heading);
+            header.appendChild(closeBtn);
+
+            const body = document.createElement('div');
+            body.className = 'modal-body';
+            const messageEl = document.createElement('div');
+            messageEl.textContent = message;
+            body.appendChild(messageEl);
+
+            const footer = document.createElement('div');
+            footer.className = 'modal-footer';
+            const cancelBtn = document.createElement('button');
+            cancelBtn.type = 'button';
+            cancelBtn.className = 'btn btn-secondary';
+            cancelBtn.textContent = cancelText;
+            const confirmBtn = document.createElement('button');
+            confirmBtn.type = 'button';
+            confirmBtn.className = `btn ${confirmClass}`;
+            confirmBtn.textContent = confirmText;
+            footer.appendChild(cancelBtn);
+            footer.appendChild(confirmBtn);
+
+            modal.appendChild(header);
+            modal.appendChild(body);
+            modal.appendChild(footer);
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+
+            const cleanup = (result) => {
+                document.removeEventListener('keydown', onKeyDown);
+                overlay.remove();
+                resolve(result);
+            };
+
+            const onKeyDown = (event) => {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cleanup(false);
+                    return;
+                }
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    cleanup(true);
+                }
+            };
+
+            closeBtn.addEventListener('click', () => cleanup(false));
+            cancelBtn.addEventListener('click', () => cleanup(false));
+            confirmBtn.addEventListener('click', () => cleanup(true));
+            overlay.addEventListener('click', (event) => {
+                if (event.target === overlay) {
+                    cleanup(false);
+                }
+            });
+            document.addEventListener('keydown', onKeyDown);
+
+            setTimeout(() => confirmBtn.focus(), 0);
+        });
     },
 
     showTreeContextMenu(items, x, y) {

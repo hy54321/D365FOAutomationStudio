@@ -159,17 +159,19 @@ export const executionMethods = {
         const handlers = Array.isArray(workflow.unexpectedEventHandlers)
             ? workflow.unexpectedEventHandlers
             : [];
-        const ruleKey = JSON.stringify({
-            trigger: rule.trigger,
-            actions: Array.isArray(rule?.actions) ? rule.actions : [rule?.action].filter(Boolean),
-            outcome: rule?.outcome || 'next-step'
-        });
-        const alreadyExists = handlers.some(existing => {
-            const existingKey = JSON.stringify({
-                trigger: existing?.trigger,
-                actions: Array.isArray(existing?.actions) ? existing.actions : [existing?.action].filter(Boolean),
-                outcome: existing?.outcome || 'next-step'
+        const buildKey = (candidate) => {
+            if (typeof this.getInterruptionHandlerSignature === 'function') {
+                return this.getInterruptionHandlerSignature(candidate);
+            }
+            return JSON.stringify({
+                trigger: candidate?.trigger,
+                actions: Array.isArray(candidate?.actions) ? candidate.actions : [candidate?.action].filter(Boolean),
+                outcome: candidate?.outcome || 'next-step'
             });
+        };
+        const ruleKey = buildKey(rule);
+        const alreadyExists = handlers.some(existing => {
+            const existingKey = buildKey(existing);
             return existingKey === ruleKey;
         });
         if (alreadyExists) {

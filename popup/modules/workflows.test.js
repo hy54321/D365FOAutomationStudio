@@ -39,6 +39,184 @@ describe('workflow methods', () => {
         vi.restoreAllMocks();
     });
 
+    it('getInterruptionHandlerSignature treats action and actions formats consistently', () => {
+        const handlerV1 = {
+            trigger: { kind: 'modal', textTemplate: 'Unsaved changes', matchMode: 'contains' },
+            action: { type: 'click', buttonText: 'Yes' },
+            outcome: 'next-step'
+        };
+        const handlerV2 = {
+            trigger: { kind: 'modal', textTemplate: 'Unsaved changes', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'Yes' }],
+            outcome: 'next-step'
+        };
+        const ctx = {
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        const sig1 = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerV1);
+        const sig2 = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerV2);
+        expect(sig1).toBe(sig2);
+    });
+
+    it('mergeInterruptionHandlersIntoCurrent appends only new handler signatures', () => {
+        const existingHandler = {
+            trigger: { kind: 'modal', textTemplate: 'Unsaved changes', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'Yes' }],
+            outcome: 'next-step'
+        };
+        const newHandler = {
+            trigger: { kind: 'warning', textTemplate: 'Number sequence', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'OK' }],
+            outcome: 'next-step'
+        };
+        const ctx = {
+            currentWorkflow: { unexpectedEventHandlers: [existingHandler] },
+            getInterruptionHandlerSignature: workflowMethods.getInterruptionHandlerSignature,
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        const result = workflowMethods.mergeInterruptionHandlersIntoCurrent.call(ctx, [
+            existingHandler,
+            newHandler
+        ]);
+
+        expect(result).toEqual({ addedCount: 1, skippedCount: 1 });
+        expect(ctx.currentWorkflow.unexpectedEventHandlers).toHaveLength(2);
+        expect(ctx.currentWorkflow.unexpectedEventHandlers[1].trigger.textTemplate).toBe('number sequence');
+    });
+
+    it('buildInterruptionRepository de-duplicates by signature and combines sources', () => {
+        const sharedHandler = {
+            trigger: { kind: 'modal', textTemplate: 'Unsaved changes', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'Yes' }],
+            outcome: 'next-step'
+        };
+        const ctx = {
+            interruptionHandlerRepository: [sharedHandler],
+            workflows: [
+                { id: 'w1', name: 'Workflow A', unexpectedEventHandlers: [sharedHandler] },
+                {
+                    id: 'w2',
+                    name: 'Workflow B',
+                    unexpectedEventHandlers: [{
+                        trigger: { kind: 'warning', textTemplate: 'Number sequence', matchMode: 'contains' },
+                        actions: [{ type: 'click', buttonText: 'OK' }],
+                        outcome: 'next-step'
+                    }]
+                }
+            ],
+            currentWorkflow: null,
+            getInterruptionHandlerSignature: workflowMethods.getInterruptionHandlerSignature,
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        const entries = workflowMethods.buildInterruptionRepository.call(ctx);
+        expect(entries).toHaveLength(2);
+
+        const modalEntry = entries.find((entry) => entry.handler?.trigger?.textTemplate === 'unsaved changes');
+        expect(modalEntry.sources).toEqual(['Repository', 'Workflow A']);
+    });
+
+    it('getInterruptionHandlerSignature normalizes cannot-create-record messages across tables and fields', () => {
+        const handlerA = {
+            trigger: {
+                kind: 'dialog',
+                textTemplate: 'cannot create a record in translations (languagext). language: en-us. the record already exists.',
+                matchMode: 'contains'
+            },
+            actions: [{ type: 'clickButton', buttonControlName: 'Close' }],
+            outcome: 'next-step'
+        };
+        const handlerB = {
+            trigger: {
+                kind: 'dialog',
+                textTemplate: 'cannot create a record in charges code (markuptable). charges code: FR-EU-NR. the record already exists.',
+                matchMode: 'contains'
+            },
+            actions: [{ type: 'clickButton', buttonControlName: 'Close' }],
+            outcome: 'next-step'
+        };
+        const ctx = {
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        const sigA = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerA);
+        const sigB = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerB);
+
+        expect(sigA).toBe(sigB);
+    });
+
+    it('getInterruptionHandlerSignature normalizes required-field message across field names', () => {
+        const handlerA = {
+            trigger: {
+                kind: 'messageBar',
+                textTemplate: "Field 'line of business' must be filled in.",
+                matchMode: 'contains'
+            },
+            actions: [{ type: 'closeMessageBar', controlName: 'MessageBarClose' }],
+            outcome: 'repeat-loop'
+        };
+        const handlerB = {
+            trigger: {
+                kind: 'messageBar',
+                textTemplate: "Field 'Customer group' must be filled in.",
+                matchMode: 'contains'
+            },
+            actions: [{ type: 'closeMessageBar', controlName: 'MessageBarClose' }],
+            outcome: 'repeat-loop'
+        };
+        const ctx = {
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        const sigA = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerA);
+        const sigB = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerB);
+
+        expect(sigA).toBe(sigB);
+    });
+
+    it('getInterruptionHandlerSignature normalizes dependent-delete message across entities', () => {
+        const handlerA = {
+            trigger: {
+                kind: 'messageBar',
+                textTemplate: 'charges code cannot be deleted while dependent auto charges exist. delete dependent auto charges and try again.',
+                matchMode: 'contains'
+            },
+            actions: [{ type: 'closeMessageBar', controlName: 'MessageBarClose' }],
+            outcome: 'next-step'
+        };
+        const handlerB = {
+            trigger: {
+                kind: 'messageBar',
+                textTemplate: 'customer groups cannot be deleted while dependent customers exist. delete dependent customers and try again.',
+                matchMode: 'contains'
+            },
+            actions: [{ type: 'closeMessageBar', controlName: 'MessageBarClose' }],
+            outcome: 'next-step'
+        };
+        const ctx = {
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        const sigA = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerA);
+        const sigB = workflowMethods.getInterruptionHandlerSignature.call(ctx, handlerB);
+
+        expect(sigA).toBe(sigB);
+    });
+
     it('collectReferencedSharedSourceIds returns ids from field and condition mappings and loop data source', () => {
         const workflow = {
             steps: [
@@ -171,6 +349,49 @@ describe('workflow methods', () => {
         expect(resolved[0].fields).toEqual(['Account', 'Name']);
         expect(resolved[0].odataLastFetchedAt).toBe(123456);
         expect(ctx.addLog).toHaveBeenCalledWith('info', 'Fetched dynamic OData source "Dyn Source" (1 rows)');
+    });
+
+    it('getRandomSampleRows returns a unique subset when requested count is smaller than rows', () => {
+        const ctx = {
+            parseOptionalPositiveInt: workflowMethods.parseOptionalPositiveInt
+        };
+        const rows = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+
+        const sample = workflowMethods.getRandomSampleRows.call(ctx, rows, 2);
+
+        expect(sample).toHaveLength(2);
+        const ids = sample.map(row => row.id);
+        expect(new Set(ids).size).toBe(2);
+        expect(ids.every(id => [1, 2, 3, 4].includes(id))).toBe(true);
+    });
+
+    it('resolveRuntimeSharedDataSourcesForWorkflow samples odata-cached source rows when random limit is configured', async () => {
+        const ctx = {
+            sharedDataSources: [
+                {
+                    id: 'cached1',
+                    name: 'Customers',
+                    type: 'odata-cached',
+                    randomSampleCount: 2,
+                    data: [
+                        { Account: 'C001' },
+                        { Account: 'C002' },
+                        { Account: 'C003' },
+                        { Account: 'C004' }
+                    ],
+                    fields: ['Account']
+                }
+            ],
+            collectReferencedSharedSourceIds: vi.fn().mockReturnValue(['cached1']),
+            parseOptionalPositiveInt: workflowMethods.parseOptionalPositiveInt,
+            getRandomSampleRows: workflowMethods.getRandomSampleRows,
+            addLog: vi.fn()
+        };
+
+        const resolved = await workflowMethods.resolveRuntimeSharedDataSourcesForWorkflow.call(ctx, { steps: [] });
+        expect(resolved[0].data).toHaveLength(2);
+        expect(resolved[0].data.every(row => ['C001', 'C002', 'C003', 'C004'].includes(row.Account))).toBe(true);
+        expect(ctx.addLog).toHaveBeenCalledWith('info', 'Sampled 2 random rows from OData source "Customers"');
     });
 
     it('expandWorkflowForExecution throws when required params are missing', () => {

@@ -1,3 +1,5 @@
+import { generateId } from './id.js';
+
 export const configurationMethods = {
     async loadConfigurations() {
         const result = await this.chrome.storage.local.get(['configurations', 'selectedConfigurationId']);
@@ -19,7 +21,6 @@ export const configurationMethods = {
         }
 
         this.renderConfigurationFilter();
-        this.renderConfigurationsManager();
         this.renderConfigurationTree();
         this.renderWorkflowConfigurations();
 
@@ -69,7 +70,6 @@ export const configurationMethods = {
             this.renderProjectFilter();
         }
         this.renderConfigurationTree();
-        this.renderConfigurationsManager();
         if (this.renderProjectTree) {
             this.renderProjectTree();
         }
@@ -143,19 +143,24 @@ export const configurationMethods = {
             return false;
         }
 
-        const configuration = { id: Date.now().toString(), name, workflowOrder: [] };
+        const configuration = { id: generateId('config'), name, workflowOrder: [] };
         this.configurations.push(configuration);
 
         this.chrome.storage.local.set({ configurations: this.configurations });
         this.renderConfigurationFilter();
-        this.renderConfigurationsManager();
         this.renderConfigurationTree();
         this.renderWorkflowConfigurations();
         return true;
     },
 
-    createConfigurationByPrompt() {
-        const name = prompt('New configuration name');
+    async createConfigurationByPrompt() {
+        const name = await this.showInlinePromptDialog?.({
+            title: 'New Configuration',
+            message: 'Enter configuration name',
+            placeholder: 'Configuration name',
+            confirmText: 'Create',
+            confirmClass: 'btn-success'
+        });
         if (!name) return;
         const trimmed = name.trim();
         if (!trimmed) return;
@@ -165,7 +170,13 @@ export const configurationMethods = {
     async deleteConfiguration(configurationId) {
         const configuration = this.configurations.find(c => c.id === configurationId);
         if (!configuration) return;
-        if (!confirm(`Delete configuration "${configuration.name}"? This will unlink it from all workflows.`)) return;
+        const confirmed = await this.showInlineConfirmDialog?.({
+            title: 'Delete Configuration',
+            message: `Delete configuration "${configuration.name}"? This will unlink it from all workflows.`,
+            confirmText: 'Delete',
+            confirmClass: 'btn-danger'
+        });
+        if (!confirmed) return;
 
         this.configurations = this.configurations.filter(c => c.id !== configurationId);
         this.workflows = (this.workflows || []).map(w => ({
@@ -187,7 +198,6 @@ export const configurationMethods = {
         });
 
         this.renderConfigurationFilter();
-        this.renderConfigurationsManager();
         this.renderConfigurationTree();
         this.renderWorkflowConfigurations();
         this.displayWorkflows();
@@ -196,7 +206,14 @@ export const configurationMethods = {
     async renameConfiguration(configurationId) {
         const configuration = this.configurations.find(c => c.id === configurationId);
         if (!configuration) return;
-        const name = prompt('Rename configuration', configuration.name);
+        const name = await this.showInlinePromptDialog?.({
+            title: 'Rename Configuration',
+            message: 'Configuration name',
+            placeholder: 'Configuration name',
+            initialValue: configuration.name || '',
+            confirmText: 'Save',
+            confirmClass: 'btn-success'
+        });
         if (!name) return;
         const trimmed = name.trim();
         if (!trimmed) return;
@@ -208,7 +225,6 @@ export const configurationMethods = {
         configuration.name = trimmed;
         await this.chrome.storage.local.set({ configurations: this.configurations });
         this.renderConfigurationFilter();
-        this.renderConfigurationsManager();
         this.renderConfigurationTree();
         this.renderWorkflowConfigurations();
         this.displayWorkflows();
@@ -249,7 +265,6 @@ export const configurationMethods = {
             ? { workflows: this.workflows, configurations: this.configurations }
             : { workflows: this.workflows });
         this.displayWorkflows();
-        this.renderConfigurationsManager();
         this.renderConfigurationTree();
         this.renderWorkflowConfigurations();
     },
@@ -345,11 +360,6 @@ export const configurationMethods = {
         select.value = this.selectedConfigurationId || 'all';
     },
 
-    renderConfigurationsManager() {
-        // Left pane now only hosts configuration actions (run/select).
-        // Ordering is managed from the middle workflows pane.
-    },
-
     async reorderConfigurationWorkflow(configurationId, sourceWorkflowId, targetWorkflowId) {
         const order = this.getConfigurationWorkflowOrder(configurationId);
         if (!order.length) return;
@@ -362,7 +372,6 @@ export const configurationMethods = {
         order.splice(targetIndex, 0, moved);
 
         await this.chrome.storage.local.set({ configurations: this.configurations });
-        this.renderConfigurationsManager();
         this.showNotification('Configuration order updated', 'success');
     },
 
@@ -497,7 +506,7 @@ export const configurationMethods = {
             return;
         }
 
-        const runId = `cfg_${Date.now()}`;
+        const runId = generateId('cfg');
         const workflowQueue = workflows.map((workflow, index) => ({
             key: `${runId}_${index}_${workflow.id || 'workflow'}`,
             workflow: JSON.parse(JSON.stringify(workflow))
@@ -559,3 +568,4 @@ export const configurationMethods = {
         }
     }
 };
+

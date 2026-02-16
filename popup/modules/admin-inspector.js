@@ -1,3 +1,5 @@
+﻿import { escapeHtml } from './utils.js';
+
 // Admin Inspector Module - Quick-trigger D365 page inspection tools
 // Replaces manual console script execution with one-click admin buttons
 
@@ -16,6 +18,7 @@ export const adminInspectorMethods = {
         document.getElementById('adminActionPaneTabs')?.addEventListener('click', () => this.runAdminInspection('actionPaneTabs'));
         document.getElementById('adminFormInputs')?.addEventListener('click', () => this.runAdminInspection('formInputs'));
         document.getElementById('adminGenerateSteps')?.addEventListener('click', () => this.runAdminInspection('generateSteps'));
+        document.getElementById('adminGridState')?.addEventListener('click', () => this.runAdminInspection('gridState'));
 
         // Copy buttons
         document.getElementById('adminCopyJson')?.addEventListener('click', () => this.copyAdminResults('json'));
@@ -65,7 +68,8 @@ export const adminInspectorMethods = {
             activeTab: 'adminActiveTab',
             actionPaneTabs: 'adminActionPaneTabs',
             formInputs: 'adminFormInputs',
-            generateSteps: 'adminGenerateSteps'
+            generateSteps: 'adminGenerateSteps',
+            gridState: 'adminGridState'
         }[inspectionType];
         const btn = document.getElementById(btnId);
         if (btn) {
@@ -108,14 +112,15 @@ export const adminInspectorMethods = {
             activeTab: 'Active Tab Fields',
             actionPaneTabs: 'Action Pane Tabs',
             formInputs: 'Form Inputs',
-            generateSteps: 'Generated Steps'
+            generateSteps: 'Generated Steps',
+            gridState: 'Grid State'
         };
         if (resultsTitle) {
             resultsTitle.textContent = titles[result.inspectionType] || 'Inspection Result';
         }
 
         if (!result.success) {
-            resultsContent.innerHTML = `<div class="admin-error">${this.escapeHtml(result.error || 'Inspection failed')}</div>`;
+            resultsContent.innerHTML = `<div class="admin-error">${escapeHtml(result.error || 'Inspection failed')}</div>`;
             return;
         }
 
@@ -147,8 +152,10 @@ export const adminInspectorMethods = {
                 return this.renderFormInputs(data);
             case 'generateSteps':
                 return this.renderGeneratedSteps(data);
+            case 'gridState':
+                return this.renderGridState(data);
             default:
-                return `<pre class="admin-json">${this.escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
+                return `<pre class="admin-json">${escapeHtml(JSON.stringify(data, null, 2))}</pre>`;
         }
     },
 
@@ -157,14 +164,14 @@ export const adminInspectorMethods = {
             return '<div class="admin-empty">No forms detected on the page.</div>';
         }
         let html = `<div class="admin-section">
-            <div class="admin-stat">URL: <strong>${this.escapeHtml(data.currentUrl?.menuItem || data.currentUrl?.full || '-')}</strong></div>
-            <div class="admin-stat">Company: <strong>${this.escapeHtml(data.currentUrl?.company || '-')}</strong></div>
+            <div class="admin-stat">URL: <strong>${escapeHtml(data.currentUrl?.menuItem || data.currentUrl?.full || '-')}</strong></div>
+            <div class="admin-stat">Company: <strong>${escapeHtml(data.currentUrl?.company || '-')}</strong></div>
         </div>`;
         html += '<div class="admin-section"><h4>Forms</h4><table class="admin-table"><tr><th>Form Name</th><th>Type</th><th>Visible</th></tr>';
         data.forms.forEach(f => {
             const typeClass = f.isDialog ? 'admin-tag-dialog' : 'admin-tag-form';
             html += `<tr>
-                <td><code>${this.escapeHtml(f.formName)}</code></td>
+                <td><code>${escapeHtml(f.formName)}</code></td>
                 <td><span class="admin-tag ${typeClass}">${f.isDialog ? 'Dialog' : 'Form'}</span></td>
                 <td>${f.isVisible ? '✓' : '—'}</td>
             </tr>`;
@@ -172,7 +179,7 @@ export const adminInspectorMethods = {
         html += '</table></div>';
         if (data.dialogStack && data.dialogStack.length) {
             html += '<div class="admin-section"><h4>Dialog Stack (top-to-bottom)</h4><ol class="admin-list">';
-            data.dialogStack.forEach(d => { html += `<li><code>${this.escapeHtml(d)}</code></li>`; });
+            data.dialogStack.forEach(d => { html += `<li><code>${escapeHtml(d)}</code></li>`; });
             html += '</ol></div>';
         }
         return html;
@@ -180,14 +187,14 @@ export const adminInspectorMethods = {
 
     renderScanPage(data) {
         let html = `<div class="admin-section">
-            <div class="admin-stat">Menu Item: <strong>${this.escapeHtml(data.url?.menuItem || '-')}</strong></div>
-            <div class="admin-stat">Company: <strong>${this.escapeHtml(data.url?.company || '-')}</strong></div>
+            <div class="admin-stat">Menu Item: <strong>${escapeHtml(data.url?.menuItem || '-')}</strong></div>
+            <div class="admin-stat">Company: <strong>${escapeHtml(data.url?.company || '-')}</strong></div>
             <div class="admin-stat">Forms found: <strong>${data.forms?.length || 0}</strong></div>
         </div>`;
 
         if (data.byForm) {
             Object.entries(data.byForm).forEach(([formName, formData]) => {
-                html += `<div class="admin-section"><h4>${this.escapeHtml(formName)}</h4>`;
+                html += `<div class="admin-section"><h4>${escapeHtml(formName)}</h4>`;
                 const counts = [];
                 if (formData.tabs?.length) counts.push(`${formData.tabs.length} tabs`);
                 if (formData.buttons?.length) counts.push(`${formData.buttons.length} buttons`);
@@ -199,14 +206,14 @@ export const adminInspectorMethods = {
                 if (formData.inputs?.length) {
                     html += '<div class="admin-subsection"><strong>Inputs:</strong><ul class="admin-compact-list">';
                     formData.inputs.forEach(i => {
-                        html += `<li><code>${this.escapeHtml(i.controlName)}</code> <span class="admin-tag">${this.escapeHtml(i.role || '')}</span> ${this.escapeHtml(i.label || '')}</li>`;
+                        html += `<li><code>${escapeHtml(i.controlName)}</code> <span class="admin-tag">${escapeHtml(i.role || '')}</span> ${escapeHtml(i.label || '')}</li>`;
                     });
                     html += '</ul></div>';
                 }
                 if (formData.buttons?.length) {
                     html += '<div class="admin-subsection"><strong>Buttons:</strong><ul class="admin-compact-list">';
                     formData.buttons.forEach(b => {
-                        html += `<li><code>${this.escapeHtml(b.controlName)}</code> ${this.escapeHtml(b.label || '')}</li>`;
+                        html += `<li><code>${escapeHtml(b.controlName)}</code> ${escapeHtml(b.label || '')}</li>`;
                     });
                     html += '</ul></div>';
                 }
@@ -226,7 +233,7 @@ export const adminInspectorMethods = {
             return `<div class="admin-empty">No ${labels[type] || 'dialog'} found. Make sure the dialog is open.</div>`;
         }
         let html = `<div class="admin-section">
-            <div class="admin-stat">Form: <strong>${this.escapeHtml(data.formName || '-')}</strong></div>
+            <div class="admin-stat">Form: <strong>${escapeHtml(data.formName || '-')}</strong></div>
             <div class="admin-stat">Total controls: <strong>${data.allControls?.length || 0}</strong></div>
         </div>`;
 
@@ -252,12 +259,12 @@ export const adminInspectorMethods = {
             if (!items) return;
             if (cat.isObject) {
                 if (typeof items === 'object' && Object.keys(items).length > 0) {
-                    html += `<div class="admin-subsection"><strong>${cat.label}:</strong><pre class="admin-json-sm">${this.escapeHtml(JSON.stringify(items, null, 2))}</pre></div>`;
+                    html += `<div class="admin-subsection"><strong>${cat.label}:</strong><pre class="admin-json-sm">${escapeHtml(JSON.stringify(items, null, 2))}</pre></div>`;
                 }
             } else if (Array.isArray(items) && items.length > 0) {
                 html += `<div class="admin-subsection"><strong>${cat.label} (${items.length}):</strong><ul class="admin-compact-list">`;
                 items.forEach(i => {
-                    html += `<li><code>${this.escapeHtml(i.controlName)}</code> <span class="admin-tag">${this.escapeHtml(i.role || '')}</span> ${this.escapeHtml(i.label || '')}</li>`;
+                    html += `<li><code>${escapeHtml(i.controlName)}</code> <span class="admin-tag">${escapeHtml(i.role || '')}</span> ${escapeHtml(i.label || '')}</li>`;
                 });
                 html += '</ul></div>';
             }
@@ -268,8 +275,8 @@ export const adminInspectorMethods = {
 
     renderFormTabs(data) {
         let html = `<div class="admin-section">
-            <div class="admin-stat">Form: <strong>${this.escapeHtml(data.formName || '-')}</strong></div>
-            <div class="admin-stat">Active tab: <strong>${this.escapeHtml(data.activeTab || 'none detected')}</strong></div>
+            <div class="admin-stat">Form: <strong>${escapeHtml(data.formName || '-')}</strong></div>
+            <div class="admin-stat">Active tab: <strong>${escapeHtml(data.activeTab || 'none detected')}</strong></div>
         </div>`;
 
         if (data.tabs?.length) {
@@ -278,8 +285,8 @@ export const adminInspectorMethods = {
                 const active = tab.isActive ? '<span class="admin-tag admin-tag-active">ACTIVE</span>' : '';
                 html += `<tr>
                     <td>${i + 1}</td>
-                    <td><code>${this.escapeHtml(tab.controlName)}</code></td>
-                    <td>${this.escapeHtml(tab.label || '')}</td>
+                    <td><code>${escapeHtml(tab.controlName)}</code></td>
+                    <td>${escapeHtml(tab.label || '')}</td>
                     <td>${active}</td>
                 </tr>`;
             });
@@ -290,8 +297,8 @@ export const adminInspectorMethods = {
 
     renderActiveTab(data) {
         let html = `<div class="admin-section">
-            <div class="admin-stat">Form: <strong>${this.escapeHtml(data.formName || '-')}</strong></div>
-            <div class="admin-stat">Active tab: <strong>${this.escapeHtml(data.activeTab || '-')}</strong></div>
+            <div class="admin-stat">Form: <strong>${escapeHtml(data.formName || '-')}</strong></div>
+            <div class="admin-stat">Active tab: <strong>${escapeHtml(data.activeTab || '-')}</strong></div>
         </div>`;
 
         // Sections
@@ -299,7 +306,7 @@ export const adminInspectorMethods = {
             html += '<div class="admin-subsection"><strong>Sections (FastTabs):</strong><ul class="admin-compact-list">';
             data.sections.forEach(s => {
                 const icon = s.isExpanded ? '▼' : '▶';
-                html += `<li>${icon} <code>${this.escapeHtml(s.controlName)}</code> ${this.escapeHtml(s.label || '')}</li>`;
+                html += `<li>${icon} <code>${escapeHtml(s.controlName)}</code> ${escapeHtml(s.label || '')}</li>`;
             });
             html += '</ul></div>';
         }
@@ -318,7 +325,7 @@ export const adminInspectorMethods = {
             if (items?.length) {
                 html += `<div class="admin-subsection"><strong>${group.icon} ${group.label} (${items.length}):</strong><ul class="admin-compact-list">`;
                 items.forEach(f => {
-                    html += `<li><code>${this.escapeHtml(f.controlName)}</code> ${this.escapeHtml(f.label || '')}</li>`;
+                    html += `<li><code>${escapeHtml(f.controlName)}</code> ${escapeHtml(f.label || '')}</li>`;
                 });
                 html += '</ul></div>';
             }
@@ -336,8 +343,8 @@ export const adminInspectorMethods = {
 
     renderActionPaneTabs(data) {
         let html = `<div class="admin-section">
-            <div class="admin-stat">Form: <strong>${this.escapeHtml(data.formName || '-')}</strong></div>
-            <div class="admin-stat">Active tab: <strong>${this.escapeHtml(data.activeTab || 'none detected')}</strong></div>
+            <div class="admin-stat">Form: <strong>${escapeHtml(data.formName || '-')}</strong></div>
+            <div class="admin-stat">Active tab: <strong>${escapeHtml(data.activeTab || 'none detected')}</strong></div>
         </div>`;
 
         if (data.tabs?.length) {
@@ -346,8 +353,8 @@ export const adminInspectorMethods = {
                 const active = tab.isActive ? '<span class="admin-tag admin-tag-active">ACTIVE</span>' : '';
                 html += `<tr>
                     <td>${i + 1}</td>
-                    <td><code>${this.escapeHtml(tab.controlName)}</code></td>
-                    <td>${this.escapeHtml(tab.label || '')}</td>
+                    <td><code>${escapeHtml(tab.controlName)}</code></td>
+                    <td>${escapeHtml(tab.label || '')}</td>
                     <td>${active}</td>
                 </tr>`;
             });
@@ -361,7 +368,7 @@ export const adminInspectorMethods = {
     renderFormInputs(data) {
         if (!data) return '<div class="admin-empty">Form not found.</div>';
         let html = `<div class="admin-section">
-            <div class="admin-stat">Form: <strong>${this.escapeHtml(data.formName || '-')}</strong></div>
+            <div class="admin-stat">Form: <strong>${escapeHtml(data.formName || '-')}</strong></div>
             <div class="admin-stat">Total inputs: <strong>${data.inputs?.length || 0}</strong></div>
         </div>`;
 
@@ -380,7 +387,7 @@ export const adminInspectorMethods = {
             if (items?.length) {
                 html += `<div class="admin-subsection"><strong>${group.label} (${items.length}):</strong><ul class="admin-compact-list">`;
                 items.forEach(f => {
-                    html += `<li><code>${this.escapeHtml(f.controlName)}</code> <span class="admin-tag">${this.escapeHtml(f.role || '')}</span> ${this.escapeHtml(f.label || '')}</li>`;
+                    html += `<li><code>${escapeHtml(f.controlName)}</code> <span class="admin-tag">${escapeHtml(f.role || '')}</span> ${escapeHtml(f.label || '')}</li>`;
                 });
                 html += '</ul></div>';
             }
@@ -394,19 +401,47 @@ export const adminInspectorMethods = {
             return '<div class="admin-empty">No steps generated. Make sure you are on a tab with visible fields.</div>';
         }
         let html = `<div class="admin-section">
-            <div class="admin-stat">Tab: <strong>${this.escapeHtml(data.activeTab || '-')}</strong></div>
+            <div class="admin-stat">Tab: <strong>${escapeHtml(data.activeTab || '-')}</strong></div>
             <div class="admin-stat">Steps generated: <strong>${data.steps.length}</strong></div>
         </div>`;
         html += '<table class="admin-table"><tr><th>#</th><th>Type</th><th>Control</th><th>Label</th></tr>';
         data.steps.forEach((step, i) => {
             html += `<tr>
                 <td>${i + 1}</td>
-                <td><span class="admin-tag">${this.escapeHtml(step.type)}</span></td>
-                <td><code>${this.escapeHtml(step.controlName)}</code></td>
-                <td>${this.escapeHtml(step.displayText || '')}</td>
+                <td><span class="admin-tag">${escapeHtml(step.type)}</span></td>
+                <td><code>${escapeHtml(step.controlName)}</code></td>
+                <td>${escapeHtml(step.displayText || '')}</td>
             </tr>`;
         });
         html += '</table>';
+        return html;
+    },
+
+    renderGridState(data) {
+        if (!data || !data.grids?.length) {
+            return '<div class="admin-empty">No grids detected on the page.</div>';
+        }
+        let html = `<div class="admin-section">
+            <div class="admin-stat">Grids found: <strong>${data.gridCount}</strong></div>
+            <div class="admin-stat">Pending new row marker: <strong>${data.pendingNewRow ? 'Yes (row ' + (data.pendingNewRowData?.rowIndex ?? '?') + ')' : 'No'}</strong></div>
+        </div>`;
+        data.grids.forEach((g, gi) => {
+            html += `<div class="admin-section"><h4>Grid ${gi + 1}: ${escapeHtml(g.type)}${g.controlName ? ' (' + escapeHtml(g.controlName) + ')' : ''}</h4>`;
+            html += `<div class="admin-stat">Total rows: <strong>${g.totalRows}</strong> | Selected: <strong>[${g.selectedRows?.join(', ') || 'none'}]</strong>`;
+            if (g.activeRows) html += ` | Active: <strong>[${g.activeRows.join(', ') || 'none'}]</strong>`;
+            html += '</div>';
+            html += '<table class="admin-table"><tr><th>Row</th><th>State</th><th>Controls (first 5)</th></tr>';
+            g.rows?.forEach(r => {
+                const flags = [];
+                if (r.isSelected) flags.push('<span class="admin-tag admin-tag-dialog">SELECTED</span>');
+                if (r.isActive) flags.push('<span class="admin-tag">ACTIVE</span>');
+                if (r.hasInput) flags.push('<span class="admin-tag admin-tag-form">HAS_INPUT</span>');
+                const controlsText = r.cellControls?.slice(0, 5).join(', ') || '-';
+                const moreText = r.cellControls?.length > 5 ? ` (+${r.cellControls.length - 5} more)` : '';
+                html += `<tr><td>${r.index}</td><td>${flags.join(' ') || '-'}</td><td><code>${escapeHtml(controlsText + moreText)}</code></td></tr>`;
+            });
+            html += '</table></div>';
+        });
         return html;
     },
 
@@ -561,6 +596,26 @@ export const adminInspectorMethods = {
                 });
                 break;
 
+            case 'gridState':
+                lines.push(`Grid Count: ${data.gridCount || 0}`);
+                lines.push(`Pending New Row: ${data.pendingNewRow ? 'Yes' : 'No'}`);
+                if (data.pendingNewRowData) {
+                    lines.push(`  Row Index: ${data.pendingNewRowData.rowIndex}`);
+                    lines.push(`  Timestamp: ${new Date(data.pendingNewRowData.timestamp).toISOString()}`);
+                }
+                data.grids?.forEach((g, gi) => {
+                    lines.push('');
+                    lines.push(`Grid ${gi + 1} (${g.type}${g.controlName ? ' - ' + g.controlName : ''})`);
+                    lines.push(`  Total Rows: ${g.totalRows}`);
+                    lines.push(`  Selected Rows: [${g.selectedRows?.join(', ') || 'none'}]`);
+                    if (g.activeRows) lines.push(`  Active Rows: [${g.activeRows.join(', ') || 'none'}]`);
+                    g.rows?.forEach(r => {
+                        const flags = [r.isSelected ? 'SELECTED' : '', r.isActive ? 'ACTIVE' : '', r.hasInput ? 'HAS_INPUT' : ''].filter(Boolean).join(', ');
+                        lines.push(`  Row ${r.index}: ${flags || '-'} | Controls: ${r.cellControls?.slice(0, 5).join(', ') || '-'}${r.cellControls?.length > 5 ? '...' : ''}`);
+                    });
+                });
+                break;
+
             default:
                 lines.push(JSON.stringify(data, null, 2));
         }
@@ -574,12 +629,7 @@ export const adminInspectorMethods = {
         const resultsContent = document.getElementById('adminResultsContent');
         if (resultsPanel) resultsPanel.classList.add('is-hidden');
         if (resultsContent) resultsContent.innerHTML = '';
-    },
-
-    escapeHtml(str) {
-        if (!str) return '';
-        const div = document.createElement('div');
-        div.textContent = String(str);
-        return div.innerHTML;
     }
 };
+
+

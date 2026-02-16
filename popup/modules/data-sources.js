@@ -1,3 +1,5 @@
+﻿import { escapeHtml } from './utils.js';
+
 export const dataSourceMethods = {
     setDataSourceProcessingState(buttonId, processing, label) {
         const button = document.getElementById(buttonId);
@@ -42,10 +44,10 @@ export const dataSourceMethods = {
         this.sharedDataSourceRelationships = this.sanitizeSharedDataSourceRelationships();
 
         if (!this.dataSources) {
-            this.dataSources = { primary: { type: 'json', data: null, fields: [], odataQuery: '', sharedDataSourceId: '' } };
+            this.dataSources = { primary: { type: 'json', data: null, fields: [], odataQuery: '', randomSampleCount: null, sharedDataSourceId: '' } };
         }
         if (!this.dataSources.primary) {
-            this.dataSources.primary = { type: 'json', data: null, fields: [], odataQuery: '', sharedDataSourceId: '' };
+            this.dataSources.primary = { type: 'json', data: null, fields: [], odataQuery: '', randomSampleCount: null, sharedDataSourceId: '' };
         }
 
         this.renderSharedDataSourcesUI();
@@ -72,6 +74,12 @@ export const dataSourceMethods = {
 
     getProjectNameMap() {
         return new Map((this.projects || []).map(project => [project.id, project.name]));
+    },
+
+    parseOptionalPositiveInt(value, max = 10000) {
+        const parsed = parseInt(String(value ?? '').trim(), 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return Math.min(parsed, max);
     },
 
     sanitizeSharedDataSourceRelationships() {
@@ -197,7 +205,7 @@ export const dataSourceMethods = {
             return `
                 <div class="shared-data-source-item ${this.selectedSharedDataSourceId === source.id ? 'active' : ''}" data-shared-source-id="${source.id}">
                     <div class="shared-data-source-head">
-                        <span class="shared-data-source-name">${this.escapeHtml(source.name || source.id)}</span>
+                        <span class="shared-data-source-name">${escapeHtml(source.name || source.id)}</span>
                         <div class="shared-data-source-actions">
                             <span class="shared-data-source-meta">${source.type === 'odata-dynamic' ? 'dynamic' : source.type === 'faker' ? 'faker' : `${Array.isArray(source.data) ? source.data.length : 0} rows`}</span>
                             <button class="shared-data-source-delete" data-delete-source-id="${source.id}" title="Delete data source" aria-label="Delete data source">🗑</button>
@@ -205,7 +213,7 @@ export const dataSourceMethods = {
                     </div>
                     <div class="shared-data-source-meta">${Array.isArray(source.fields) ? source.fields.length : 0} fields</div>
                     <div class="shared-data-source-projects">
-                        ${projectLabels.map(label => `<span class="data-source-project-tag ${label === 'Unassigned' ? 'unassigned' : ''}">${this.escapeHtml(label)}</span>`).join('')}
+                        ${projectLabels.map(label => `<span class="data-source-project-tag ${label === 'Unassigned' ? 'unassigned' : ''}">${escapeHtml(label)}</span>`).join('')}
                     </div>
                 </div>
             `;
@@ -314,6 +322,7 @@ export const dataSourceMethods = {
             data: Array.isArray(source.data) ? JSON.parse(JSON.stringify(source.data)) : [],
             fields: Array.isArray(source.fields) ? [...source.fields] : [],
             odataQuery: source.odataQuery || '',
+            randomSampleCount: this.parseOptionalPositiveInt(source.randomSampleCount),
             fakerFields: Array.isArray(source.fakerFields) ? JSON.parse(JSON.stringify(source.fakerFields)) : [],
             fakerRowCount: source.fakerRowCount || 10
         };
@@ -378,6 +387,7 @@ export const dataSourceMethods = {
             data: null,
             fields: [],
             odataQuery: '',
+            randomSampleCount: null,
             fakerFields: [],
             fakerRowCount: 10
         };
@@ -453,7 +463,7 @@ export const dataSourceMethods = {
                 label.className = 'project-checkbox';
                 label.innerHTML = `
                     <input type="checkbox" value="${project.id}" ${selected.has(project.id) ? 'checked' : ''}>
-                    <span>${this.escapeHtml(project.name)}</span>
+                    <span>${escapeHtml(project.name)}</span>
                 `;
                 label.querySelector('input')?.addEventListener('change', (event) => {
                     this.toggleSharedDataSourceProjectLink(project.id, !!event.target.checked);
@@ -514,7 +524,7 @@ export const dataSourceMethods = {
         const defaults = this.getRelationshipDefaultSources();
 
         const optionsHtml = sources.length
-            ? `<option value="">-- Select Data Source --</option>${sources.map(source => `<option value="${source.id}">${this.escapeHtml(source.name || source.id)}</option>`).join('')}`
+            ? `<option value="">-- Select Data Source --</option>${sources.map(source => `<option value="${source.id}">${escapeHtml(source.name || source.id)}</option>`).join('')}`
             : '<option value="">No data sources</option>';
 
         parentSelect.innerHTML = optionsHtml;
@@ -563,10 +573,10 @@ export const dataSourceMethods = {
             const pair = pairs[index] || {};
 
             parentFieldSelect.innerHTML = parentFields.length
-                ? `<option value="">-- Select Field --</option>${parentFields.map(field => `<option value="${field}">${this.escapeHtml(field)}</option>`).join('')}`
+                ? `<option value="">-- Select Field --</option>${parentFields.map(field => `<option value="${field}">${escapeHtml(field)}</option>`).join('')}`
                 : '<option value="">No fields</option>';
             detailFieldSelect.innerHTML = detailFields.length
-                ? `<option value="">-- Select Field --</option>${detailFields.map(field => `<option value="${field}">${this.escapeHtml(field)}</option>`).join('')}`
+                ? `<option value="">-- Select Field --</option>${detailFields.map(field => `<option value="${field}">${escapeHtml(field)}</option>`).join('')}`
                 : '<option value="">No fields</option>';
 
             if (parentFields.includes(pair.primaryField)) parentFieldSelect.value = pair.primaryField;
@@ -636,7 +646,7 @@ export const dataSourceMethods = {
             return `
                 <div class="relationship-item">
                     <div class="relationship-text">
-                        ${this.escapeHtml(parentLabel)} -> ${this.escapeHtml(childLabel)} (${this.escapeHtml(mappingText)})
+                        ${escapeHtml(parentLabel)} -> ${escapeHtml(childLabel)} (${escapeHtml(mappingText)})
                     </div>
                     <button class="relationship-delete" data-relationship-id="${rel.id}" title="Delete relationship" aria-label="Delete relationship">🗑</button>
                 </div>
@@ -861,15 +871,15 @@ export const dataSourceMethods = {
         row.dataset.index = index;
 
         row.innerHTML = `
-            <input type="text" class="form-control form-control-sm faker-field-name" value="${this.escapeHtml(def.field || '')}" placeholder="field name" />
+            <input type="text" class="form-control form-control-sm faker-field-name" value="${escapeHtml(def.field || '')}" placeholder="field name" />
             <select class="form-control form-control-sm faker-field-type">
                 <option value="Faker" ${!isConstant ? 'selected' : ''}>Faker</option>
                 <option value="Constant" ${isConstant ? 'selected' : ''}>Constant</option>
             </select>
             <div class="faker-value-cell">
                 ${isConstant
-                    ? `<input type="text" class="form-control form-control-sm faker-constant-input" value="${this.escapeHtml(def.values || '')}" placeholder="value1,value2,value3" />`
-                    : `<select class="form-control form-control-sm faker-generator-select">${generatorNames.map(name => `<option value="${this.escapeHtml(name)}" ${def.generator === name ? 'selected' : ''}>${this.escapeHtml(name)}</option>`).join('')}</select>`
+                    ? `<input type="text" class="form-control form-control-sm faker-constant-input" value="${escapeHtml(def.values || '')}" placeholder="value1,value2,value3" />`
+                    : `<select class="form-control form-control-sm faker-generator-select">${generatorNames.map(name => `<option value="${escapeHtml(name)}" ${def.generator === name ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('')}</select>`
                 }
             </div>
             <button class="btn btn-sm faker-field-delete" title="Remove field">✕</button>
@@ -900,7 +910,7 @@ export const dataSourceMethods = {
             if (defs[index]) { defs[index].values = ''; delete defs[index].generator; }
         } else {
             const generatorNames = this.getFakerGeneratorNames();
-            cell.innerHTML = `<select class="form-control form-control-sm faker-generator-select">${generatorNames.map(name => `<option value="${this.escapeHtml(name)}">${this.escapeHtml(name)}</option>`).join('')}</select>`;
+            cell.innerHTML = `<select class="form-control form-control-sm faker-generator-select">${generatorNames.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('')}</select>`;
             if (defs[index]) { defs[index].generator = generatorNames[0]; delete defs[index].values; }
         }
     },
@@ -1010,6 +1020,7 @@ export const dataSourceMethods = {
     updatePrimaryDataSourceUI(type) {
         const inputContainer = document.getElementById('primaryDataSourceInput');
         const odataQueryContainer = document.getElementById('primaryODataQueryContainer');
+        const odataRandomCountContainer = document.getElementById('primaryODataRandomCountContainer');
         const odataDynamicNote = document.getElementById('primaryODataDynamicNote');
         const fakerContainer = document.getElementById('fakerFieldsContainer');
         const fieldsPreview = document.getElementById('primaryDataFields');
@@ -1023,6 +1034,7 @@ export const dataSourceMethods = {
         inputContainer.classList.toggle('is-hidden', isFaker);
         if (fakerContainer) fakerContainer.classList.toggle('is-hidden', !isFaker);
         if (odataQueryContainer) odataQueryContainer.classList.toggle('is-hidden', !isOData);
+        if (odataRandomCountContainer) odataRandomCountContainer.classList.toggle('is-hidden', !isOData);
         if (odataDynamicNote) odataDynamicNote.classList.toggle('is-hidden', type !== 'odata-dynamic');
 
         if (!isFaker) {
@@ -1042,6 +1054,11 @@ export const dataSourceMethods = {
             const queryInput = document.getElementById('primaryODataQuery');
             if (queryInput && isOData && !queryInput.value && this.dataSources?.primary?.odataQuery) {
                 queryInput.value = this.dataSources.primary.odataQuery;
+            }
+            const randomCountInput = document.getElementById('primaryODataRandomCount');
+            if (randomCountInput) {
+                const count = this.parseOptionalPositiveInt(this.dataSources?.primary?.randomSampleCount);
+                randomCountInput.value = isOData && count ? String(count) : '';
             }
             this.renderFakerPreview([]);
         } else {
@@ -1065,6 +1082,7 @@ export const dataSourceMethods = {
         const type = document.getElementById('primaryDataSourceType')?.value || 'json';
         const input = document.getElementById('primaryDataInput')?.value?.trim() || '';
         const odataQuery = document.getElementById('primaryODataQuery')?.value?.trim() || '';
+        const randomSampleCount = this.parseOptionalPositiveInt(document.getElementById('primaryODataRandomCount')?.value);
         const statusEl = document.getElementById('primaryDataStatus');
         const previewInput = document.getElementById('primaryDataInput');
         const isOData = type === 'odata-cached' || type === 'odata-dynamic';
@@ -1104,6 +1122,7 @@ export const dataSourceMethods = {
             this.dataSources.primary.data = type === 'odata-dynamic' ? [] : data;
             this.dataSources.primary.fields = Object.keys(data[0] || {});
             this.dataSources.primary.type = type;
+            this.dataSources.primary.randomSampleCount = isOData ? randomSampleCount : null;
             if (type === 'odata-cached' || type === 'odata-dynamic') {
                 if (previewInput) {
                     previewInput.value = JSON.stringify(data, null, 2);
@@ -1125,6 +1144,9 @@ export const dataSourceMethods = {
             this.dataSources.primary.data = null;
             this.dataSources.primary.fields = [];
             this.dataSources.primary.odataQuery = (type === 'odata-cached' || type === 'odata-dynamic') ? odataQuery : '';
+            this.dataSources.primary.randomSampleCount = (type === 'odata-cached' || type === 'odata-dynamic')
+                ? randomSampleCount
+                : null;
             this.displayPrimaryDataFields();
             if (statusEl) {
                 statusEl.textContent = `Error: ${error.message}`;
@@ -1148,7 +1170,7 @@ export const dataSourceMethods = {
             return;
         }
 
-        container.innerHTML = fields.map(field => `<span class="field-tag">${this.escapeHtml(field)}</span>`).join('');
+        container.innerHTML = fields.map(field => `<span class="field-tag">${escapeHtml(field)}</span>`).join('');
     },
 
     async saveCurrentPrimaryAsSharedDataSource() {
@@ -1166,6 +1188,11 @@ export const dataSourceMethods = {
         }
 
         const primary = this.dataSources?.primary || {};
+        const isODataPrimary = primary.type === 'odata-cached' || primary.type === 'odata-dynamic';
+        const randomSampleCount = isODataPrimary
+            ? this.parseOptionalPositiveInt(document.getElementById('primaryODataRandomCount')?.value)
+            : null;
+        primary.randomSampleCount = randomSampleCount;
         if (!['json', 'csv', 'odata-cached', 'odata-dynamic', 'faker'].includes(primary.type)) {
             this.showNotification('Choose JSON, CSV / TSV, OData, or Faker first', 'warning');
             return;
@@ -1197,6 +1224,7 @@ export const dataSourceMethods = {
             existing.data = JSON.parse(JSON.stringify(primary.data || []));
             existing.fields = [...(primary.fields || [])];
             existing.odataQuery = (primary.odataQuery || '').trim();
+            existing.randomSampleCount = isODataPrimary ? randomSampleCount : undefined;
             existing.fakerFields = primary.type === 'faker' ? JSON.parse(JSON.stringify(primary.fakerFields || [])) : undefined;
             existing.fakerRowCount = primary.type === 'faker' ? (primary.fakerRowCount || 10) : undefined;
             existing.updatedAt = now;
@@ -1208,6 +1236,7 @@ export const dataSourceMethods = {
                 data: JSON.parse(JSON.stringify(primary.data || [])),
                 fields: [...(primary.fields || [])],
                 odataQuery: (primary.odataQuery || '').trim(),
+                randomSampleCount: isODataPrimary ? randomSampleCount : undefined,
                 fakerFields: primary.type === 'faker' ? JSON.parse(JSON.stringify(primary.fakerFields || [])) : undefined,
                 fakerRowCount: primary.type === 'faker' ? (primary.fakerRowCount || 10) : undefined,
                 projectIds: (this.selectedDataSourceProjectId && !['all', 'unassigned'].includes(this.selectedDataSourceProjectId))
@@ -1266,8 +1295,6 @@ export const dataSourceMethods = {
     },
 
     // Legacy no-op methods kept for compatibility with previous wiring.
-    addDetailDataSource() {},
-    renderDetailDataSources() {},
     validateDetailData() {},
     updateRelationshipsUI() {},
     renderRelationships() {},
@@ -1414,12 +1441,7 @@ export const dataSourceMethods = {
 
     dataToTSV(data) {
         return this.dataToCSV(data);
-    },
-
-    escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        const div = document.createElement('div');
-        div.textContent = String(text);
-        return div.innerHTML;
     }
 };
+
+

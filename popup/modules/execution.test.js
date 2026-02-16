@@ -1,6 +1,7 @@
 /** @vitest-environment jsdom */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { executionMethods } from './execution.js';
+import { workflowMethods } from './workflows.js';
 
 function createExecutionContext(overrides = {}) {
     return {
@@ -424,6 +425,40 @@ describe('execution methods', () => {
         await executionMethods.handleWorkflowLearningRule.call(ctx, {
             workflowId: 'wf-1',
             rule
+        });
+
+        expect(ctx.workflows[0].unexpectedEventHandlers).toHaveLength(1);
+        expect(ctx.addLog).toHaveBeenCalledWith('info', expect.stringContaining('already exists'));
+    });
+
+    it('handleWorkflowLearningRule deduplicates generalized cannot-create-record rules', async () => {
+        const existing = {
+            id: 'rule_1',
+            trigger: {
+                kind: 'dialog',
+                textTemplate: 'cannot create a record in translations (languagext). language: en-us. the record already exists.'
+            },
+            action: { type: 'clickButton', buttonControlName: 'Close' }
+        };
+        const incoming = {
+            id: 'rule_2',
+            trigger: {
+                kind: 'dialog',
+                textTemplate: 'cannot create a record in charges code (markuptable). charges code: FR-EU-NR. the record already exists.'
+            },
+            action: { type: 'clickButton', buttonControlName: 'Close' }
+        };
+        const ctx = createExecutionContext({
+            workflows: [{ id: 'wf-1', name: 'WF1', unexpectedEventHandlers: [existing] }],
+            getInterruptionHandlerSignature: workflowMethods.getInterruptionHandlerSignature,
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        });
+
+        await executionMethods.handleWorkflowLearningRule.call(ctx, {
+            workflowId: 'wf-1',
+            rule: incoming
         });
 
         expect(ctx.workflows[0].unexpectedEventHandlers).toHaveLength(1);

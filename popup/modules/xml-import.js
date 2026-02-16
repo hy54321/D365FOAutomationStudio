@@ -1,7 +1,9 @@
-/**
+﻿/**
  * Task Recorder XML Import Module
  * Converts D365 F&O Task Recorder XML recordings to extension workflow steps
  */
+import { generateId } from './id.js';
+import { escapeHtml } from './utils.js';
 
 export const xmlImportMethods = {
     // Cache for resolved labels to avoid duplicate API calls
@@ -148,7 +150,7 @@ export const xmlImportMethods = {
         const steps = this.convertActionsToSteps(userActions, resolvedLabels);
 
         return {
-            id: Date.now().toString(),
+            id: generateId('workflow'),
             name: recordingName,
             description: description,
             steps: steps,
@@ -513,7 +515,7 @@ export const xmlImportMethods = {
 
                 // Build step
                 const step = {
-                    id: `${Date.now()}_${action.sequence}_${Math.random().toString(36).substr(2,5)}`,
+                    id: generateId(`step_${action.sequence}`),
                     type: 'filter',
                     controlName: gridControlName || action.controlName,
                     displayText: fieldLabel || action.description || action.controlName,
@@ -538,7 +540,7 @@ export const xmlImportMethods = {
      */
     convertActionToStep(action, resolvedLabels = {}) {
         const step = {
-            id: `${Date.now()}_${action.sequence}_${Math.random().toString(36).substr(2, 5)}`,
+            id: generateId(`step_${action.sequence}`),
             displayText: action.controlLabel || action.description || action.controlName,
             controlName: action.controlName,
             fieldMapping: '',
@@ -799,9 +801,8 @@ export const xmlImportMethods = {
         
         const [, year, month, day] = isoMatch;
         
-        // Get date format from settings (default: DDMMYYYY)
-        const settings = JSON.parse(localStorage.getItem('d365-settings') || '{}');
-        const dateFormat = settings.dateFormat || 'DDMMYYYY';
+        // Get date format from in-memory settings (loaded from chrome.storage.local).
+        const dateFormat = this.settings?.dateFormat || 'DDMMYYYY';
         
         switch (dateFormat) {
             case 'DDMMYYYY':
@@ -1105,8 +1106,8 @@ export const xmlImportMethods = {
             <div class="preview-step ${step.needsValue ? 'needs-value' : ''}">
                 <span class="step-number">${i + 1}</span>
                 <span class="step-type-badge ${step.type}">${step.type}</span>
-                <span class="step-desc">${this.escapeHtml(step.description)}</span>
-                ${step.value ? `<span class="step-value">"${this.escapeHtml(step.value)}"</span>` : ''}
+                <span class="step-desc">${escapeHtml(step.description)}</span>
+                ${step.value ? `<span class="step-value">"${escapeHtml(step.value)}"</span>` : ''}
             </div>
         `).join('');
         
@@ -1305,16 +1306,10 @@ export const xmlImportMethods = {
         });
     },
 
-    /**
-     * Escape HTML for safe display
-     */
-    escapeHtml(text) {
-        if (!text) return '';
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
+    
 };
+
+
 
 
 

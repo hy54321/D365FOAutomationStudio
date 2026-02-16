@@ -1,3 +1,21 @@
+import { generateId } from './id.js';
+import { escapeHtml } from './utils.js';
+import {
+    workflowHasLoops as workflowHasLoopsUtil,
+    normalizeParamName as normalizeParamNameUtil,
+    getParamNamesFromString as getParamNamesFromStringUtil,
+    extractRequiredParamsFromObject as extractRequiredParamsFromObjectUtil,
+    getStepForParamExtraction as getStepForParamExtractionUtil,
+    extractRequiredParamsFromWorkflow as extractRequiredParamsFromWorkflowUtil,
+    normalizeBindingValue as normalizeBindingValueUtil,
+    buildNormalizedBindings as buildNormalizedBindingsUtil,
+    serializeDynamicBindingToken as serializeDynamicBindingTokenUtil,
+    substituteParamsInString as substituteParamsInStringUtil,
+    applyParamBindingToValueField as applyParamBindingToValueFieldUtil,
+    substituteParamsInObject as substituteParamsInObjectUtil,
+    resolveBindingMap as resolveBindingMapUtil
+} from '../../shared/workflow-param-utils.js';
+
 export const workflowMethods = {
     async initBuilderPanels() {
         if (this._builderPanelsInitialized) {
@@ -72,28 +90,47 @@ export const workflowMethods = {
             this.chrome.storage.local.set({ builderPanelState: this.builderPanelState }).catch(() => {});
         }
 
-        if (key === 'interruption-handlers') {
-            this.refreshInterruptionHandlersPanelHeight();
-        }
+        this.refreshInterruptionHandlersPanelHeight();
     },
 
     refreshInterruptionHandlersPanelHeight() {
-        const panel = document.getElementById('workflowInterruptionHandlersPanel');
-        const list = document.getElementById('interruptionHandlersList');
+        const handlersPanel = document.getElementById('workflowInterruptionHandlersPanel');
+        const handlersList = document.getElementById('interruptionHandlersList');
+        const repositoryPanel = document.getElementById('workflowInterruptionRepositoryPanel');
+        const repositoryList = document.getElementById('interruptionRepositoryList');
         const builderTab = document.getElementById('builder-tab');
-        if (!panel || !list || !builderTab) return;
+        if (!builderTab) return;
 
-        if (panel.classList.contains('is-collapsed')) {
-            list.style.removeProperty('--interruption-list-max-height');
-            return;
-        }
+        const hasHandlersPanel = !!(handlersPanel && handlersList);
+        const hasRepositoryPanel = !!(repositoryPanel && repositoryList);
+        if (!hasHandlersPanel && !hasRepositoryPanel) return;
 
         if (!builderTab.classList.contains('active')) return;
 
-        const rect = list.getBoundingClientRect();
-        const available = Math.floor(window.innerHeight - rect.top - 16);
-        const maxHeight = Math.max(220, available);
-        list.style.setProperty('--interruption-list-max-height', `${maxHeight}px`);
+        const actionBar = builderTab.querySelector('.workflow-actions-bar');
+        const reserveBottom = (actionBar?.offsetHeight || 0) + 20;
+
+        if (hasHandlersPanel) {
+            if (handlersPanel.classList.contains('is-collapsed')) {
+                handlersList.style.removeProperty('--interruption-list-max-height');
+            } else {
+                const rect = handlersList.getBoundingClientRect();
+                const available = Math.floor(window.innerHeight - rect.top - reserveBottom);
+                const maxHeight = Math.max(220, available);
+                handlersList.style.setProperty('--interruption-list-max-height', `${maxHeight}px`);
+            }
+        }
+
+        if (hasRepositoryPanel) {
+            if (repositoryPanel.classList.contains('is-collapsed')) {
+                repositoryList.style.removeProperty('--interruption-repo-list-max-height');
+            } else {
+                const repoRect = repositoryList.getBoundingClientRect();
+                const repoAvailable = Math.floor(window.innerHeight - repoRect.top - reserveBottom);
+                const repoMaxHeight = Math.max(180, repoAvailable);
+                repositoryList.style.setProperty('--interruption-repo-list-max-height', `${repoMaxHeight}px`);
+            }
+        }
     },
 
     handleDirectBuilderTabAccess() {
@@ -145,7 +182,7 @@ export const workflowMethods = {
 
     createNewWorkflow() {
         this.currentWorkflow = {
-            id: Date.now().toString(),
+            id: generateId('workflow'),
             name: 'New Workflow',
             steps: [],
             projectIds: [],
@@ -181,8 +218,11 @@ export const workflowMethods = {
     },
 
     async loadWorkflows() {
-        const result = await this.chrome.storage.local.get(['workflows']);
+        const result = await this.chrome.storage.local.get(['workflows', 'interruptionHandlerRepository']);
         this.workflows = result.workflows || [];
+        this.interruptionHandlerRepository = Array.isArray(result.interruptionHandlerRepository)
+            ? result.interruptionHandlerRepository
+            : [];
         this.displayWorkflows();
         if (this.updateNavButtonsWorkflowOptions) {
             this.updateNavButtonsWorkflowOptions();
@@ -229,9 +269,18 @@ export const workflowMethods = {
             ? this.syncConfigurationOrderForWorkflow(this.currentWorkflow)
             : false;
 
+        const repositoryEntries = this.buildInterruptionRepository();
+        this.interruptionHandlerRepository = repositoryEntries.map((entry) => this.cloneInterruptionHandler(entry.handler));
         await this.chrome.storage.local.set(configurationOrderChanged
-            ? { workflows: this.workflows, configurations: this.configurations }
-            : { workflows: this.workflows });
+            ? {
+                workflows: this.workflows,
+                configurations: this.configurations,
+                interruptionHandlerRepository: this.interruptionHandlerRepository
+            }
+            : {
+                workflows: this.workflows,
+                interruptionHandlerRepository: this.interruptionHandlerRepository
+            });
         this.displayWorkflows();
         if (this.updateNavButtonsWorkflowOptions) {
             this.updateNavButtonsWorkflowOptions();
@@ -435,15 +484,6 @@ export const workflowMethods = {
 
     loadDataSourcesFromWorkflow() {},
 
-    escapeHtml(value) {
-        return String(value || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    },
-
     async persistCurrentWorkflowHandlers() {
         if (!this.currentWorkflow?.id) return;
         const workflowId = this.currentWorkflow.id;
@@ -453,15 +493,325 @@ export const workflowMethods = {
             ...this.workflows[index],
             unexpectedEventHandlers: JSON.parse(JSON.stringify(this.currentWorkflow.unexpectedEventHandlers || []))
         };
-        await this.chrome.storage.local.set({ workflows: this.workflows });
+        const repositoryEntries = this.buildInterruptionRepository();
+        this.interruptionHandlerRepository = repositoryEntries.map((entry) => this.cloneInterruptionHandler(entry.handler));
+        await this.chrome.storage.local.set({
+            workflows: this.workflows,
+            interruptionHandlerRepository: this.interruptionHandlerRepository
+        });
+    },
+
+    getInterruptionHandlerSignature(handler) {
+        const source = this.normalizeInterruptionHandler(handler);
+        const trigger = source.trigger && typeof source.trigger === 'object' ? source.trigger : {};
+        const actionsRaw = Array.isArray(source.actions) && source.actions.length
+            ? source.actions
+            : (source.action ? [source.action] : []);
+        const actions = actionsRaw.map((action) => ({
+            type: action?.type || '',
+            buttonControlName: action?.buttonControlName || '',
+            buttonText: action?.buttonText || ''
+        }));
+        return JSON.stringify({
+            trigger: {
+                kind: trigger.kind || '',
+                textTemplate: trigger.textTemplate || '',
+                matchMode: trigger.matchMode || 'contains'
+            },
+            actions,
+            outcome: source.outcome || 'next-step'
+        });
+    },
+
+    normalizeInterruptionTextTemplate(rawText) {
+        let value = String(rawText || '')
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        if (!value) return '';
+
+        value = value
+            .replace(/\bcustomer\s+\d+\b/gi, 'customer {number}')
+            .replace(/\bitem number\s+[a-z0-9_-]+\b/gi, 'item number {value}')
+            .replace(/\b\d[\d,./-]*\b/g, '{number}');
+
+        // Generalize duplicate create-record interruptions across tables/fields.
+        // Example:
+        // cannot create a record in translations (languagext). language: en-us. the record already exists.
+        // -> cannot create a record in {record}. {field}: {value}. the record already exists.
+        value = value.replace(
+            /(\bcannot create a record in )([^.]+?)(\.)/i,
+            '$1{record}$3'
+        );
+
+        value = value.replace(
+            /\bfield\s+['"]?([^'".]+?)['"]?\s+must be filled in\.?/i,
+            "field '{field}' must be filled in."
+        );
+
+        value = value.replace(
+            /\b[a-z][a-z0-9 _()/-]*\s+cannot be deleted while dependent\s+[a-z][a-z0-9 _()/-]*\s+exist\.?/i,
+            '{entity} cannot be deleted while dependent {dependency} exist.'
+        );
+
+        value = value.replace(
+            /\bdelete dependent\s+[a-z][a-z0-9 _()/-]*\s+and try again\.?/i,
+            'delete dependent {dependency} and try again.'
+        );
+
+        value = value.replace(
+            /(\.\s*)([a-z][a-z0-9 _()/-]*)(\s*:\s*)([^.]+?)(\.\s*the record already exists\.?)/i,
+            '$1{field}: {value}$5'
+        );
+
+        value = value.replace(
+            /(\b[a-z][a-z0-9 _()/-]*\s*:\s*)([^.]+?)(\.\s*the record already exists\.?)/i,
+            '{field}: {value}$3'
+        );
+
+        return value
+            .replace(/\s+/g, ' ')
+            .trim();
+    },
+
+    cloneInterruptionHandler(handler) {
+        return JSON.parse(JSON.stringify(handler || {}));
+    },
+
+    normalizeInterruptionHandler(handler) {
+        const clone = this.cloneInterruptionHandler(handler);
+        if (!clone || typeof clone !== 'object') return {};
+        clone.trigger = clone.trigger && typeof clone.trigger === 'object'
+            ? { ...clone.trigger }
+            : {};
+        clone.trigger.textTemplate = this.normalizeInterruptionTextTemplate(clone.trigger.textTemplate || '');
+        return clone;
+    },
+
+    buildInterruptionRepository() {
+        const signatureToEntry = new Map();
+        const repoHandlers = Array.isArray(this.interruptionHandlerRepository)
+            ? this.interruptionHandlerRepository
+            : [];
+        const workflowList = Array.isArray(this.workflows) ? this.workflows : [];
+
+        const ingest = (handler, sourceName) => {
+            if (!handler || typeof handler !== 'object') return;
+            const normalizedHandler = this.normalizeInterruptionHandler(handler);
+            const signature = this.getInterruptionHandlerSignature(normalizedHandler);
+            if (!signature) return;
+            let entry = signatureToEntry.get(signature);
+            if (!entry) {
+                entry = {
+                    signature,
+                    handler: normalizedHandler,
+                    sources: new Set()
+                };
+                signatureToEntry.set(signature, entry);
+            }
+            if (sourceName) {
+                entry.sources.add(sourceName);
+            }
+        };
+
+        repoHandlers.forEach((handler) => {
+            if (handler && typeof handler === 'object' && handler.handler) {
+                ingest(handler.handler, 'Repository');
+                return;
+            }
+            ingest(handler, 'Repository');
+        });
+        workflowList.forEach((workflow) => {
+            const sourceName = workflow?.name || workflow?.id || 'Workflow';
+            const handlers = Array.isArray(workflow?.unexpectedEventHandlers)
+                ? workflow.unexpectedEventHandlers
+                : [];
+            handlers.forEach((handler) => ingest(handler, sourceName));
+        });
+
+        if (this.currentWorkflow) {
+            const currentName = this.currentWorkflow.name || this.currentWorkflow.id || 'Current Workflow';
+            const handlers = Array.isArray(this.currentWorkflow.unexpectedEventHandlers)
+                ? this.currentWorkflow.unexpectedEventHandlers
+                : [];
+            handlers.forEach((handler) => ingest(handler, currentName));
+        }
+
+        return Array.from(signatureToEntry.values()).map((entry) => ({
+            signature: entry.signature,
+            handler: entry.handler,
+            sources: Array.from(entry.sources).sort()
+        }));
+    },
+
+    summarizeInterruptionHandler(handler) {
+        const actionList = Array.isArray(handler?.actions) && handler.actions.length
+            ? handler.actions
+            : (handler?.action ? [handler.action] : []);
+        const actionSummary = actionList.map((action) => {
+            const actionType = action?.type || 'none';
+            const actionName = action?.buttonControlName || action?.buttonText || '';
+            return `${actionType}${actionName ? ` (${actionName})` : ''}`;
+        }).join(' -> ');
+        return {
+            triggerKind: handler?.trigger?.kind || 'event',
+            triggerText: handler?.trigger?.textTemplate || '',
+            actionSummary,
+            outcome: handler?.outcome || 'next-step',
+            matchMode: handler?.trigger?.matchMode || 'contains'
+        };
+    },
+
+    mergeInterruptionHandlersIntoCurrent(handlersToAdd = []) {
+        if (!this.currentWorkflow) {
+            return { addedCount: 0, skippedCount: 0 };
+        }
+
+        const existingHandlers = Array.isArray(this.currentWorkflow.unexpectedEventHandlers)
+            ? this.currentWorkflow.unexpectedEventHandlers
+            : [];
+        const existingSignatures = new Set(existingHandlers.map((handler) => this.getInterruptionHandlerSignature(handler)));
+        const additions = [];
+
+        handlersToAdd.forEach((handler) => {
+            if (!handler || typeof handler !== 'object') return;
+            const signature = this.getInterruptionHandlerSignature(handler);
+            if (!signature || existingSignatures.has(signature)) return;
+            existingSignatures.add(signature);
+            additions.push(this.normalizeInterruptionHandler(handler));
+        });
+
+        this.currentWorkflow.unexpectedEventHandlers = [...existingHandlers, ...additions];
+        return {
+            addedCount: additions.length,
+            skippedCount: handlersToAdd.length - additions.length
+        };
+    },
+
+    populateInterruptionHandlerCopyTargets() {
+        const select = document.getElementById('copyHandlerSourceWorkflow');
+        const button = document.getElementById('copyHandlersButton');
+        if (!select || !button) return;
+
+        if (!this.currentWorkflow) {
+            select.innerHTML = '<option value="">Open a workflow first</option>';
+            select.disabled = true;
+            button.disabled = true;
+            return;
+        }
+
+        const currentId = this.currentWorkflow.id;
+        const targets = (this.workflows || []).filter((workflow) =>
+            workflow.id !== currentId &&
+            Array.isArray(workflow.unexpectedEventHandlers) &&
+            workflow.unexpectedEventHandlers.length > 0
+        );
+
+        if (!targets.length) {
+            select.innerHTML = '<option value="">No workflows with handlers</option>';
+            select.disabled = true;
+            button.disabled = true;
+            return;
+        }
+
+        select.disabled = false;
+        select.innerHTML = '<option value="">Select source workflow</option>' + targets.map((workflow) => {
+            const name = escapeHtml(workflow.name || 'Untitled Workflow');
+            const count = workflow.unexpectedEventHandlers.length;
+            return `<option value="${escapeHtml(workflow.id || '')}">${name} (${count})</option>`;
+        }).join('');
+        button.disabled = !select.value;
+    },
+
+    async copyInterruptionHandlersFromSelectedWorkflow() {
+        if (!this.currentWorkflow) return;
+        const select = document.getElementById('copyHandlerSourceWorkflow');
+        const sourceId = select?.value;
+        if (!sourceId) {
+            this.showNotification('Select a source workflow first', 'warning');
+            return;
+        }
+
+        const sourceWorkflow = (this.workflows || []).find((workflow) => workflow.id === sourceId);
+        const sourceHandlers = Array.isArray(sourceWorkflow?.unexpectedEventHandlers)
+            ? sourceWorkflow.unexpectedEventHandlers
+            : [];
+        if (!sourceHandlers.length) {
+            this.showNotification('Selected workflow has no interruption handlers', 'warning');
+            return;
+        }
+
+        const result = this.mergeInterruptionHandlersIntoCurrent(sourceHandlers);
+        if (!result.addedCount) {
+            this.showNotification('All handlers from this workflow already exist in current workflow', 'info');
+            return;
+        }
+
+        await this.persistCurrentWorkflowHandlers();
+        this.renderInterruptionHandlersPanel();
+        this.showNotification(`Copied ${result.addedCount} interruption handler${result.addedCount > 1 ? 's' : ''} from "${sourceWorkflow?.name || 'workflow'}"`, 'success');
+    },
+
+    async copySelectedRepositoryHandlersToCurrent() {
+        if (!this.currentWorkflow) return;
+        const checkboxes = Array.from(document.querySelectorAll('.repo-handler-select:checked'));
+        if (!checkboxes.length) {
+            this.showNotification('Select at least one repository handler', 'warning');
+            return;
+        }
+
+        const repository = this.buildInterruptionRepository();
+        const selectedHandlers = checkboxes.map((checkbox) => {
+            const index = Number(checkbox.getAttribute('data-repo-index'));
+            return repository[index]?.handler || null;
+        }).filter(Boolean);
+
+        const result = this.mergeInterruptionHandlersIntoCurrent(selectedHandlers);
+        if (!result.addedCount) {
+            this.showNotification('Selected handlers already exist in current workflow', 'info');
+            return;
+        }
+
+        await this.persistCurrentWorkflowHandlers();
+        this.renderInterruptionHandlersPanel();
+        this.showNotification(`Added ${result.addedCount} handler${result.addedCount > 1 ? 's' : ''} from repository`, 'success');
     },
 
     renderInterruptionHandlersPanel() {
         const container = document.getElementById('interruptionHandlersList');
+        const repositoryContainer = document.getElementById('interruptionRepositoryList');
+        const copySelect = document.getElementById('copyHandlerSourceWorkflow');
+        const copyButton = document.getElementById('copyHandlersButton');
+        const copySelectedButton = document.getElementById('copySelectedRepositoryHandlersButton');
         if (!container) return;
+
+        if (copySelect && !copySelect.dataset.bound) {
+            copySelect.addEventListener('change', () => {
+                if (copyButton) {
+                    copyButton.disabled = !copySelect.value;
+                }
+            });
+            copySelect.dataset.bound = 'true';
+        }
+        if (copyButton && !copyButton.dataset.bound) {
+            copyButton.addEventListener('click', () => this.copyInterruptionHandlersFromSelectedWorkflow());
+            copyButton.dataset.bound = 'true';
+        }
+        if (copySelectedButton && !copySelectedButton.dataset.bound) {
+            copySelectedButton.addEventListener('click', () => this.copySelectedRepositoryHandlersToCurrent());
+            copySelectedButton.dataset.bound = 'true';
+        }
+        this.populateInterruptionHandlerCopyTargets();
 
         if (!this.currentWorkflow) {
             container.innerHTML = '<p class="empty-state">Open a workflow to view learned handlers.</p>';
+            if (repositoryContainer) {
+                repositoryContainer.innerHTML = '<p class="empty-state">Open a workflow to browse repository handlers.</p>';
+            }
+            if (copySelectedButton) {
+                copySelectedButton.disabled = true;
+            }
             this.refreshInterruptionHandlersPanelHeight();
             return;
         }
@@ -472,82 +822,115 @@ export const workflowMethods = {
 
         if (!handlers.length) {
             container.innerHTML = '<p class="empty-state">No interruption handlers yet. Run learning mode to create them.</p>';
-            this.refreshInterruptionHandlersPanelHeight();
-            return;
+        } else {
+            container.innerHTML = handlers.map((handler, index) => {
+                const summary = this.summarizeInterruptionHandler(handler);
+                const triggerKind = escapeHtml(summary.triggerKind);
+                const triggerText = escapeHtml(summary.triggerText);
+                const actionSummary = escapeHtml(summary.actionSummary);
+                const outcome = escapeHtml(summary.outcome);
+                const matchMode = escapeHtml(summary.matchMode);
+                const mode = handler?.mode === 'alwaysAsk' ? 'alwaysAsk' : 'auto';
+                const enabled = handler?.enabled !== false;
+                return `
+                    <div class="interruption-handler-item" data-handler-index="${index}">
+                        <div class="interruption-handler-main">
+                            <div class="interruption-handler-trigger">${triggerKind}</div>
+                            <div class="interruption-handler-actions">
+                                <label><input type="checkbox" data-action="toggle-enabled" ${enabled ? 'checked' : ''}> enabled</label>
+                                <select data-action="set-mode" class="form-control form-control-sm">
+                                    <option value="auto" ${mode === 'auto' ? 'selected' : ''}>Auto</option>
+                                    <option value="alwaysAsk" ${mode === 'alwaysAsk' ? 'selected' : ''}>Always ask</option>
+                                </select>
+                                <button class="btn btn-danger interruption-handler-delete" data-action="delete">Delete</button>
+                            </div>
+                        </div>
+                        <div class="interruption-handler-sub">Trigger: ${triggerText || '(no text template)'}</div>
+                        <div class="interruption-handler-sub">Match: ${matchMode}</div>
+                        <div class="interruption-handler-sub">Action: ${actionSummary || 'none'}</div>
+                        <div class="interruption-handler-sub">Outcome: ${outcome}</div>
+                    </div>
+                `;
+            }).join('');
         }
 
-        container.innerHTML = handlers.map((handler, index) => {
-            const triggerKind = this.escapeHtml(handler?.trigger?.kind || 'event');
-            const triggerText = this.escapeHtml(handler?.trigger?.textTemplate || '');
-            const actionList = Array.isArray(handler?.actions) && handler.actions.length
-                ? handler.actions
-                : (handler?.action ? [handler.action] : []);
-            const actionSummary = actionList.map((action) => {
-                const actionType = this.escapeHtml(action?.type || 'none');
-                const actionName = this.escapeHtml(action?.buttonControlName || action?.buttonText || '');
-                return `${actionType}${actionName ? ` (${actionName})` : ''}`;
-            }).join(' -> ');
-            const mode = handler?.mode === 'alwaysAsk' ? 'alwaysAsk' : 'auto';
-            const enabled = handler?.enabled !== false;
-            const outcome = this.escapeHtml(handler?.outcome || 'next-step');
-            const matchMode = this.escapeHtml(handler?.trigger?.matchMode || 'contains');
-            return `
-                <div class="interruption-handler-item" data-handler-index="${index}">
-                    <div class="interruption-handler-main">
-                        <div class="interruption-handler-trigger">${triggerKind}</div>
-                        <div class="interruption-handler-actions">
-                            <label><input type="checkbox" data-action="toggle-enabled" ${enabled ? 'checked' : ''}> enabled</label>
-                            <select data-action="set-mode" class="form-control form-control-sm">
-                                <option value="auto" ${mode === 'auto' ? 'selected' : ''}>Auto</option>
-                                <option value="alwaysAsk" ${mode === 'alwaysAsk' ? 'selected' : ''}>Always ask</option>
-                            </select>
-                            <button class="btn btn-danger interruption-handler-delete" data-action="delete">Delete</button>
+        const repository = this.buildInterruptionRepository();
+        if (repositoryContainer) {
+            if (!repository.length) {
+                repositoryContainer.innerHTML = '<p class="empty-state">No interruption handlers in repository yet.</p>';
+            } else {
+                repositoryContainer.innerHTML = repository.map((entry, index) => {
+                    const summary = this.summarizeInterruptionHandler(entry.handler);
+                    const triggerKind = escapeHtml(summary.triggerKind);
+                    const triggerText = escapeHtml(summary.triggerText);
+                    const actionSummary = escapeHtml(summary.actionSummary);
+                    const sourceSummary = escapeHtml((entry.sources || []).join(', ') || 'Repository');
+                    return `
+                        <div class="interruption-repository-item">
+                            <div class="interruption-repository-select">
+                                <label>
+                                    <input type="checkbox" class="repo-handler-select" data-repo-index="${index}">
+                                    ${triggerKind}
+                                </label>
+                                <span class="interruption-repository-source">${sourceSummary}</span>
+                            </div>
+                            <div class="interruption-handler-sub">Trigger: ${triggerText || '(no text template)'}</div>
+                            <div class="interruption-handler-sub">Action: ${actionSummary || 'none'}</div>
                         </div>
-                    </div>
-                    <div class="interruption-handler-sub">Trigger: ${triggerText || '(no text template)'}</div>
-                    <div class="interruption-handler-sub">Match: ${matchMode}</div>
-                    <div class="interruption-handler-sub">Action: ${actionSummary || 'none'}</div>
-                    <div class="interruption-handler-sub">Outcome: ${outcome}</div>
-                </div>
-            `;
-        }).join('');
+                    `;
+                }).join('');
+            }
+        }
 
-        container.querySelectorAll('[data-action="toggle-enabled"]').forEach((inputEl) => {
-            inputEl.addEventListener('change', async (event) => {
-                const row = event.target.closest('[data-handler-index]');
-                const index = Number(row?.getAttribute('data-handler-index'));
-                if (!Number.isFinite(index)) return;
-                const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
-                handlersList[index] = { ...(handlersList[index] || {}), enabled: !!event.target.checked };
-                this.currentWorkflow.unexpectedEventHandlers = handlersList;
-                await this.persistCurrentWorkflowHandlers();
-            });
-        });
+        const updateCopySelectedState = () => {
+            if (!copySelectedButton) return;
+            const checkedCount = document.querySelectorAll('.repo-handler-select:checked').length;
+            copySelectedButton.disabled = checkedCount === 0;
+        };
 
-        container.querySelectorAll('[data-action="set-mode"]').forEach((selectEl) => {
-            selectEl.addEventListener('change', async (event) => {
-                const row = event.target.closest('[data-handler-index]');
-                const index = Number(row?.getAttribute('data-handler-index'));
-                if (!Number.isFinite(index)) return;
-                const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
-                handlersList[index] = { ...(handlersList[index] || {}), mode: event.target.value || 'auto' };
-                this.currentWorkflow.unexpectedEventHandlers = handlersList;
-                await this.persistCurrentWorkflowHandlers();
-            });
+        document.querySelectorAll('.repo-handler-select').forEach((checkbox) => {
+            checkbox.addEventListener('change', updateCopySelectedState);
         });
+        updateCopySelectedState();
 
-        container.querySelectorAll('[data-action="delete"]').forEach((buttonEl) => {
-            buttonEl.addEventListener('click', async (event) => {
-                const row = event.target.closest('[data-handler-index]');
-                const index = Number(row?.getAttribute('data-handler-index'));
-                if (!Number.isFinite(index)) return;
-                const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
-                handlersList.splice(index, 1);
-                this.currentWorkflow.unexpectedEventHandlers = handlersList;
-                await this.persistCurrentWorkflowHandlers();
-                this.renderInterruptionHandlersPanel();
+        if (handlers.length) {
+            container.querySelectorAll('[data-action="toggle-enabled"]').forEach((inputEl) => {
+                inputEl.addEventListener('change', async (event) => {
+                    const row = event.target.closest('[data-handler-index]');
+                    const index = Number(row?.getAttribute('data-handler-index'));
+                    if (!Number.isFinite(index)) return;
+                    const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
+                    handlersList[index] = { ...(handlersList[index] || {}), enabled: !!event.target.checked };
+                    this.currentWorkflow.unexpectedEventHandlers = handlersList;
+                    await this.persistCurrentWorkflowHandlers();
+                });
             });
-        });
+
+            container.querySelectorAll('[data-action="set-mode"]').forEach((selectEl) => {
+                selectEl.addEventListener('change', async (event) => {
+                    const row = event.target.closest('[data-handler-index]');
+                    const index = Number(row?.getAttribute('data-handler-index'));
+                    if (!Number.isFinite(index)) return;
+                    const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
+                    handlersList[index] = { ...(handlersList[index] || {}), mode: event.target.value || 'auto' };
+                    this.currentWorkflow.unexpectedEventHandlers = handlersList;
+                    await this.persistCurrentWorkflowHandlers();
+                });
+            });
+
+            container.querySelectorAll('[data-action="delete"]').forEach((buttonEl) => {
+                buttonEl.addEventListener('click', async (event) => {
+                    const row = event.target.closest('[data-handler-index]');
+                    const index = Number(row?.getAttribute('data-handler-index'));
+                    if (!Number.isFinite(index)) return;
+                    const handlersList = this.currentWorkflow.unexpectedEventHandlers || [];
+                    handlersList.splice(index, 1);
+                    this.currentWorkflow.unexpectedEventHandlers = handlersList;
+                    await this.persistCurrentWorkflowHandlers();
+                    this.renderInterruptionHandlersPanel();
+                });
+            });
+        }
 
         this.refreshInterruptionHandlersPanelHeight();
     },
@@ -619,9 +1002,49 @@ export const workflowMethods = {
         return rows.length ? rows : [{}];
     },
 
+    parseOptionalPositiveInt(value, max = 10000) {
+        const parsed = parseInt(String(value ?? '').trim(), 10);
+        if (!Number.isFinite(parsed) || parsed <= 0) return null;
+        return Math.min(parsed, max);
+    },
+
+    getRandomSampleRows(rows, requestedCount) {
+        if (!Array.isArray(rows)) return [];
+        const count = this.parseOptionalPositiveInt(requestedCount);
+        if (!count || rows.length <= count) {
+            return rows.slice();
+        }
+
+        const copy = rows.slice();
+        for (let i = copy.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [copy[i], copy[j]] = [copy[j], copy[i]];
+        }
+        return copy.slice(0, count);
+    },
+
     async resolveRuntimeSharedDataSourcesForWorkflow(workflow) {
         const sourceIds = new Set(this.collectReferencedSharedSourceIds(workflow));
         const runtimeSources = (this.sharedDataSources || []).map(source => JSON.parse(JSON.stringify(source)));
+        const parseLimit = typeof this.parseOptionalPositiveInt === 'function'
+            ? (value) => this.parseOptionalPositiveInt(value)
+            : (value) => {
+                const parsed = parseInt(String(value ?? '').trim(), 10);
+                if (!Number.isFinite(parsed) || parsed <= 0) return null;
+                return Math.min(parsed, 10000);
+            };
+        const sampleRows = typeof this.getRandomSampleRows === 'function'
+            ? (rows, limit) => this.getRandomSampleRows(rows, limit)
+            : (rows, limit) => {
+                if (!Array.isArray(rows)) return [];
+                if (!limit || rows.length <= limit) return rows.slice();
+                const copy = rows.slice();
+                for (let i = copy.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [copy[i], copy[j]] = [copy[j], copy[i]];
+                }
+                return copy.slice(0, limit);
+            };
 
         const dynamicSources = runtimeSources.filter(source =>
             sourceIds.has(source.id) && source.type === 'odata-dynamic'
@@ -671,6 +1094,18 @@ export const workflowMethods = {
             this.addLog('info', `Generated faker data source "${source.name || source.id}" (${rows.length} rows)`);
         }
 
+        // Optionally limit OData sources to a random runtime sample
+        const referencedODataSources = runtimeSources.filter(source =>
+            sourceIds.has(source.id) && (source.type === 'odata-cached' || source.type === 'odata-dynamic')
+        );
+        for (const source of referencedODataSources) {
+            const limit = parseLimit(source.randomSampleCount);
+            if (!limit || !Array.isArray(source.data) || source.data.length <= limit) continue;
+            source.data = sampleRows(source.data, limit);
+            source.fields = Object.keys(source.data[0] || {});
+            this.addLog('info', `Sampled ${source.data.length} random rows from OData source "${source.name || source.id}"`);
+        }
+
         return runtimeSources;
     },
 
@@ -711,238 +1146,55 @@ export const workflowMethods = {
     },
 
     workflowHasLoops(workflow) {
-        return (workflow?.steps || []).some(step => step.type === 'loop-start' || step.type === 'loop-end');
+        return workflowHasLoopsUtil(workflow);
     },
 
     normalizeParamName(name) {
-        return (name || '').trim().toLowerCase();
+        return normalizeParamNameUtil(name);
     },
 
     getParamNamesFromString(text) {
-        const params = new Set();
-        if (typeof text !== 'string') return params;
-        const regex = /\$\{([A-Za-z0-9_]+)\}/g;
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-            const startIndex = match.index;
-            if (startIndex > 0 && text[startIndex - 1] === '\\') continue;
-            params.add(this.normalizeParamName(match[1]));
-        }
-        return params;
+        return getParamNamesFromStringUtil(text);
     },
 
     extractRequiredParamsFromObject(obj, params) {
-        if (!obj) return;
-        if (typeof obj === 'string') {
-            for (const name of this.getParamNamesFromString(obj)) {
-                params.add(name);
-            }
-            return;
-        }
-        if (Array.isArray(obj)) {
-            obj.forEach(item => this.extractRequiredParamsFromObject(item, params));
-            return;
-        }
-        if (typeof obj === 'object') {
-            Object.values(obj).forEach(value => this.extractRequiredParamsFromObject(value, params));
-        }
+        extractRequiredParamsFromObjectUtil(obj, params);
     },
 
     getStepForParamExtraction(step) {
-        if (!step || typeof step !== 'object') return step;
-
-        if (step.type === 'navigate') {
-            const method = step.navigateMethod || 'menuItem';
-            const normalized = { ...step };
-
-            if (method === 'url') {
-                delete normalized.menuItemName;
-                delete normalized.menuItemType;
-                delete normalized.hostRelativePath;
-            } else if (method === 'hostRelative') {
-                delete normalized.menuItemName;
-                delete normalized.menuItemType;
-                delete normalized.navigateUrl;
-            } else {
-                // menuItem (default)
-                delete normalized.navigateUrl;
-                delete normalized.hostRelativePath;
-            }
-
-            return normalized;
-        }
-
-        return step;
+        return getStepForParamExtractionUtil(step);
     },
 
     extractRequiredParamsFromWorkflow(workflow) {
-        const params = new Set();
-        (workflow?.steps || []).forEach(step => {
-            this.extractRequiredParamsFromObject(this.getStepForParamExtraction(step), params);
-        });
-        return Array.from(params);
+        return extractRequiredParamsFromWorkflowUtil(workflow);
     },
 
     normalizeBindingValue(value) {
-        if (value && typeof value === 'object' && !Array.isArray(value)) {
-            const source = value.valueSource || 'static';
-            if (source === 'data') {
-                return { valueSource: 'data', fieldMapping: value.fieldMapping || '' };
-            }
-            if (source === 'clipboard') {
-                return { valueSource: 'clipboard' };
-            }
-            return { valueSource: 'static', value: value.value ?? '' };
-        }
-        return { valueSource: 'static', value: value ?? '' };
+        return normalizeBindingValueUtil(value);
     },
 
     buildNormalizedBindings(bindings) {
-        const normalized = {};
-        Object.entries(bindings || {}).forEach(([key, value]) => {
-            const name = this.normalizeParamName(key);
-            if (!name) return;
-            normalized[name] = this.normalizeBindingValue(value);
-        });
-        return normalized;
+        return buildNormalizedBindingsUtil(bindings);
     },
 
     serializeDynamicBindingToken(name, binding) {
-        const safeName = this.normalizeParamName(name).replace(/[^a-z0-9_]/g, '_') || 'param';
-        if (binding?.valueSource === 'clipboard') {
-            return `__D365_PARAM_CLIPBOARD_${safeName}__`;
-        }
-        if (binding?.valueSource === 'data') {
-            const field = encodeURIComponent(String(binding.fieldMapping || '').trim());
-            return `__D365_PARAM_DATA_${field}__`;
-        }
-        return '';
+        return serializeDynamicBindingTokenUtil(name, binding);
     },
 
     substituteParamsInString(text, bindings, warnings, contextLabel) {
-        if (typeof text !== 'string') return text;
-        return text.replace(/\\?\$\{([A-Za-z0-9_]+)\}/g, (match, name) => {
-            if (match.startsWith('\\')) {
-                return match.slice(1);
-            }
-            const key = this.normalizeParamName(name);
-            if (!Object.prototype.hasOwnProperty.call(bindings, key)) {
-                warnings?.push(`Missing parameter "${name}" while expanding ${contextLabel}.`);
-                return '';
-            }
-            const binding = bindings[key];
-            if (binding?.valueSource && binding.valueSource !== 'static') {
-                if (binding.valueSource === 'data' && !String(binding.fieldMapping || '').trim()) {
-                    warnings?.push(`Parameter "${name}" uses data source but has no mapped field in ${contextLabel}.`);
-                    return '';
-                }
-                return this.serializeDynamicBindingToken(name, binding);
-            }
-            const valueStr = binding?.value ?? '';
-            if (valueStr === '') {
-                warnings?.push(`Parameter "${name}" resolved to empty value in ${contextLabel}.`);
-            }
-            return valueStr;
-        });
+        return substituteParamsInStringUtil(text, bindings, { warnings, contextLabel });
     },
 
     applyParamBindingToValueField(rawValue, step, bindings, warnings, contextLabel) {
-        const exactMatch = rawValue.match(/^\$\{([A-Za-z0-9_]+)\}$/);
-        if (!exactMatch) return null;
-        const name = exactMatch[1];
-        const key = this.normalizeParamName(name);
-        const binding = bindings[key];
-        if (!binding) {
-            warnings?.push(`Missing parameter "${name}" while expanding ${contextLabel}.`);
-            return { value: '' };
-        }
-
-        const stepType = step?.type || '';
-        const supportsValueSource = ['input', 'select', 'lookupSelect', 'grid-input', 'filter', 'query-filter'].includes(stepType);
-        if (!supportsValueSource && binding.valueSource !== 'static') {
-            warnings?.push(`Parameter "${name}" uses ${binding.valueSource} but step type "${stepType}" does not support it in ${contextLabel}.`);
-            return { value: '' };
-        }
-
-        if (binding.valueSource === 'data') {
-            return {
-                value: '',
-                valueSource: 'data',
-                fieldMapping: binding.fieldMapping || ''
-            };
-        }
-
-        if (binding.valueSource === 'clipboard') {
-            return {
-                value: '',
-                valueSource: 'clipboard',
-                fieldMapping: ''
-            };
-        }
-
-        const valueStr = binding.value ?? '';
-        if (valueStr === '') {
-            warnings?.push(`Parameter "${name}" resolved to empty value in ${contextLabel}.`);
-        }
-        return {
-            value: valueStr,
-            valueSource: 'static'
-        };
+        return applyParamBindingToValueFieldUtil(rawValue, step, bindings, { warnings, contextLabel });
     },
 
     substituteParamsInObject(obj, bindings, warnings, contextLabel) {
-        if (obj === null || obj === undefined) return obj;
-        if (typeof obj === 'string') {
-            return this.substituteParamsInString(obj, bindings, warnings, contextLabel);
-        }
-        if (Array.isArray(obj)) {
-            return obj.map(item => this.substituteParamsInObject(item, bindings, warnings, contextLabel));
-        }
-        if (typeof obj === 'object') {
-            const result = { ...obj };
-            const overrideKeys = new Set();
-            Object.entries(obj).forEach(([key, value]) => {
-                if (key === 'value' && typeof value === 'string') {
-                    const applied = this.applyParamBindingToValueField(value, obj, bindings, warnings, contextLabel);
-                    if (applied) {
-                        result.value = applied.value;
-                        if (applied.valueSource !== undefined) {
-                            result.valueSource = applied.valueSource;
-                            overrideKeys.add('valueSource');
-                        }
-                        if (applied.fieldMapping !== undefined) {
-                            result.fieldMapping = applied.fieldMapping;
-                            overrideKeys.add('fieldMapping');
-                        }
-                        return;
-                    }
-                }
-
-                if (overrideKeys.has(key)) return;
-                result[key] = this.substituteParamsInObject(value, bindings, warnings, contextLabel);
-            });
-            return result;
-        }
-        return obj;
+        return substituteParamsInObjectUtil(obj, bindings, { warnings, contextLabel });
     },
 
     resolveBindingMap(rawBindings, parentBindings, warnings, contextLabel) {
-        const normalized = this.buildNormalizedBindings(rawBindings);
-        const resolved = {};
-        Object.entries(normalized).forEach(([key, binding]) => {
-            if (binding.valueSource === 'static') {
-                const resolvedValue = this.substituteParamsInString(String(binding.value ?? ''), parentBindings, warnings, contextLabel);
-                resolved[key] = { valueSource: 'static', value: resolvedValue };
-            } else if (binding.valueSource === 'data') {
-                const resolvedField = this.substituteParamsInString(String(binding.fieldMapping ?? ''), parentBindings, warnings, contextLabel);
-                resolved[key] = { valueSource: 'data', fieldMapping: resolvedField };
-            } else if (binding.valueSource === 'clipboard') {
-                resolved[key] = { valueSource: 'clipboard' };
-            } else {
-                resolved[key] = { valueSource: 'static', value: '' };
-            }
-        });
-        return resolved;
+        return resolveBindingMapUtil(rawBindings, parentBindings, { warnings, contextLabel });
     },
 
     expandWorkflowForExecution(rootWorkflow) {
@@ -1273,7 +1525,7 @@ export const workflowMethods = {
                     }
 
                     // Generate new ID to avoid conflicts
-                    workflow.id = Date.now().toString();
+                    workflow.id = generateId('workflow');
                     workflow.projectIds = workflow.projectIds || [];
                     workflow.configurationIds = workflow.configurationIds || [];
 
@@ -1327,6 +1579,7 @@ export const workflowMethods = {
         input.click();
     }
 };
+
 
 
 

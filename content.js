@@ -103,227 +103,31 @@ if (!window.d365ContentScriptLoaded) {
 
 let navButtonsBridgeInitialized = false;
 let lastNavButtonsMenuItem = '';
+let workflowParamUtilsPromise = null;
 
-function workflowHasLoops(workflow) {
-    return (workflow?.steps || []).some(step => step.type === 'loop-start' || step.type === 'loop-end');
+function getWorkflowParamUtils() {
+    if (!workflowParamUtilsPromise) {
+        workflowParamUtilsPromise = import(chrome.runtime.getURL('shared/workflow-param-utils.js'))
+            .catch((error) => {
+                console.warn('[D365 Extension] Failed to load workflow parameter utilities for nav buttons.', error);
+                return null;
+            });
+    }
+    return workflowParamUtilsPromise;
 }
 
-function normalizeParamName(name) {
-    return (name || '').trim().toLowerCase();
-}
-
-function getParamNamesFromString(text) {
-    const params = new Set();
-    if (typeof text !== 'string') return params;
-    const regex = /\$\{([A-Za-z0-9_]+)\}/g;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-        const startIndex = match.index;
-        if (startIndex > 0 && text[startIndex - 1] === '\\') continue;
-        params.add(normalizeParamName(match[1]));
-    }
-    return params;
-}
-
-function extractRequiredParamsFromObject(obj, params) {
-    if (!obj) return;
-    if (typeof obj === 'string') {
-        for (const name of getParamNamesFromString(obj)) {
-            params.add(name);
-        }
-        return;
-    }
-    if (Array.isArray(obj)) {
-        obj.forEach(item => extractRequiredParamsFromObject(item, params));
-        return;
-    }
-    if (typeof obj === 'object') {
-        Object.values(obj).forEach(value => extractRequiredParamsFromObject(value, params));
-    }
-}
-
-function getStepForParamExtraction(step) {
-    if (!step || typeof step !== 'object') return step;
-
-    if (step.type === 'navigate') {
-        const method = step.navigateMethod || 'menuItem';
-        const normalized = { ...step };
-
-        if (method === 'url') {
-            delete normalized.menuItemName;
-            delete normalized.menuItemType;
-            delete normalized.hostRelativePath;
-        } else if (method === 'hostRelative') {
-            delete normalized.menuItemName;
-            delete normalized.menuItemType;
-            delete normalized.navigateUrl;
-        } else {
-            delete normalized.navigateUrl;
-            delete normalized.hostRelativePath;
-        }
-
-        return normalized;
+function expandWorkflowForNavButtons(rootWorkflow, workflowMap, rootBindings = {}, workflowParamUtils) {
+    const {
+        workflowHasLoops,
+        extractRequiredParamsFromWorkflow,
+        buildNormalizedBindings,
+        resolveBindingMap,
+        substituteParamsInObject
+    } = workflowParamUtils || {};
+    if (!workflowHasLoops || !extractRequiredParamsFromWorkflow || !buildNormalizedBindings || !resolveBindingMap || !substituteParamsInObject) {
+        throw new Error('Workflow parameter utilities are unavailable.');
     }
 
-    return step;
-}
-
-function extractRequiredParamsFromWorkflow(workflow) {
-    const params = new Set();
-    (workflow?.steps || []).forEach(step => {
-        extractRequiredParamsFromObject(getStepForParamExtraction(step), params);
-    });
-    return Array.from(params);
-}
-
-function normalizeBindingValue(value) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
-        const source = value.valueSource || 'static';
-        if (source === 'data') {
-            return { valueSource: 'data', fieldMapping: value.fieldMapping || '' };
-        }
-        if (source === 'clipboard') {
-            return { valueSource: 'clipboard' };
-        }
-        return { valueSource: 'static', value: value.value ?? '' };
-    }
-    return { valueSource: 'static', value: value ?? '' };
-}
-
-function buildNormalizedBindings(bindings) {
-    const normalized = {};
-    Object.entries(bindings || {}).forEach(([key, value]) => {
-        const name = normalizeParamName(key);
-        if (!name) return;
-        normalized[name] = normalizeBindingValue(value);
-    });
-    return normalized;
-}
-
-function serializeDynamicBindingToken(name, binding) {
-    const safeName = normalizeParamName(name).replace(/[^a-z0-9_]/g, '_') || 'param';
-    if (binding?.valueSource === 'clipboard') {
-        return `__D365_PARAM_CLIPBOARD_${safeName}__`;
-    }
-    if (binding?.valueSource === 'data') {
-        const field = encodeURIComponent(String(binding.fieldMapping || '').trim());
-        return `__D365_PARAM_DATA_${field}__`;
-    }
-    return '';
-}
-
-function substituteParamsInString(text, bindings) {
-    if (typeof text !== 'string') return text;
-    return text.replace(/\\?\$\{([A-Za-z0-9_]+)\}/g, (match, name) => {
-        if (match.startsWith('\\')) {
-            return match.slice(1);
-        }
-        const key = normalizeParamName(name);
-        if (!Object.prototype.hasOwnProperty.call(bindings, key)) {
-            return '';
-        }
-        const binding = bindings[key];
-        if (binding?.valueSource && binding.valueSource !== 'static') {
-            if (binding.valueSource === 'data' && !String(binding.fieldMapping || '').trim()) {
-                return '';
-            }
-            return serializeDynamicBindingToken(name, binding);
-        }
-        return binding?.value ?? '';
-    });
-}
-
-function applyParamBindingToValueField(rawValue, step, bindings) {
-    const exactMatch = rawValue.match(/^\$\{([A-Za-z0-9_]+)\}$/);
-    if (!exactMatch) return null;
-    const name = exactMatch[1];
-    const key = normalizeParamName(name);
-    const binding = bindings[key];
-    if (!binding) return { value: '' };
-
-    const stepType = step?.type || '';
-    const supportsValueSource = ['input', 'select', 'lookupSelect', 'grid-input', 'filter', 'query-filter'].includes(stepType);
-    if (!supportsValueSource && binding.valueSource !== 'static') {
-        return { value: '' };
-    }
-
-    if (binding.valueSource === 'data') {
-        return {
-            value: '',
-            valueSource: 'data',
-            fieldMapping: binding.fieldMapping || ''
-        };
-    }
-
-    if (binding.valueSource === 'clipboard') {
-        return {
-            value: '',
-            valueSource: 'clipboard',
-            fieldMapping: ''
-        };
-    }
-
-    return {
-        value: binding.value ?? '',
-        valueSource: 'static'
-    };
-}
-
-function substituteParamsInObject(obj, bindings) {
-    if (obj === null || obj === undefined) return obj;
-    if (typeof obj === 'string') {
-        return substituteParamsInString(obj, bindings);
-    }
-    if (Array.isArray(obj)) {
-        return obj.map(item => substituteParamsInObject(item, bindings));
-    }
-    if (typeof obj === 'object') {
-        const result = { ...obj };
-        const overrideKeys = new Set();
-        Object.entries(obj).forEach(([key, value]) => {
-            if (key === 'value' && typeof value === 'string') {
-                const applied = applyParamBindingToValueField(value, obj, bindings);
-                if (applied) {
-                    result.value = applied.value;
-                    if (applied.valueSource !== undefined) {
-                        result.valueSource = applied.valueSource;
-                        overrideKeys.add('valueSource');
-                    }
-                    if (applied.fieldMapping !== undefined) {
-                        result.fieldMapping = applied.fieldMapping;
-                        overrideKeys.add('fieldMapping');
-                    }
-                    return;
-                }
-            }
-            if (overrideKeys.has(key)) return;
-            result[key] = substituteParamsInObject(value, bindings);
-        });
-        return result;
-    }
-    return obj;
-}
-
-function resolveBindingMap(rawBindings, parentBindings) {
-    const normalized = buildNormalizedBindings(rawBindings);
-    const resolved = {};
-    Object.entries(normalized).forEach(([key, binding]) => {
-        if (binding.valueSource === 'static') {
-            const resolvedValue = substituteParamsInString(String(binding.value ?? ''), parentBindings);
-            resolved[key] = { valueSource: 'static', value: resolvedValue };
-        } else if (binding.valueSource === 'data') {
-            const resolvedField = substituteParamsInString(String(binding.fieldMapping ?? ''), parentBindings);
-            resolved[key] = { valueSource: 'data', fieldMapping: resolvedField };
-        } else if (binding.valueSource === 'clipboard') {
-            resolved[key] = { valueSource: 'clipboard' };
-        } else {
-            resolved[key] = { valueSource: 'static', value: '' };
-        }
-    });
-    return resolved;
-}
-
-function expandWorkflowForNavButtons(rootWorkflow, workflowMap, rootBindings = {}) {
     const expand = (workflow, bindings, stack) => {
         if (!workflow || !Array.isArray(workflow.steps)) {
             throw new Error('Invalid workflow structure.');
@@ -403,6 +207,7 @@ function initNavButtonsBridge() {
 
 async function sendNavButtonsUpdate() {
     try {
+        const workflowParamUtils = await getWorkflowParamUtils();
         const result = await chrome.storage.local.get(['navButtons', 'workflows', 'sharedDataSources']);
         const navButtons = result.navButtons || [];
         const workflows = result.workflows || [];
@@ -440,7 +245,11 @@ async function sendNavButtonsUpdate() {
                             return candidate;
                         })();
 
-                        return expandWorkflowForNavButtons(resolvedWorkflow, workflowMap, button.paramBindings || {});
+                        if (!workflowParamUtils) {
+                            // Keep nav buttons functional even if utility module fails to load.
+                            return resolvedWorkflow;
+                        }
+                        return expandWorkflowForNavButtons(resolvedWorkflow, workflowMap, button.paramBindings || {}, workflowParamUtils);
                     } catch (error) {
                         console.warn('[D365 Extension] Failed to expand workflow for nav button:', button?.name || button?.id, error);
                         return null;
@@ -450,8 +259,8 @@ async function sendNavButtonsUpdate() {
         };
 
         window.postMessage({ type: 'D365_NAV_BUTTONS_UPDATE', payload }, '*');
-    } catch (e) {
-        // Ignore storage errors
+    } catch (error) {
+        console.warn('[D365 Extension] Failed to send nav buttons update.', error);
     }
 }
 

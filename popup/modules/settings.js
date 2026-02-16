@@ -1,5 +1,6 @@
 export const settingsMethods = {
-    loadSettings() {
+    async loadSettings() {
+        const STORAGE_KEY = 'd365-settings';
         const defaults = {
             delayAfterClick: 800,
             delayAfterInput: 400,
@@ -13,8 +14,35 @@ export const settingsMethods = {
             dateFormat: 'DDMMYYYY'  // Date format for D365: DDMMYYYY or MMDDYYYY
         };
 
-        const stored = localStorage.getItem('d365-settings');
-        return stored ? { ...defaults, ...JSON.parse(stored) } : defaults;
+        let storedSettings = null;
+        try {
+            const result = await this.chrome.storage.local.get([STORAGE_KEY]);
+            const fromChrome = result?.[STORAGE_KEY];
+            if (fromChrome && typeof fromChrome === 'object') {
+                storedSettings = fromChrome;
+            }
+        } catch (error) {
+            // Fall back to legacy localStorage below.
+        }
+
+        // Backward compatibility: migrate old localStorage settings once.
+        if (!storedSettings) {
+            try {
+                const legacyRaw = localStorage.getItem(STORAGE_KEY);
+                if (legacyRaw) {
+                    const parsed = JSON.parse(legacyRaw);
+                    if (parsed && typeof parsed === 'object') {
+                        storedSettings = parsed;
+                        await this.chrome.storage.local.set({ [STORAGE_KEY]: parsed });
+                        localStorage.removeItem(STORAGE_KEY);
+                    }
+                }
+            } catch (error) {
+                // Ignore malformed legacy settings and continue with defaults.
+            }
+        }
+
+        return { ...defaults, ...(storedSettings || {}) };
     },
 
     loadSettingsUI() {
@@ -30,12 +58,13 @@ export const settingsMethods = {
         document.getElementById('dateFormat').value = this.settings.dateFormat || 'DDMMYYYY';
     },
 
-    saveSettings() {
+    async saveSettings() {
+        const STORAGE_KEY = 'd365-settings';
         this.settings = {
-            delayAfterClick: parseInt(document.getElementById('delayAfterClick').value),
-            delayAfterInput: parseInt(document.getElementById('delayAfterInput').value),
-            delayAfterSave: parseInt(document.getElementById('delayAfterSave').value),
-            maxRetries: parseInt(document.getElementById('maxRetries').value),
+            delayAfterClick: parseInt(document.getElementById('delayAfterClick').value, 10),
+            delayAfterInput: parseInt(document.getElementById('delayAfterInput').value, 10),
+            delayAfterSave: parseInt(document.getElementById('delayAfterSave').value, 10),
+            maxRetries: parseInt(document.getElementById('maxRetries').value, 10),
             logVerbose: document.getElementById('logVerbose').checked,
             pauseOnError: document.getElementById('pauseOnError').checked,
             comboSelectMode: document.getElementById('comboSelectMode').value,
@@ -47,13 +76,17 @@ export const settingsMethods = {
         const labelLangEl = document.getElementById('labelLanguage');
         this.settings.labelLanguage = labelLangEl ? (labelLangEl.value || 'en-us') : 'en-us';
 
-        localStorage.setItem('d365-settings', JSON.stringify(this.settings));
+        await this.chrome.storage.local.set({ [STORAGE_KEY]: this.settings });
+        // Clean up legacy settings key if it exists.
+        localStorage.removeItem(STORAGE_KEY);
         this.showNotification('Settings saved!', 'success');
     },
 
-    resetSettings() {
-        localStorage.removeItem('d365-settings');
-        this.settings = this.loadSettings();
+    async resetSettings() {
+        const STORAGE_KEY = 'd365-settings';
+        await this.chrome.storage.local.remove([STORAGE_KEY]);
+        localStorage.removeItem(STORAGE_KEY);
+        this.settings = await this.loadSettings();
         this.loadSettingsUI();
         this.showNotification('Settings reset to defaults!', 'info');
     }

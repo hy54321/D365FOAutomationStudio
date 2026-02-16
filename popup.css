@@ -1877,6 +1877,11 @@ header h1 {
     border-top: 1px solid #e0e0e0;
     justify-content: flex-end;
     flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    background: #ffffff;
+    z-index: 30;
+    box-shadow: 0 -6px 12px rgba(15, 23, 42, 0.05);
 }
 
 /* Inspector */
@@ -3091,4 +3096,57 @@ header h1 {
 .interruption-handler-delete {
     padding: 4px 8px;
     font-size: 11px;
+}
+
+.interruption-handler-copy-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.interruption-handler-copy-controls select {
+    flex: 1;
+    min-width: 0;
+}
+
+.interruption-repository-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.interruption-repository-header h4 {
+    margin: 0;
+    font-size: 12px;
+}
+
+.interruption-repository-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: var(--interruption-repo-list-max-height, 220px);
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.interruption-repository-item {
+    border: 1px solid #dbe4ef;
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.interruption-repository-select {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.interruption-repository-source {
+    font-size: 11px;
+    color: #6b7280;
 }

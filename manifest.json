@@ -35,7 +35,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["injected.js"],
+      "resources": ["injected.js", "shared/workflow-param-utils.js"],
       "matches": ["https://*.dynamics.com/*", "https://*.cloudax.dynamics.com/*"]
     }
   ],

@@ -1,3 +1,5 @@
+import { generateId } from './id.js';
+
 export const projectMethods = {
     async loadProjects() {
         const result = await this.chrome.storage.local.get(['projects', 'selectedProjectId']);
@@ -11,7 +13,6 @@ export const projectMethods = {
         }
 
         this.renderProjectFilter();
-        this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
         if (this.renderSharedDataSourcesUI) {
@@ -85,18 +86,23 @@ export const projectMethods = {
             return false;
         }
 
-        const project = { id: Date.now().toString(), name, parentId: parentId || null };
+        const project = { id: generateId('project'), name, parentId: parentId || null };
         this.projects.push(project);
         this.chrome.storage.local.set({ projects: this.projects });
         this.renderProjectFilter();
-        this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
         return true;
     },
 
-    createProjectByPrompt(parentId = null) {
-        const name = prompt(parentId ? 'New child project name' : 'New project name');
+    async createProjectByPrompt(parentId = null) {
+        const name = await this.showInlinePromptDialog?.({
+            title: parentId ? 'New Child Project' : 'New Project',
+            message: parentId ? 'Enter child project name' : 'Enter project name',
+            placeholder: 'Project name',
+            confirmText: 'Create',
+            confirmClass: 'btn-success'
+        });
         if (!name) return;
         const trimmed = name.trim();
         if (!trimmed) return;
@@ -131,14 +137,19 @@ export const projectMethods = {
         project.parentId = normalizedParentId;
         await this.chrome.storage.local.set({ projects: this.projects });
         this.renderProjectTree();
-        this.renderProjectsManager();
         this.renderWorkflowProjects();
     },
 
     async deleteProject(projectId) {
         const project = this.projects.find(p => p.id === projectId);
         if (!project) return;
-        if (!confirm(`Delete project "${project.name}"? This will remove it from all workflows.`)) return;
+        const confirmed = await this.showInlineConfirmDialog?.({
+            title: 'Delete Project',
+            message: `Delete project "${project.name}"? This will remove it from all workflows.`,
+            confirmText: 'Delete',
+            confirmClass: 'btn-danger'
+        });
+        if (!confirmed) return;
 
         this.projects = this.projects
             .filter(p => p.id !== projectId)
@@ -171,7 +182,6 @@ export const projectMethods = {
         }
 
         this.renderProjectFilter();
-        this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
         if (this.renderSharedDataSourcesUI) {
@@ -183,7 +193,14 @@ export const projectMethods = {
     async renameProject(projectId) {
         const project = this.projects.find(p => p.id === projectId);
         if (!project) return;
-        const name = prompt('Rename project', project.name);
+        const name = await this.showInlinePromptDialog?.({
+            title: 'Rename Project',
+            message: 'Project name',
+            placeholder: 'Project name',
+            initialValue: project.name || '',
+            confirmText: 'Save',
+            confirmClass: 'btn-success'
+        });
         if (!name) return;
         const trimmed = name.trim();
         if (!trimmed) return;
@@ -195,7 +212,6 @@ export const projectMethods = {
         project.name = trimmed;
         await this.chrome.storage.local.set({ projects: this.projects });
         this.renderProjectFilter();
-        this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
         if (this.renderSharedDataSourcesUI) {
@@ -226,7 +242,6 @@ export const projectMethods = {
 
         await this.chrome.storage.local.set({ workflows: this.workflows });
         this.displayWorkflows();
-        this.renderProjectsManager();
         this.renderProjectTree();
         this.renderWorkflowProjects();
     },
@@ -323,10 +338,6 @@ export const projectMethods = {
         });
 
         select.value = this.selectedProjectId || 'all';
-    },
-
-    renderProjectsManager() {
-        // Kept for compatibility with existing init flow. Tree is the primary management UI.
     },
 
     handleProjectTreeContextMenu(event) {
@@ -444,3 +455,4 @@ export const projectMethods = {
         return projectIds.map(id => map.get(id)).filter(Boolean);
     }
 };
+

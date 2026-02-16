@@ -1,3 +1,5 @@
+import { generateId } from './id.js';
+
 export const navButtonsMethods = {
     async loadNavButtons() {
         const result = await this.chrome.storage.local.get(['navButtons']);
@@ -401,7 +403,7 @@ export const navButtonsMethods = {
             }
         } else {
             this.navButtons.push({
-                id: now.toString(),
+                id: generateId('navbtn'),
                 name,
                 workflowId,
                 workflowName,

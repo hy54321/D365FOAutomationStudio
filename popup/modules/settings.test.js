@@ -4,6 +4,15 @@ import { settingsMethods } from './settings.js';
 
 function createSettingsContext(overrides = {}) {
     return {
+        chrome: {
+            storage: {
+                local: {
+                    get: vi.fn().mockResolvedValue({}),
+                    set: vi.fn().mockResolvedValue(),
+                    remove: vi.fn().mockResolvedValue()
+                }
+            }
+        },
         settings: {
             delayAfterClick: 800,
             delayAfterInput: 400,
@@ -45,9 +54,9 @@ describe('settings methods', () => {
         vi.restoreAllMocks();
     });
 
-    it('loadSettings returns defaults when localStorage is empty', () => {
+    it('loadSettings returns defaults when chrome storage is empty', async () => {
         const ctx = createSettingsContext();
-        const settings = settingsMethods.loadSettings.call(ctx);
+        const settings = await settingsMethods.loadSettings.call(ctx);
 
         expect(settings).toEqual({
             delayAfterClick: 800,
@@ -63,15 +72,26 @@ describe('settings methods', () => {
         });
     });
 
-    it('loadSettings merges persisted values over defaults', () => {
-        localStorage.setItem('d365-settings', JSON.stringify({
-            maxRetries: 9,
-            pauseOnError: true,
-            dateFormat: 'MMDDYYYY'
-        }));
-        const ctx = createSettingsContext();
+    it('loadSettings merges persisted values over defaults', async () => {
+        const ctx = createSettingsContext({
+            chrome: {
+                storage: {
+                    local: {
+                        get: vi.fn().mockResolvedValue({
+                            'd365-settings': {
+                                maxRetries: 9,
+                                pauseOnError: true,
+                                dateFormat: 'MMDDYYYY'
+                            }
+                        }),
+                        set: vi.fn().mockResolvedValue(),
+                        remove: vi.fn().mockResolvedValue()
+                    }
+                }
+            }
+        });
 
-        const settings = settingsMethods.loadSettings.call(ctx);
+        const settings = await settingsMethods.loadSettings.call(ctx);
 
         expect(settings.maxRetries).toBe(9);
         expect(settings.pauseOnError).toBe(true);
@@ -110,7 +130,7 @@ describe('settings methods', () => {
         expect(document.getElementById('dateFormat').value).toBe('MMDDYYYY');
     });
 
-    it('saveSettings persists parsed values and emits notification', () => {
+    it('saveSettings persists parsed values and emits notification', async () => {
         renderSettingsForm();
         document.getElementById('delayAfterClick').value = '1500';
         document.getElementById('delayAfterInput').value = '500';
@@ -124,7 +144,7 @@ describe('settings methods', () => {
         document.getElementById('dateFormat').value = 'MMDDYYYY';
 
         const ctx = createSettingsContext();
-        settingsMethods.saveSettings.call(ctx);
+        await settingsMethods.saveSettings.call(ctx);
 
         expect(ctx.settings).toEqual({
             delayAfterClick: 1500,
@@ -138,11 +158,12 @@ describe('settings methods', () => {
             labelLanguage: 'de-de',
             dateFormat: 'MMDDYYYY'
         });
-        expect(JSON.parse(localStorage.getItem('d365-settings'))).toEqual(ctx.settings);
+        expect(ctx.chrome.storage.local.set).toHaveBeenCalledWith({ 'd365-settings': ctx.settings });
+        expect(localStorage.getItem('d365-settings')).toBeNull();
         expect(ctx.showNotification).toHaveBeenCalledWith('Settings saved!', 'success');
     });
 
-    it('saveSettings defaults labelLanguage to en-us when control is missing', () => {
+    it('saveSettings defaults labelLanguage to en-us when control is missing', async () => {
         renderSettingsForm(false);
         document.getElementById('delayAfterClick').value = '800';
         document.getElementById('delayAfterInput').value = '400';
@@ -152,17 +173,17 @@ describe('settings methods', () => {
         document.getElementById('dateFormat').value = 'DDMMYYYY';
 
         const ctx = createSettingsContext();
-        settingsMethods.saveSettings.call(ctx);
+        await settingsMethods.saveSettings.call(ctx);
 
         expect(ctx.settings.labelLanguage).toBe('en-us');
     });
 
-    it('resetSettings clears storage, reloads defaults into UI, and notifies', () => {
+    it('resetSettings clears storage, reloads defaults into UI, and notifies', async () => {
         renderSettingsForm();
         localStorage.setItem('d365-settings', JSON.stringify({ maxRetries: 9 }));
         const ctx = createSettingsContext({
             settings: { maxRetries: 9 },
-            loadSettings: vi.fn().mockReturnValue({
+            loadSettings: vi.fn().mockResolvedValue({
                 delayAfterClick: 800,
                 delayAfterInput: 400,
                 delayAfterSave: 1000,
@@ -177,12 +198,27 @@ describe('settings methods', () => {
             loadSettingsUI: vi.fn()
         });
 
-        settingsMethods.resetSettings.call(ctx);
+        await settingsMethods.resetSettings.call(ctx);
 
+        expect(ctx.chrome.storage.local.remove).toHaveBeenCalledWith(['d365-settings']);
         expect(localStorage.getItem('d365-settings')).toBeNull();
         expect(ctx.loadSettings).toHaveBeenCalled();
         expect(ctx.settings.maxRetries).toBe(3);
         expect(ctx.loadSettingsUI).toHaveBeenCalled();
         expect(ctx.showNotification).toHaveBeenCalledWith('Settings reset to defaults!', 'info');
+    });
+
+    it('loadSettings migrates legacy localStorage values into chrome storage', async () => {
+        localStorage.setItem('d365-settings', JSON.stringify({ maxRetries: 5, labelLanguage: 'fr-fr' }));
+        const ctx = createSettingsContext();
+
+        const settings = await settingsMethods.loadSettings.call(ctx);
+
+        expect(settings.maxRetries).toBe(5);
+        expect(settings.labelLanguage).toBe('fr-fr');
+        expect(ctx.chrome.storage.local.set).toHaveBeenCalledWith({
+            'd365-settings': { maxRetries: 5, labelLanguage: 'fr-fr' }
+        });
+        expect(localStorage.getItem('d365-settings')).toBeNull();
     });
 });

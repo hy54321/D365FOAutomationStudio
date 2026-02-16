@@ -178,8 +178,25 @@
                             <h3>Interruption Handlers</h3>
                             <span class="muted">Learned rules for dialogs and warnings.</span>
                         </div>
+                        <div class="interruption-handler-copy-controls builder-panel-body">
+                            <select id="copyHandlerSourceWorkflow" class="form-control form-control-sm"></select>
+                            <button id="copyHandlersButton" class="btn btn-secondary btn-sm" disabled>Copy all from workflow</button>
+                        </div>
                         <div id="interruptionHandlersList" class="interruption-handlers-list builder-panel-body">
                             <p class="empty-state">Open a workflow to view learned handlers.</p>
+                        </div>
+                    </div>
+
+                    <div id="workflowInterruptionRepositoryPanel" class="workflow-defaults-panel builder-panel" data-panel-key="interruption-repository">
+                        <div class="workflow-projects-header">
+                            <h3>Central Repository</h3>
+                            <span class="muted">Reusable handlers from all workflows.</span>
+                        </div>
+                        <div class="interruption-repository-header builder-panel-body">
+                            <button id="copySelectedRepositoryHandlersButton" class="btn btn-secondary btn-sm" disabled>Add selected to workflow</button>
+                        </div>
+                        <div id="interruptionRepositoryList" class="interruption-repository-list builder-panel-body">
+                            <p class="empty-state">Open a workflow to browse repository handlers.</p>
                         </div>
                     </div>
                 </div>
@@ -337,6 +354,12 @@
                                             <div id="primaryODataQueryContainer" class="data-source-input is-hidden">
                                                 <input id="primaryODataQuery" class="form-control form-control-sm" placeholder="CustomersV3?$top=10&$filter=CustomerGroupId eq 'C-DOM'&$select=CustomerAccount,CustomerGroupId,FullPrimaryAddress">
                                             </div>
+                                            <div id="primaryODataRandomCountContainer" class="data-source-input is-hidden">
+                                                <div class="faker-row-count-row">
+                                                    <label>Random runtime rows (optional):</label>
+                                                    <input id="primaryODataRandomCount" type="number" class="form-control form-control-sm" value="" min="1" max="10000" placeholder="All rows" style="width:100px;">
+                                                </div>
+                                            </div>
                                             <div id="primaryODataDynamicNote" class="odata-note is-hidden">
                                                 Dynamic OData validates with a preview row for field detection. Full query results are fetched right before workflow execution.
                                             </div>
@@ -479,6 +502,7 @@
                             <div class="admin-btn-row">
                                 <button id="adminFormInputs" class="btn btn-sm btn-admin" title="All inputs on a specific form (uses form filter)">📝 Form Inputs</button>
                                 <button id="adminGenerateSteps" class="btn btn-sm btn-admin" title="Generate workflow step templates from active tab">⚡ Generate Steps</button>
+                                <button id="adminGridState" class="btn btn-sm btn-admin" title="Inspect grid rows, selection state, and pending new-row markers">📊 Grid State</button>
                             </div>
                         </div>
 
@@ -819,5 +843,3 @@
     <script type="module" src="popup.js"></script>
 </body>
 </html>
-
-

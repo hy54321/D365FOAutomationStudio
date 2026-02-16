@@ -5,8 +5,9 @@ import { coerceBoolean, normalizeText } from './utils/text.js';
 import { NavigationInterruptError } from './runtime/errors.js';
 import { getStepErrorConfig, findLoopPairs, findIfPairs } from './runtime/engine-utils.js';
 import { evaluateCondition } from './runtime/conditions.js';
+import { getWorkflowTimings } from './runtime/timing.js';
 import { clickElement, applyGridFilter, waitUntilCondition, setInputValue, setGridCellValue, setLookupSelectValue, setCheckboxValue, navigateToForm, activateTab, activateActionPaneTab, expandOrCollapseSection, configureQueryFilter, configureBatchProcessing, closeDialog, configureRecurrence } from './steps/actions.js';
-import { findElementInActiveContext, isElementVisible, isD365Loading } from './utils/dom.js';
+import { findElementInActiveContext, isElementVisible, isD365Loading, inspectGridState } from './utils/dom.js';
 
 
 export function startInjected({ windowObj = globalThis.window, documentObj = globalThis.document, inspectorFactory = () => new D365Inspector() } = {}) {
@@ -35,6 +36,10 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
     // ====== Workflow Execution Engine ======
     let currentWorkflowSettings = {};
     window.d365CurrentWorkflowSettings = currentWorkflowSettings;
+    const getTimings = () => getWorkflowTimings(currentWorkflowSettings);
+    const waitForTiming = async (key) => {
+        await sleep(getTimings()[key]);
+    };
     let currentWorkflow = null;
     let executionControl = {
         isPaused: false,
@@ -42,6 +47,7 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
         currentStepIndex: 0,
         currentRowIndex: 0,
         totalRows: 0,
+        processedRows: 0,
         currentDataRow: null,
         pendingFlowSignal: 'none',
         pendingInterruptionDecision: null,
@@ -364,7 +370,7 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
         }
 
         while (executionControl.isPaused) {
-            await sleep(200);
+            await waitForTiming('ANIMATION_DELAY');
             if (executionControl.isStopped) {
                 throw createUserStopError();
             }
@@ -630,11 +636,40 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             .replace(/\bitem number\s+[a-z0-9_-]+\b/gi, 'item number {value}')
             .replace(/\b\d[\d,./-]*\b/g, '{number}');
 
+        // Generalize duplicate create-record interruptions across tables/fields.
+        // Example:
+        // cannot create a record in translations (languagext). language: en-us. the record already exists.
+        // -> cannot create a record in {record}. {field}: {value}. the record already exists.
+        value = value.replace(
+            /(\bcannot create a record in )([^.]+?)(\.)/i,
+            '$1{record}$3'
+        );
+
+        value = value.replace(
+            /\bfield\s+['"]?([^'".]+?)['"]?\s+must be filled in\.?/i,
+            "field '{field}' must be filled in."
+        );
+
+        value = value.replace(
+            /\b[a-z][a-z0-9 _()/-]*\s+cannot be deleted while dependent\s+[a-z][a-z0-9 _()/-]*\s+exist\.?/i,
+            '{entity} cannot be deleted while dependent {dependency} exist.'
+        );
+
+        value = value.replace(
+            /\bdelete dependent\s+[a-z][a-z0-9 _()/-]*\s+and try again\.?/i,
+            'delete dependent {dependency} and try again.'
+        );
+
+        value = value.replace(
+            /(\.\s*)([a-z][a-z0-9 _()/-]*)(\s*:\s*)([^.]+?)(\.\s*the record already exists\.?)/i,
+            '$1{field}: {value}$5'
+        );
+
         // Normalize duplicate-record style messages so varying key values
         // (e.g. "1, 1" vs "FR-EU-NR, FR-EU-NR") map to one handler.
         value = value.replace(
             /(\b[a-z][a-z0-9 _()/-]*\s*:\s*)([^.]+?)(\.\s*the record already exists\.?)/i,
-            '$1{value}$3'
+            '{field}: {value}$3'
         );
 
         return normalizeText(value);
@@ -806,7 +841,31 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             if (!loading && !visibleDialog) {
                 break;
             }
-            await sleep(120);
+            await waitForTiming('FLOW_STABILITY_POLL_DELAY');
+        }
+    }
+
+    async function waitForEventResolution(event, timeoutMs = 3000) {
+        if (!event) return;
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < timeoutMs) {
+            if (event.kind === 'dialog') {
+                const dialogEl = event.element;
+                const dialogStillVisible = !!dialogEl && dialogEl.isConnected && isElementVisible(dialogEl);
+                if (!dialogStillVisible) {
+                    return;
+                }
+            } else if (event.kind === 'messageBar') {
+                const entryEl = event.element;
+                const entryStillVisible = !!entryEl && entryEl.isConnected && isElementVisible(entryEl);
+                if (!entryStillVisible) {
+                    return;
+                }
+            } else {
+                return;
+            }
+
+            await waitForTiming('FLOW_STABILITY_POLL_DELAY');
         }
     }
 
@@ -831,7 +890,8 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             const button = findDialogButton(event, action.buttonControlName || action.buttonText);
             if (button?.element) {
                 button.element.click();
-                await sleep(350);
+                await waitForTiming('DIALOG_ACTION_DELAY');
+                await waitForEventResolution(event);
                 return true;
             }
         }
@@ -840,7 +900,7 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             const control = findMessageBarControl(event, action.buttonControlName || action.buttonText);
             if (control?.element) {
                 control.element.click();
-                await sleep(350);
+                await waitForTiming('DIALOG_ACTION_DELAY');
                 return true;
             }
         }
@@ -849,7 +909,10 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             const globalControl = findGlobalClickable(action.buttonControlName || action.buttonText);
             if (!globalControl?.element) return false;
             globalControl.element.click();
-            await sleep(350);
+            await waitForTiming('DIALOG_ACTION_DELAY');
+            if (event.kind === 'dialog' || event.kind === 'messageBar') {
+                await waitForEventResolution(event);
+            }
             return true;
         }
 
@@ -862,7 +925,8 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             const closeElement = fromOption?.element || fromControls?.element || fromEntry || fromPage;
             if (!closeElement || !isElementVisible(closeElement)) return false;
             closeElement.click();
-            await sleep(250);
+            await waitForTiming('MESSAGE_CLOSE_DELAY');
+            await waitForEventResolution(event);
             return true;
         }
 
@@ -879,7 +943,13 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
         let handled = false;
         for (const action of actions) {
             const currentEvents = detectUnexpectedEvents();
-            const activeEvent = currentEvents[0] || event;
+            const activeEvent = currentEvents.find((candidate) => {
+                if (!candidate || candidate.kind !== event.kind) return false;
+                if (candidate.element && event.element && candidate.element === event.element) return true;
+                const candidateTemplate = normalizeText(candidate.templateText || '');
+                const eventTemplate = normalizeText(event.templateText || '');
+                return candidateTemplate && eventTemplate && candidateTemplate === eventTemplate;
+            }) || currentEvents[0] || event;
             const applied = await applySingleAction(activeEvent, action);
             handled = handled || applied;
         }
@@ -989,7 +1059,7 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
                 executionControl.isPaused = false;
                 return decision;
             }
-            await sleep(150);
+            await waitForTiming('INTERRUPTION_POLL_DELAY');
         }
         throw createUserStopError();
     }
@@ -1008,7 +1078,7 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             if (element && typeof element.click === 'function') {
                 element.click();
                 clickedOption = option;
-                await sleep(350);
+                await waitForTiming('DIALOG_ACTION_DELAY');
                 const followup = decision?.selectedFollowupOption || null;
                 if (followup && normalizeText(followup.controlName || followup.text || '') !== normalizeText(option.controlName || option.text || '')) {
                     const refreshEvents = detectUnexpectedEvents();
@@ -1017,7 +1087,7 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
                     if (followupElement && typeof followupElement.click === 'function') {
                         followupElement.click();
                         clickedFollowupOption = followup;
-                        await sleep(350);
+                        await waitForTiming('DIALOG_ACTION_DELAY');
                     } else {
                         sendLog('warning', `Selected follow-up option not found: ${followup.controlName || followup.text || 'unknown'}`);
                     }
@@ -1044,13 +1114,34 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
             await waitForFlowTransitionStability();
             return { signal: outcome };
         }
+        if (event?.kind === 'dialog') {
+            await waitForFlowTransitionStability();
+        }
         return { signal: 'none' };
     }
 
     async function handleUnexpectedEvents(learningMode) {
         const maxDepth = 6;
         for (let depth = 0; depth < maxDepth; depth++) {
-            const events = detectUnexpectedEvents();
+            let events = detectUnexpectedEvents();
+
+            // If no events found on the first check, poll briefly to catch
+            // dialogs that are still rendering.  D365 confirmation dialogs
+            // (e.g. delete record) render asynchronously and may not trigger
+            // any loading indicator, so we always poll a few times rather
+            // than gating on isD365Loading().  If D365 IS loading we extend
+            // the window to give heavier server operations time to finish.
+            if (!events.length && depth === 0) {
+                const basePollAttempts = 5;        // ~600 ms minimum window
+                const loading = isD365Loading();
+                const pollAttempts = loading ? basePollAttempts * 2 : basePollAttempts;
+                for (let p = 0; p < pollAttempts; p++) {
+                    await waitForTiming('FLOW_STABILITY_POLL_DELAY');
+                    events = detectUnexpectedEvents();
+                    if (events.length) break;      // dialog appeared
+                }
+                if (!events.length) return { signal: 'none' };
+            }
             if (!events.length) return { signal: 'none' };
 
             const event = events[0];
@@ -1077,6 +1168,9 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
                     if (handlerOutcome === 'continue-loop' || handlerOutcome === 'break-loop' || handlerOutcome === 'repeat-loop') {
                         await waitForFlowTransitionStability();
                         return { signal: handlerOutcome };
+                    }
+                    if (event.kind === 'dialog') {
+                        await waitForFlowTransitionStability();
                     }
                     // Mark message bar as acknowledged so it doesn't re-trigger if
                     // the bar persists after the handler ran (e.g. close button hidden).
@@ -1155,6 +1249,7 @@ async function executeWorkflow(workflow, data) {
         executionControl.runOptions = workflow.runOptions || { skipRows: 0, limitRows: 0, dryRun: false, learningMode: false, runUntilInterception: false };
         executionControl.stepIndexOffset = workflow?._originalStartIndex || 0;
         executionControl.currentStepIndex = executionControl.stepIndexOffset;
+        executionControl.processedRows = 0;
         unhandledUnexpectedEventKeys.clear();
         acknowledgedMessageBarKeys.clear();
         currentWorkflow = workflow;
@@ -1202,10 +1297,13 @@ async function executeWorkflow(workflow, data) {
         // Execute workflow with loop support
         await executeStepsWithLoops(steps, primaryData, detailSources, relationships, workflow.settings);
 
-        sendLog('info', `Workflow complete: processed ${primaryData.length} rows`);
+        const processedRows = executionControl.processedRows > 0
+            ? executionControl.processedRows
+            : primaryData.length;
+        sendLog('info', `Workflow complete: processed ${processedRows} rows`);
         window.postMessage({
             type: 'D365_WORKFLOW_COMPLETE',
-            result: { processed: primaryData.length }
+            result: { processed: processedRows }
         }, '*');
     } catch (error) {
         // Navigation interrupts are not errors - the workflow will resume after page load
@@ -1422,7 +1520,7 @@ async function executeSingleStep(step, stepIndex, currentRow, detailSources, set
                 break;
 
             case 'wait':
-                await sleep(Number(step.duration) || 500);
+                await sleep(Number(step.duration) || getTimings().DEFAULT_WAIT_STEP_DELAY);
                 break;
 
             case 'waitUntil':
@@ -1555,6 +1653,7 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
             const row = primaryData[rowIndex];
             const displayRowNumber = startRowNumber + rowIndex; // Actual row number in original data
             executionControl.currentRowIndex = displayRowNumber;
+            executionControl.processedRows = rowIndex + 1;
             executionControl.currentDataRow = row;
 
             const rowProgress = {
@@ -1787,9 +1886,11 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
 
                 if (loopMode === 'count') {
                     const loopCount = Number(step.loopCount) || 0;
+                    executionControl.totalRows = loopCount;
                     sendLog('info', `Entering loop: ${step.loopName || 'Loop'} (count=${loopCount})`);
                     for (let iterIndex = 0; iterIndex < loopCount; iterIndex++) {
                         await checkExecutionControl();
+                        executionControl.processedRows = iterIndex + 1;
                         window.postMessage({
                             type: 'D365_WORKFLOW_PROGRESS',
                             progress: { phase: 'loopIteration', iteration: iterIndex + 1, total: loopCount, step: `Loop "${step.loopName || 'Loop'}": iteration ${iterIndex + 1}/${loopCount}` }
@@ -1884,6 +1985,7 @@ async function executeStepsWithLoops(steps, primaryData, detailSources, relation
                         step: 'Processing row'
                     };
                     sendLog('info', `Loop iteration ${iterIndex + 1}/${loopData.length} for loop ${step.loopName || 'Loop'}`);
+                    executionControl.processedRows = iterIndex + 1;
                     window.postMessage({ type: 'D365_WORKFLOW_PROGRESS', progress: loopRowProgress }, '*');
 
                     window.postMessage({ type: 'D365_WORKFLOW_PROGRESS', progress: { phase: 'loopIteration', iteration: iterIndex + 1, total: loopData.length, step: `Loop "${step.loopName || 'Loop'}": iteration ${iterIndex + 1}/${loopData.length}` } }, '*');
@@ -1961,6 +2063,8 @@ function runAdminInspection(inspector, inspectionType, formNameParam, document, 
             return adminDiscoverFormInputs(document, formNameParam);
         case 'generateSteps':
             return adminGenerateStepsForTab(document);
+        case 'gridState':
+            return inspectGridState();
         default:
             throw new Error('Unknown inspection type: ' + inspectionType);
     }

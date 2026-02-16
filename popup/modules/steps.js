@@ -1,3 +1,7 @@
+import { generateId } from './id.js';
+import { escapeHtml } from './utils.js';
+import { workflowHasLoops as workflowHasLoopsUtil } from '../../shared/workflow-param-utils.js';
+
 export const stepMethods = {
     async initBuilderStepsSplit() {
         if (this._builderStepsSplitInitialized) {
@@ -195,7 +199,7 @@ export const stepMethods = {
         const loopStartIdMap = new Map();
         const copiedSteps = sourceSteps.map((step, index) => {
             const clone = JSON.parse(JSON.stringify(step));
-            const newId = `${Date.now()}_${index}_${Math.random().toString(16).slice(2, 6)}`;
+            const newId = generateId(`step_copy_${index}`);
             if (step.type === 'loop-start') {
                 loopStartIdMap.set(step.id, newId);
             }
@@ -222,7 +226,7 @@ export const stepMethods = {
         }
 
         this.currentStep = {
-            id: Date.now().toString(),
+            id: generateId('step'),
             type: 'click',
             controlName: '',
             value: '',
@@ -263,7 +267,7 @@ export const stepMethods = {
     },
 
     workflowHasLoops(workflow) {
-        return (workflow?.steps || []).some(step => step.type === 'loop-start' || step.type === 'loop-end');
+        return workflowHasLoopsUtil(workflow);
     },
 
     normalizeParamBinding(binding) {
@@ -560,7 +564,7 @@ export const stepMethods = {
         const fakerGenerator = this.currentStep?.fakerGenerator || 'First Name';
         const randomValues = this.currentStep?.randomValues || '';
         const fakerOptions = this.getStepFakerGeneratorNames()
-            .map(name => `<option value="${this.escapeHtml(name)}" ${name === fakerGenerator ? 'selected' : ''}>${this.escapeHtml(name)}</option>`)
+            .map(name => `<option value="${escapeHtml(name)}" ${name === fakerGenerator ? 'selected' : ''}>${escapeHtml(name)}</option>`)
             .join('');
 
         return `
@@ -574,7 +578,7 @@ export const stepMethods = {
             <div class="form-group ${valueSource !== 'random-constant' ? 'is-hidden' : ''}" id="randomConstantGroup">
                 <label>Random Constants</label>
                 <input type="text" id="stepRandomValues" class="form-control"
-                       value="${this.escapeHtml(randomValues)}"
+                       value="${escapeHtml(randomValues)}"
                        placeholder="A,B,C">
                 <small style="color: #666; font-size: 11px;">Comma-separated values. One value is picked randomly each run.</small>
             </div>
@@ -1626,18 +1630,18 @@ export const stepMethods = {
                     <div class="field-mapping-col">
                         <label>Data Source</label>
                         <select id="stepMappingSource" class="form-control">
-                            ${sourceOptions.map(source => `<option value="${source.id}" ${source.id === selectedSource ? 'selected' : ''}>${this.escapeHtml(source.name || source.id)}</option>`).join('')}
+                            ${sourceOptions.map(source => `<option value="${source.id}" ${source.id === selectedSource ? 'selected' : ''}>${escapeHtml(source.name || source.id)}</option>`).join('')}
                         </select>
                     </div>
                     <div class="field-mapping-col">
                         <label>Field</label>
                         <select id="stepMappingField" class="form-control">
                             <option value="">-- Select Field --</option>
-                            ${fields.map(field => `<option value="${field}" ${field === selectedField ? 'selected' : ''}>${this.escapeHtml(field)}</option>`).join('')}
+                            ${fields.map(field => `<option value="${field}" ${field === selectedField ? 'selected' : ''}>${escapeHtml(field)}</option>`).join('')}
                         </select>
                     </div>
                 </div>
-                <input type="hidden" id="stepFieldMapping" value="${this.escapeHtml(resolvedMapping)}">
+                <input type="hidden" id="stepFieldMapping" value="${escapeHtml(resolvedMapping)}">
             </div>
         `;
     },
@@ -1689,7 +1693,7 @@ export const stepMethods = {
         const currentSourceId = sourceSelect.value || existingSourceId;
 
         sourceSelect.innerHTML = sourcePool.length
-            ? sourcePool.map(source => `<option value="${source.id}" ${source.id === currentSourceId ? 'selected' : ''}>${this.escapeHtml(source.name || source.id)}</option>`).join('')
+            ? sourcePool.map(source => `<option value="${source.id}" ${source.id === currentSourceId ? 'selected' : ''}>${escapeHtml(source.name || source.id)}</option>`).join('')
             : '<option value="">No data sources found</option>';
 
         const resolvedSourceId = sourceSelect.value || '';
@@ -1698,17 +1702,10 @@ export const stepMethods = {
         const currentField = fieldSelect.value || existingField;
 
         fieldSelect.innerHTML = '<option value="">-- Select Field --</option>'
-            + fields.map(field => `<option value="${field}" ${field === currentField ? 'selected' : ''}>${this.escapeHtml(field)}</option>`).join('');
+            + fields.map(field => `<option value="${field}" ${field === currentField ? 'selected' : ''}>${escapeHtml(field)}</option>`).join('');
 
         const resolvedField = fieldSelect.value || '';
         mappingInput.value = (resolvedSourceId && resolvedField) ? `${resolvedSourceId}:${resolvedField}` : '';
-    },
-
-    escapeHtml(text) {
-        if (text === null || text === undefined) return '';
-        const div = document.createElement('div');
-        div.textContent = String(text);
-        return div.innerHTML;
     },
 
     getSharedFieldGroups() {
@@ -1832,132 +1829,301 @@ export const stepMethods = {
             this.saveStep();
         }, 300);
     },
+    getStepTypeRegistry() {
+        if (this._stepTypeRegistry) {
+            return this._stepTypeRegistry;
+        }
+
+        this._stepTypeRegistry = {
+            click: {
+                icon: 'CLK',
+                describe: (ctx, step, waitFlags) => `Click "${step.displayText || step.controlName}"${waitFlags}`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                }
+            },
+            input: {
+                icon: 'IN',
+                describe: (ctx, step, waitFlags) => `Enter "${ctx.formatStepValueSourceForDisplay(step)}" into ${step.displayText || step.controlName}${waitFlags}`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+                    ctx.applyStepValueSourceFields(valueSource);
+                }
+            },
+            select: {
+                icon: 'SEL',
+                describe: (ctx, step, waitFlags) => `Select "${ctx.formatStepValueSourceForDisplay(step)}" in ${step.displayText || step.controlName}${waitFlags}`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+                    ctx.applyStepValueSourceFields(valueSource);
+                }
+            },
+            lookupSelect: {
+                icon: 'LOOK',
+                describe: (ctx, step, waitFlags) => `Lookup "${ctx.formatStepValueSourceForDisplay(step)}" in ${step.displayText || step.controlName}${waitFlags}`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+                    ctx.applyStepValueSourceFields(valueSource);
+                }
+            },
+            checkbox: {
+                icon: 'CHK',
+                describe: (ctx, step, waitFlags) => `${step.value === 'true' ? 'Check' : 'Uncheck'} "${step.displayText || step.controlName}"${waitFlags}`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.value = document.getElementById('stepValue')?.value || '';
+                }
+            },
+            wait: {
+                icon: 'WAIT',
+                describe: (ctx, step) => `Wait ${step.duration}ms`,
+                save: (ctx) => {
+                    ctx.currentStep.duration = parseInt(document.getElementById('stepDuration')?.value, 10) || 1000;
+                }
+            },
+            'loop-start': {
+                icon: 'LOOP',
+                describe: (ctx, step) => {
+                    const mode = step.loopMode || 'data';
+                    if (mode === 'count') return `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'} (count ${step.loopCount || 0})`;
+                    if (mode === 'while') return `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'} (while ${step.conditionType || 'condition'})`;
+                    const limit = step.iterationLimit > 0 ? ` (max ${step.iterationLimit})` : ' (all rows)';
+                    return `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'}${limit}`;
+                },
+                save: (ctx) => {
+                    ctx.currentStep.loopName = document.getElementById('stepLoopName')?.value || '';
+                    ctx.currentStep.loopMode = document.getElementById('stepLoopMode')?.value || 'data';
+                    ctx.currentStep.loopDataSource = document.getElementById('stepLoopDataSource')?.value || '';
+                    ctx.currentStep.iterationLimit = parseInt(document.getElementById('stepIterationLimit')?.value, 10) || 0;
+                    ctx.currentStep.loopCount = parseInt(document.getElementById('stepLoopCount')?.value, 10) || 0;
+                    ctx.currentStep.loopMaxIterations = parseInt(document.getElementById('stepLoopMaxIterations')?.value, 10) || 100;
+                    ctx.currentStep.conditionType = document.getElementById('loopConditionType')?.value || 'ui-visible';
+                    ctx.currentStep.conditionControlName = document.getElementById('loopConditionControlName')?.value || '';
+                    ctx.currentStep.conditionValue = document.getElementById('loopConditionValue')?.value || '';
+                    ctx.currentStep.conditionFieldMapping = document.getElementById('stepFieldMapping')?.value || '';
+                }
+            },
+            'loop-end': {
+                icon: 'LOOP',
+                describe: (ctx, step) => {
+                    const refLoop = ctx.currentWorkflow?.steps?.find(s => s.id === step.loopRef);
+                    return `<span class="loop-indicator">LOOP END:</span> ${refLoop?.loopName || 'Loop'}`;
+                },
+                save: (ctx) => {
+                    ctx.currentStep.loopRef = document.getElementById('stepLoopRef')?.value || '';
+                }
+            },
+            'if-start': {
+                icon: 'IF',
+                describe: (ctx, step) => `IF ${step.conditionType || 'condition'}`,
+                save: (ctx) => {
+                    ctx.currentStep.conditionType = document.getElementById('stepConditionType')?.value || 'ui-visible';
+                    ctx.currentStep.conditionControlName = document.getElementById('stepConditionControlName')?.value || '';
+                    ctx.currentStep.conditionValue = document.getElementById('stepConditionValue')?.value || '';
+                    ctx.currentStep.conditionFieldMapping = document.getElementById('stepFieldMapping')?.value || '';
+                }
+            },
+            else: { icon: 'ELSE', describe: () => 'ELSE', save: () => {} },
+            'if-end': { icon: 'END', describe: () => 'END IF', save: () => {} },
+            'continue-loop': { icon: 'CONT', describe: () => 'CONTINUE LOOP', save: () => {} },
+            'break-loop': { icon: 'BRK', describe: () => 'BREAK LOOP', save: () => {} },
+            label: {
+                icon: 'LBL',
+                describe: (ctx, step) => `Label: ${step.labelName || 'unnamed'}`,
+                save: (ctx) => {
+                    ctx.currentStep.labelName = document.getElementById('stepLabelName')?.value || '';
+                }
+            },
+            goto: {
+                icon: 'GOTO',
+                describe: (ctx, step) => `Go to: ${step.gotoLabel || 'label'}`,
+                save: (ctx) => {
+                    ctx.currentStep.gotoLabel = document.getElementById('stepGotoLabel')?.value || '';
+                }
+            },
+            subworkflow: {
+                icon: 'SUB',
+                describe: (ctx, step) => {
+                    const sub = (ctx.workflows || []).find(w => w.id === step.subworkflowId);
+                    const subName = sub?.name || 'Unknown Workflow';
+                    const paramCount = Object.keys(step.paramBindings || {}).length;
+                    const paramLabel = paramCount > 0 ? ` (${paramCount} param${paramCount > 1 ? 's' : ''})` : '';
+                    return `Call subworkflow "${subName}"${paramLabel}`;
+                },
+                save: (ctx) => {
+                    ctx.currentStep.subworkflowId = document.getElementById('stepSubworkflowId')?.value || '';
+                    ctx.currentStep.paramBindings = ctx.collectSubworkflowParamBindings();
+                }
+            },
+            filter: {
+                icon: 'FLT',
+                describe: (ctx, step) => `Filter "${step.displayText || step.controlName}" ${step.filterMethod || 'is exactly'} "${ctx.formatStepValueSourceForDisplay(step)}"`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.filterMethod = document.getElementById('stepFilterMethod')?.value || 'is exactly';
+                    const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+                    ctx.applyStepValueSourceFields(valueSource);
+                }
+            },
+            'grid-input': {
+                icon: 'GRID',
+                describe: (ctx, step, waitFlags) => `Set grid cell "${step.displayText || step.controlName}" to "${ctx.formatStepValueSourceForDisplay(step)}"${waitFlags}`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.waitForValidation = document.getElementById('stepWaitForValidation')?.checked || false;
+                    const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+                    ctx.applyStepValueSourceFields(valueSource);
+                }
+            },
+            'wait-until': {
+                icon: 'WAIT',
+                describe: (ctx, step) => `Wait until "${step.displayText || step.controlName}" ${step.waitCondition || 'visible'}`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.waitCondition = document.getElementById('stepWaitCondition')?.value || 'visible';
+                    ctx.currentStep.waitValue = document.getElementById('stepWaitValue')?.value || '';
+                    ctx.currentStep.timeout = parseInt(document.getElementById('stepTimeout')?.value, 10) || 10000;
+                }
+            },
+            navigate: {
+                icon: 'NAV',
+                describe: (ctx, step) => {
+                    const target = step.menuItemName || step.navigateUrl || step.hostRelativePath || 'form';
+                    return `Navigate to "${step.displayText || target}"${step.openInNewTab ? ' (new tab)' : ''}`;
+                },
+                save: (ctx) => {
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.navigateMethod = document.getElementById('stepNavigateMethod')?.value || 'menuItem';
+                    ctx.currentStep.menuItemName = document.getElementById('stepMenuItemName')?.value || '';
+                    ctx.currentStep.menuItemType = document.getElementById('stepMenuItemType')?.value || 'Display';
+                    ctx.currentStep.navigateUrl = document.getElementById('stepNavigateUrl')?.value || '';
+                    ctx.currentStep.hostRelativePath = document.getElementById('stepHostRelativePath')?.value || '';
+                    ctx.currentStep.waitForLoad = parseInt(document.getElementById('stepWaitForLoad')?.value, 10) || 3000;
+                    ctx.currentStep.openInNewTab = !!document.getElementById('stepOpenInNewTab')?.checked;
+                }
+            },
+            'tab-navigate': {
+                icon: 'TAB',
+                describe: (ctx, step) => `Switch to tab "${step.displayText || step.controlName}"`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                }
+            },
+            'action-pane-tab': {
+                icon: 'AP',
+                describe: (ctx, step) => `Switch action pane tab "${step.displayText || step.controlName}"`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                }
+            },
+            'expand-section': {
+                icon: 'SEC',
+                describe: (ctx, step) => `${step.expandAction === 'collapse' ? 'Collapse' : 'Expand'} section "${step.displayText || step.controlName}"`,
+                save: (ctx) => {
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.expandAction = document.getElementById('stepExpandAction')?.value || 'expand';
+                }
+            },
+            'close-dialog': {
+                icon: 'OK',
+                describe: (ctx, step) => `Close ${step.formName || step.controlName || 'dialog'} with ${step.closeAction === 'cancel' ? 'Cancel' : 'OK'}`,
+                save: (ctx) => {
+                    ctx.currentStep.formName = document.getElementById('stepFormName')?.value || 'SysOperationTemplateForm';
+                    ctx.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
+                    ctx.currentStep.closeAction = document.getElementById('stepCloseAction')?.value || 'ok';
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                }
+            },
+            'query-filter': {
+                icon: 'QRY',
+                describe: (ctx, step) => `Query filter: ${step.fieldName || 'field'} = "${ctx.formatStepValueSourceForDisplay(step)}"`,
+                save: (ctx) => {
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.tableName = document.getElementById('stepTableName')?.value || '';
+                    ctx.currentStep.fieldName = document.getElementById('stepFieldName')?.value || '';
+                    ctx.currentStep.savedQuery = document.getElementById('stepSavedQuery')?.value || '';
+                    ctx.currentStep.closeDialogAfter = document.getElementById('stepCloseDialogAfter')?.value || '';
+                    const valueSource = document.getElementById('stepValueSource')?.value || 'static';
+                    ctx.applyStepValueSourceFields(valueSource);
+                }
+            },
+            'batch-processing': {
+                icon: 'BCH',
+                describe: (ctx, step) => `${step.batchEnabled === 'true' ? 'Enable' : 'Disable'} batch processing`,
+                save: (ctx) => {
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.batchEnabled = document.getElementById('stepBatchEnabled')?.value || 'false';
+                    ctx.currentStep.taskDescription = document.getElementById('stepTaskDescription')?.value || '';
+                    ctx.currentStep.batchGroup = document.getElementById('stepBatchGroup')?.value || '';
+                    ctx.currentStep.privateJob = document.getElementById('stepPrivateJob')?.value || 'false';
+                    ctx.currentStep.criticalJob = document.getElementById('stepCriticalJob')?.value || 'false';
+                    ctx.currentStep.monitoringCategory = document.getElementById('stepMonitoringCategory')?.value || '';
+                }
+            },
+            recurrence: {
+                icon: 'REC',
+                describe: (ctx, step) => {
+                    const units = ['Minutes', 'Hours', 'Days', 'Weeks', 'Months', 'Years'];
+                    const unit = units[parseInt(step.patternUnit, 10) || 0] || 'Minutes';
+                    return `${step.displayText || `Recurrence: every ${step.patternCount || 10} ${unit.toLowerCase()}`}`;
+                },
+                save: (ctx) => {
+                    ctx.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
+                    ctx.currentStep.patternUnit = document.getElementById('stepPatternUnit')?.value || '0';
+                    ctx.currentStep.patternCount = parseInt(document.getElementById('stepPatternCount')?.value, 10) || 10;
+                    ctx.currentStep.endDateOption = document.getElementById('stepEndDateOption')?.value || 'noEndDate';
+                    ctx.currentStep.endAfterCount = parseInt(document.getElementById('stepEndAfterCount')?.value, 10) || 1;
+                    ctx.currentStep.endByDate = document.getElementById('stepEndByDate')?.value || '';
+                    ctx.currentStep.startDate = document.getElementById('stepStartDate')?.value || '';
+                    ctx.currentStep.startTime = document.getElementById('stepStartTime')?.value || '';
+                    ctx.currentStep.timezone = document.getElementById('stepTimezone')?.value || '';
+                    ctx.currentStep.closeDialogAfter = document.getElementById('stepCloseDialogAfter')?.value || '';
+                }
+            }
+        };
+
+        return this._stepTypeRegistry;
+    },
+
+    applyStepTypeSave() {
+        const type = this.currentStep?.type || '';
+        const handler = this.getStepTypeRegistry()[type];
+        if (handler?.save) {
+            handler.save(this);
+            return;
+        }
+        this.currentStep.controlName = document.getElementById('stepControlName')?.value || this.currentStep.controlName || '';
+        this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || this.currentStep.displayText || '';
+    },
+
+    describeStepForDisplay(step) {
+        const handler = this.getStepTypeRegistry()[step?.type || ''];
+        const waitFlags = this.formatWaitFlags(step || {});
+        const stepIcon = handler?.icon || 'STEP';
+        const stepDesc = handler?.describe
+            ? handler.describe(this, step || {}, waitFlags)
+            : `${step?.type || 'step'}${waitFlags}`;
+        return { stepIcon, stepDesc };
+    },
     saveStep() {
         if (!this.currentStep) return;
 
         this.currentStep.type = document.getElementById('stepType').value;
-
-        if (this.currentStep.type === 'click') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-        } else if (this.currentStep.type === 'input' || this.currentStep.type === 'select' || this.currentStep.type === 'lookupSelect') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-
-            const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.applyStepValueSourceFields(valueSource);
-        } else if (this.currentStep.type === 'checkbox') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.value = document.getElementById('stepValue')?.value || '';
-        } else if (this.currentStep.type === 'wait') {
-            this.currentStep.duration = parseInt(document.getElementById('stepDuration')?.value) || 1000;
-        } else if (this.currentStep.type === 'loop-start') {
-            this.currentStep.loopName = document.getElementById('stepLoopName')?.value || '';
-            this.currentStep.loopMode = document.getElementById('stepLoopMode')?.value || 'data';
-            this.currentStep.loopDataSource = document.getElementById('stepLoopDataSource')?.value || '';
-            this.currentStep.iterationLimit = parseInt(document.getElementById('stepIterationLimit')?.value) || 0;
-            this.currentStep.loopCount = parseInt(document.getElementById('stepLoopCount')?.value) || 0;
-            this.currentStep.loopMaxIterations = parseInt(document.getElementById('stepLoopMaxIterations')?.value) || 100;
-            this.currentStep.conditionType = document.getElementById('loopConditionType')?.value || 'ui-visible';
-            this.currentStep.conditionControlName = document.getElementById('loopConditionControlName')?.value || '';
-            this.currentStep.conditionValue = document.getElementById('loopConditionValue')?.value || '';
-            this.currentStep.conditionFieldMapping = document.getElementById('stepFieldMapping')?.value || '';
-        } else if (this.currentStep.type === 'loop-end') {
-            this.currentStep.loopRef = document.getElementById('stepLoopRef')?.value || '';
-        } else if (this.currentStep.type === 'if-start') {
-            this.currentStep.conditionType = document.getElementById('stepConditionType')?.value || 'ui-visible';
-            this.currentStep.conditionControlName = document.getElementById('stepConditionControlName')?.value || '';
-            this.currentStep.conditionValue = document.getElementById('stepConditionValue')?.value || '';
-            this.currentStep.conditionFieldMapping = document.getElementById('stepFieldMapping')?.value || '';
-        } else if (this.currentStep.type === 'else') {
-            // No fields
-        } else if (this.currentStep.type === 'if-end') {
-            // No fields
-        } else if (this.currentStep.type === 'continue-loop') {
-            // No fields
-        } else if (this.currentStep.type === 'break-loop') {
-            // No fields
-        } else if (this.currentStep.type === 'label') {
-            this.currentStep.labelName = document.getElementById('stepLabelName')?.value || '';
-        } else if (this.currentStep.type === 'goto') {
-            this.currentStep.gotoLabel = document.getElementById('stepGotoLabel')?.value || '';
-        } else if (this.currentStep.type === 'subworkflow') {
-            this.currentStep.subworkflowId = document.getElementById('stepSubworkflowId')?.value || '';
-            this.currentStep.paramBindings = this.collectSubworkflowParamBindings();
-        } else if (this.currentStep.type === 'filter') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.filterMethod = document.getElementById('stepFilterMethod')?.value || 'is exactly';
-
-            const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.applyStepValueSourceFields(valueSource);
-        } else if (this.currentStep.type === 'navigate') {
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.navigateMethod = document.getElementById('stepNavigateMethod')?.value || 'menuItem';
-            this.currentStep.menuItemName = document.getElementById('stepMenuItemName')?.value || '';
-            this.currentStep.menuItemType = document.getElementById('stepMenuItemType')?.value || 'Display';
-            this.currentStep.navigateUrl = document.getElementById('stepNavigateUrl')?.value || '';
-            this.currentStep.hostRelativePath = document.getElementById('stepHostRelativePath')?.value || '';
-            this.currentStep.waitForLoad = parseInt(document.getElementById('stepWaitForLoad')?.value) || 3000;
-            this.currentStep.openInNewTab = !!document.getElementById('stepOpenInNewTab')?.checked;
-        } else if (this.currentStep.type === 'tab-navigate') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-        } else if (this.currentStep.type === 'action-pane-tab') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-        } else if (this.currentStep.type === 'expand-section') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.expandAction = document.getElementById('stepExpandAction')?.value || 'expand';
-        } else if (this.currentStep.type === 'close-dialog') {
-            this.currentStep.formName = document.getElementById('stepFormName')?.value || 'SysOperationTemplateForm';
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.closeAction = document.getElementById('stepCloseAction')?.value || 'ok';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-        } else if (this.currentStep.type === 'query-filter') {
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.tableName = document.getElementById('stepTableName')?.value || '';
-            this.currentStep.fieldName = document.getElementById('stepFieldName')?.value || '';
-            this.currentStep.savedQuery = document.getElementById('stepSavedQuery')?.value || '';
-            this.currentStep.closeDialogAfter = document.getElementById('stepCloseDialogAfter')?.value || '';
-            
-            const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.applyStepValueSourceFields(valueSource);
-        } else if (this.currentStep.type === 'batch-processing') {
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.batchEnabled = document.getElementById('stepBatchEnabled')?.value || 'false';
-            this.currentStep.taskDescription = document.getElementById('stepTaskDescription')?.value || '';
-            this.currentStep.batchGroup = document.getElementById('stepBatchGroup')?.value || '';
-            this.currentStep.privateJob = document.getElementById('stepPrivateJob')?.value || 'false';
-            this.currentStep.criticalJob = document.getElementById('stepCriticalJob')?.value || 'false';
-            this.currentStep.monitoringCategory = document.getElementById('stepMonitoringCategory')?.value || '';
-        } else if (this.currentStep.type === 'recurrence') {
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.patternUnit = document.getElementById('stepPatternUnit')?.value || '0';
-            this.currentStep.patternCount = parseInt(document.getElementById('stepPatternCount')?.value) || 10;
-            this.currentStep.endDateOption = document.getElementById('stepEndDateOption')?.value || 'noEndDate';
-            this.currentStep.endAfterCount = parseInt(document.getElementById('stepEndAfterCount')?.value) || 1;
-            this.currentStep.endByDate = document.getElementById('stepEndByDate')?.value || '';
-            this.currentStep.startDate = document.getElementById('stepStartDate')?.value || '';
-            this.currentStep.startTime = document.getElementById('stepStartTime')?.value || '';
-            this.currentStep.timezone = document.getElementById('stepTimezone')?.value || '';
-            this.currentStep.closeDialogAfter = document.getElementById('stepCloseDialogAfter')?.value || '';
-        } else if (this.currentStep.type === 'wait-until') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.waitCondition = document.getElementById('stepWaitCondition')?.value || 'visible';
-            this.currentStep.waitValue = document.getElementById('stepWaitValue')?.value || '';
-            this.currentStep.timeout = parseInt(document.getElementById('stepTimeout')?.value) || 10000;
-        } else if (this.currentStep.type === 'grid-input') {
-            this.currentStep.controlName = document.getElementById('stepControlName')?.value || '';
-            this.currentStep.displayText = document.getElementById('stepDisplayText')?.value || '';
-            this.currentStep.waitForValidation = document.getElementById('stepWaitForValidation')?.checked || false;
-
-            const valueSource = document.getElementById('stepValueSource')?.value || 'static';
-            this.applyStepValueSourceFields(valueSource);
-        }
+        this.applyStepTypeSave();
 
         if (this.supportsComboMethodOverride(this.currentStep.type)) {
             const comboMethodOverride = document.getElementById('stepComboSelectMode')?.value || 'default';
@@ -2096,121 +2262,7 @@ export const stepMethods = {
                 item.style.marginLeft = `${loopDepth * 20}px`;
             }
 
-            let stepDesc = '';
-            let stepIcon = '';
-            const waitFlags = this.formatWaitFlags(step);
-
-            if (step.type === 'click') {
-                stepIcon = 'CLK';
-                stepDesc = `Click "${step.displayText || step.controlName}"${waitFlags}`;
-            } else if (step.type === 'input') {
-                stepIcon = 'IN';
-                const inputVal = this.formatStepValueSourceForDisplay(step);
-                stepDesc = `Enter "${inputVal}" into ${step.displayText || step.controlName}${waitFlags}`;
-            } else if (step.type === 'select') {
-                stepIcon = 'SEL';
-                const selectVal = this.formatStepValueSourceForDisplay(step);
-                stepDesc = `Select "${selectVal}" in ${step.displayText || step.controlName}${waitFlags}`;
-            } else if (step.type === 'lookupSelect') {
-                stepIcon = 'LOOK';
-                const lookupVal = this.formatStepValueSourceForDisplay(step);
-                stepDesc = `Lookup "${lookupVal}" in ${step.displayText || step.controlName}${waitFlags}`;
-            } else if (step.type === 'checkbox') {
-                stepIcon = 'CHK';
-                const action = step.value === 'true' ? 'Check' : 'Uncheck';
-                stepDesc = `${action} "${step.displayText || step.controlName}"${waitFlags}`;
-            } else if (step.type === 'wait') {
-                stepIcon = 'WAIT';
-                stepDesc = `Wait ${step.duration}ms`;
-            } else if (step.type === 'loop-start') {
-                stepIcon = 'LOOP';
-                const mode = step.loopMode || 'data';
-                if (mode === 'count') {
-                    stepDesc = `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'} (count ${step.loopCount || 0})`;
-                } else if (mode === 'while') {
-                    stepDesc = `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'} (while ${step.conditionType || 'condition'})`;
-                } else {
-                    const limit = step.iterationLimit > 0 ? ` (max ${step.iterationLimit})` : ' (all rows)';
-                    stepDesc = `<span class="loop-indicator">LOOP START:</span> ${step.loopName || 'Loop'}${limit}`;
-                }
-            } else if (step.type === 'loop-end') {
-                stepIcon = 'LOOP';
-                const refLoop = this.currentWorkflow.steps.find(s => s.id === step.loopRef);
-                stepDesc = `<span class="loop-indicator">LOOP END:</span> ${refLoop?.loopName || 'Loop'}`;
-            } else if (step.type === 'if-start') {
-                stepIcon = 'IF';
-                stepDesc = `IF ${step.conditionType || 'condition'}`;
-            } else if (step.type === 'else') {
-                stepIcon = 'ELSE';
-                stepDesc = 'ELSE';
-            } else if (step.type === 'if-end') {
-                stepIcon = 'END';
-                stepDesc = 'END IF';
-            } else if (step.type === 'continue-loop') {
-                stepIcon = 'CONT';
-                stepDesc = 'CONTINUE LOOP';
-            } else if (step.type === 'break-loop') {
-                stepIcon = 'BRK';
-                stepDesc = 'BREAK LOOP';
-            } else if (step.type === 'label') {
-                stepIcon = 'LBL';
-                stepDesc = `Label: ${step.labelName || 'unnamed'}`;
-            } else if (step.type === 'goto') {
-                stepIcon = 'GOTO';
-                stepDesc = `Go to: ${step.gotoLabel || 'label'}`;
-            } else if (step.type === 'subworkflow') {
-                stepIcon = 'SUB';
-                const sub = (this.workflows || []).find(w => w.id === step.subworkflowId);
-                const subName = sub?.name || 'Unknown Workflow';
-                const paramCount = Object.keys(step.paramBindings || {}).length;
-                const paramLabel = paramCount > 0 ? ` (${paramCount} param${paramCount > 1 ? 's' : ''})` : '';
-                stepDesc = `Call subworkflow "${subName}"${paramLabel}`;
-            } else if (step.type === 'filter') {
-                stepIcon = 'FLT';
-                const method = step.filterMethod || 'is exactly';
-                const filterVal = this.formatStepValueSourceForDisplay(step);
-                stepDesc = `Filter "${step.displayText || step.controlName}" ${method} "${filterVal}"`;
-            } else if (step.type === 'grid-input') {
-                stepIcon = 'GRID';
-                const gridVal = this.formatStepValueSourceForDisplay(step);
-                stepDesc = `Set grid cell "${step.displayText || step.controlName}" to "${gridVal}"${waitFlags}`;
-            } else if (step.type === 'wait-until') {
-                stepIcon = 'WAIT';
-                const condition = step.waitCondition || 'visible';
-                stepDesc = `Wait until "${step.displayText || step.controlName}" ${condition}`;
-            } else if (step.type === 'navigate') {
-                stepIcon = '🧭';
-                const target = step.menuItemName || step.navigateUrl || step.hostRelativePath || 'form';
-                stepDesc = `Navigate to "${step.displayText || target}"${step.openInNewTab ? ' (new tab)' : ''}`;
-            } else if (step.type === 'tab-navigate') {
-                stepIcon = '📑';
-                stepDesc = `Switch to tab "${step.displayText || step.controlName}"`;
-            } else if (step.type === 'action-pane-tab') {
-                stepIcon = 'AP';
-                stepDesc = `Switch action pane tab "${step.displayText || step.controlName}"`;
-            } else if (step.type === 'expand-section') {
-                stepIcon = '📂';
-                const action = step.expandAction === 'collapse' ? 'Collapse' : 'Expand';
-                stepDesc = `${action} section "${step.displayText || step.controlName}"`;
-            } else if (step.type === 'query-filter') {
-                stepIcon = '🔎';
-                const filterVal = this.formatStepValueSourceForDisplay(step);
-                stepDesc = `Query filter: ${step.fieldName || 'field'} = "${filterVal}"`;
-            } else if (step.type === 'batch-processing') {
-                stepIcon = '⚙️';
-                const enabled = step.batchEnabled === 'true' ? 'Enable' : 'Disable';
-                stepDesc = `${enabled} batch processing`;
-            } else if (step.type === 'recurrence') {
-                stepIcon = '🔁';
-                const units = ['Minutes', 'Hours', 'Days', 'Weeks', 'Months', 'Years'];
-                const unit = units[parseInt(step.patternUnit) || 0] || 'Minutes';
-                stepDesc = `${step.displayText || `Recurrence: every ${step.patternCount || 10} ${unit.toLowerCase()}`}`;
-            } else if (step.type === 'close-dialog') {
-                stepIcon = '✓';
-                const action = step.closeAction === 'cancel' ? 'Cancel' : 'OK';
-                const formName = step.formName || step.controlName || 'dialog';
-                stepDesc = `Close ${formName} with ${action}`;
-            }
+            const { stepIcon, stepDesc } = this.describeStepForDisplay(step);
 
             const isSelected = this.selectedStepIds.has(step.id);
             item.innerHTML = `
@@ -2386,3 +2438,5 @@ export const stepMethods = {
         });
     }
 };
+
+
