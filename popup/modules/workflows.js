@@ -269,7 +269,7 @@ export const workflowMethods = {
             ? this.syncConfigurationOrderForWorkflow(this.currentWorkflow)
             : false;
 
-        const repositoryEntries = this.buildInterruptionRepository();
+        const repositoryEntries = this.buildInterruptionRepository({ includeStoredRepository: false });
         this.interruptionHandlerRepository = repositoryEntries.map((entry) => this.cloneInterruptionHandler(entry.handler));
         await this.chrome.storage.local.set(configurationOrderChanged
             ? {
@@ -390,10 +390,19 @@ export const workflowMethods = {
                             }
                         });
                     }
+                    const repositoryEntries = this.buildInterruptionRepository({ includeStoredRepository: false });
+                    this.interruptionHandlerRepository = repositoryEntries.map((entry) => this.cloneInterruptionHandler(entry.handler));
 
                     await this.chrome.storage.local.set(configurationOrderChanged
-                        ? { workflows: this.workflows, configurations: this.configurations }
-                        : { workflows: this.workflows });
+                        ? {
+                            workflows: this.workflows,
+                            configurations: this.configurations,
+                            interruptionHandlerRepository: this.interruptionHandlerRepository
+                        }
+                        : {
+                            workflows: this.workflows,
+                            interruptionHandlerRepository: this.interruptionHandlerRepository
+                        });
                     this.displayWorkflows();
                     if (this.updateNavButtonsWorkflowOptions) {
                         this.updateNavButtonsWorkflowOptions();
@@ -493,7 +502,7 @@ export const workflowMethods = {
             ...this.workflows[index],
             unexpectedEventHandlers: JSON.parse(JSON.stringify(this.currentWorkflow.unexpectedEventHandlers || []))
         };
-        const repositoryEntries = this.buildInterruptionRepository();
+        const repositoryEntries = this.buildInterruptionRepository({ includeStoredRepository: false });
         this.interruptionHandlerRepository = repositoryEntries.map((entry) => this.cloneInterruptionHandler(entry.handler));
         await this.chrome.storage.local.set({
             workflows: this.workflows,
@@ -589,7 +598,8 @@ export const workflowMethods = {
         return clone;
     },
 
-    buildInterruptionRepository() {
+    buildInterruptionRepository(options = {}) {
+        const includeStoredRepository = options.includeStoredRepository !== false;
         const signatureToEntry = new Map();
         const repoHandlers = Array.isArray(this.interruptionHandlerRepository)
             ? this.interruptionHandlerRepository
@@ -615,13 +625,15 @@ export const workflowMethods = {
             }
         };
 
-        repoHandlers.forEach((handler) => {
-            if (handler && typeof handler === 'object' && handler.handler) {
-                ingest(handler.handler, 'Repository');
-                return;
-            }
-            ingest(handler, 'Repository');
-        });
+        if (includeStoredRepository) {
+            repoHandlers.forEach((handler) => {
+                if (handler && typeof handler === 'object' && handler.handler) {
+                    ingest(handler.handler, 'Repository');
+                    return;
+                }
+                ingest(handler, 'Repository');
+            });
+        }
         workflowList.forEach((workflow) => {
             const sourceName = workflow?.name || workflow?.id || 'Workflow';
             const handlers = Array.isArray(workflow?.unexpectedEventHandlers)
@@ -761,7 +773,7 @@ export const workflowMethods = {
             return;
         }
 
-        const repository = this.buildInterruptionRepository();
+        const repository = this.buildInterruptionRepository({ includeStoredRepository: false });
         const selectedHandlers = checkboxes.map((checkbox) => {
             const index = Number(checkbox.getAttribute('data-repo-index'));
             return repository[index]?.handler || null;
@@ -778,12 +790,74 @@ export const workflowMethods = {
         this.showNotification(`Added ${result.addedCount} handler${result.addedCount > 1 ? 's' : ''} from repository`, 'success');
     },
 
+    getSelectedRepositoryEntries() {
+        const checkboxes = Array.from(document.querySelectorAll('.repo-handler-select:checked'));
+        if (!checkboxes.length) return [];
+        const repository = this.buildInterruptionRepository({ includeStoredRepository: false });
+        return checkboxes.map((checkbox) => {
+            const index = Number(checkbox.getAttribute('data-repo-index'));
+            return repository[index] || null;
+        }).filter(Boolean);
+    },
+
+    async unifySelectedRepositoryHandlers() {
+        if (!this.currentWorkflow) return;
+        const selectedEntries = this.getSelectedRepositoryEntries();
+        if (selectedEntries.length < 2) {
+            this.showNotification('Select at least 2 handlers to unify', 'warning');
+            return;
+        }
+        this.openUnifyHandlersModal(selectedEntries.map((entry) => entry.handler));
+    },
+
+    async deleteSelectedRepositoryHandlers() {
+        const selectedEntries = this.getSelectedRepositoryEntries();
+        if (!selectedEntries.length) {
+            this.showNotification('Select at least one repository handler', 'warning');
+            return;
+        }
+
+        const signaturesToDelete = new Set(selectedEntries.map((entry) => entry.signature));
+        let deletedCount = 0;
+
+        (this.workflows || []).forEach((workflow) => {
+            if (!Array.isArray(workflow?.unexpectedEventHandlers)) return;
+            const before = workflow.unexpectedEventHandlers.length;
+            workflow.unexpectedEventHandlers = workflow.unexpectedEventHandlers.filter((handler) => {
+                const signature = this.getInterruptionHandlerSignature(handler);
+                return !signaturesToDelete.has(signature);
+            });
+            deletedCount += Math.max(0, before - workflow.unexpectedEventHandlers.length);
+        });
+
+        if (this.currentWorkflow && Array.isArray(this.currentWorkflow.unexpectedEventHandlers)) {
+            this.currentWorkflow.unexpectedEventHandlers = this.currentWorkflow.unexpectedEventHandlers.filter((handler) => {
+                const signature = this.getInterruptionHandlerSignature(handler);
+                return !signaturesToDelete.has(signature);
+            });
+        }
+
+        const repositoryEntries = this.buildInterruptionRepository({ includeStoredRepository: false });
+        this.interruptionHandlerRepository = repositoryEntries.map((entry) => this.cloneInterruptionHandler(entry.handler));
+        await this.chrome.storage.local.set({
+            workflows: this.workflows,
+            interruptionHandlerRepository: this.interruptionHandlerRepository
+        });
+        this.renderInterruptionHandlersPanel();
+        this.showNotification(
+            `Deleted ${deletedCount} handler${deletedCount === 1 ? '' : 's'} from central repository`,
+            'success'
+        );
+    },
+
     renderInterruptionHandlersPanel() {
         const container = document.getElementById('interruptionHandlersList');
         const repositoryContainer = document.getElementById('interruptionRepositoryList');
         const copySelect = document.getElementById('copyHandlerSourceWorkflow');
         const copyButton = document.getElementById('copyHandlersButton');
         const copySelectedButton = document.getElementById('copySelectedRepositoryHandlersButton');
+        const unifySelectedButton = document.getElementById('unifySelectedRepositoryHandlersButton');
+        const deleteSelectedButton = document.getElementById('deleteSelectedRepositoryHandlersButton');
         if (!container) return;
 
         if (copySelect && !copySelect.dataset.bound) {
@@ -802,6 +876,14 @@ export const workflowMethods = {
             copySelectedButton.addEventListener('click', () => this.copySelectedRepositoryHandlersToCurrent());
             copySelectedButton.dataset.bound = 'true';
         }
+        if (unifySelectedButton && !unifySelectedButton.dataset.bound) {
+            unifySelectedButton.addEventListener('click', () => this.unifySelectedRepositoryHandlers());
+            unifySelectedButton.dataset.bound = 'true';
+        }
+        if (deleteSelectedButton && !deleteSelectedButton.dataset.bound) {
+            deleteSelectedButton.addEventListener('click', () => this.deleteSelectedRepositoryHandlers());
+            deleteSelectedButton.dataset.bound = 'true';
+        }
         this.populateInterruptionHandlerCopyTargets();
 
         if (!this.currentWorkflow) {
@@ -811,6 +893,12 @@ export const workflowMethods = {
             }
             if (copySelectedButton) {
                 copySelectedButton.disabled = true;
+            }
+            if (unifySelectedButton) {
+                unifySelectedButton.disabled = true;
+            }
+            if (deleteSelectedButton) {
+                deleteSelectedButton.disabled = true;
             }
             this.refreshInterruptionHandlersPanelHeight();
             return;
@@ -854,7 +942,7 @@ export const workflowMethods = {
             }).join('');
         }
 
-        const repository = this.buildInterruptionRepository();
+        const repository = this.buildInterruptionRepository({ includeStoredRepository: false });
         if (repositoryContainer) {
             if (!repository.length) {
                 repositoryContainer.innerHTML = '<p class="empty-state">No interruption handlers in repository yet.</p>';
@@ -882,16 +970,23 @@ export const workflowMethods = {
             }
         }
 
-        const updateCopySelectedState = () => {
-            if (!copySelectedButton) return;
+        const updateRepositorySelectionState = () => {
             const checkedCount = document.querySelectorAll('.repo-handler-select:checked').length;
-            copySelectedButton.disabled = checkedCount === 0;
+            if (copySelectedButton) {
+                copySelectedButton.disabled = checkedCount === 0;
+            }
+            if (unifySelectedButton) {
+                unifySelectedButton.disabled = checkedCount < 2;
+            }
+            if (deleteSelectedButton) {
+                deleteSelectedButton.disabled = checkedCount === 0;
+            }
         };
 
         document.querySelectorAll('.repo-handler-select').forEach((checkbox) => {
-            checkbox.addEventListener('change', updateCopySelectedState);
+            checkbox.addEventListener('change', updateRepositorySelectionState);
         });
-        updateCopySelectedState();
+        updateRepositorySelectionState();
 
         if (handlers.length) {
             container.querySelectorAll('[data-action="toggle-enabled"]').forEach((inputEl) => {
@@ -936,6 +1031,433 @@ export const workflowMethods = {
     },
 
     updateDataSourceUIFromState() {},
+
+    /**
+     * Compute the longest common subsequence (LCS) of two arrays of tokens.
+     * Returns an array of { token, indexA, indexB } describing matched positions.
+     */
+    computeLCS(tokensA, tokensB) {
+        const m = tokensA.length;
+        const n = tokensB.length;
+        const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                if (tokensA[i - 1] === tokensB[j - 1]) {
+                    dp[i][j] = dp[i - 1][j - 1] + 1;
+                } else {
+                    dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+                }
+            }
+        }
+        const result = [];
+        let i = m;
+        let j = n;
+        while (i > 0 && j > 0) {
+            if (tokensA[i - 1] === tokensB[j - 1]) {
+                result.push({ token: tokensA[i - 1], indexA: i - 1, indexB: j - 1 });
+                i--;
+                j--;
+            } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+                i--;
+            } else {
+                j--;
+            }
+        }
+        return result.reverse();
+    },
+
+    /**
+     * Tokenize a trigger text into words and punctuation for alignment.
+     * Keeps punctuation as separate tokens so structural punctuation is preserved.
+     */
+    tokenizeForAlignment(text) {
+        return (text || '').split(/(\s+|[.,;:!?'"()\[\]{}])/g).filter(t => t && t.trim());
+    },
+
+    /**
+     * Given multiple trigger text strings, compute a generalized pattern that
+     * captures the common structure and replaces variable parts with wildcards.
+     *
+     * Algorithm:
+     *  1. Tokenize all texts.
+     *  2. Iteratively compute the LCS between the running common pattern and
+     *     each additional text's tokens.
+     *  3. Contiguous gaps between LCS-matched tokens become {variable} placeholders.
+     *  4. Adjacent placeholders are merged.
+     *
+     * This is fully data-driven — no hardcoded D365 message patterns required.
+     */
+    computeUnifiedPattern(texts) {
+        if (!texts || !texts.length) return '';
+        if (texts.length === 1) return texts[0];
+
+        const normalize = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        const normalized = texts.map(normalize);
+
+        // Start with the tokens of the first text as the baseline.
+        let commonTokens = this.tokenizeForAlignment(normalized[0]);
+        // Track which tokens in commonTokens are "fixed" vs "wildcard".
+        // Initially, all tokens are fixed.
+        let isWild = new Array(commonTokens.length).fill(false);
+
+        for (let ti = 1; ti < normalized.length; ti++) {
+            const nextTokens = this.tokenizeForAlignment(normalized[ti]);
+            const lcs = this.computeLCS(commonTokens, nextTokens);
+
+            // Build a new common token list that keeps only LCS matches and marks
+            // gaps between them as wildcards.
+            const newTokens = [];
+            const newIsWild = [];
+            let prevIdxA = -1;
+            let prevIdxB = -1;
+
+            for (const match of lcs) {
+                // If the original already had wild tokens between prevIdxA and match.indexA,
+                // or there is a gap of skipped tokens in either A or B, insert a wildcard.
+                const gapA = match.indexA - prevIdxA - 1;
+                const gapB = match.indexB - prevIdxB - 1;
+
+                // Check if any skipped token in A was already wild
+                let hadWild = false;
+                for (let k = prevIdxA + 1; k < match.indexA; k++) {
+                    if (isWild[k]) { hadWild = true; break; }
+                }
+
+                if (gapA > 0 || gapB > 0 || hadWild) {
+                    // Only add a wildcard if the last entry isn't already one
+                    if (!newIsWild.length || !newIsWild[newIsWild.length - 1]) {
+                        newTokens.push('{...}');
+                        newIsWild.push(true);
+                    }
+                }
+
+                newTokens.push(match.token);
+                newIsWild.push(false);
+                prevIdxA = match.indexA;
+                prevIdxB = match.indexB;
+            }
+
+            // Trailing gap
+            if (prevIdxA < commonTokens.length - 1 || prevIdxB < nextTokens.length - 1) {
+                if (!newIsWild.length || !newIsWild[newIsWild.length - 1]) {
+                    newTokens.push('{...}');
+                    newIsWild.push(true);
+                }
+            }
+
+            commonTokens = newTokens;
+            isWild = newIsWild;
+        }
+
+        // Rebuild pattern string. Multiple adjacent wildcards should already be
+        // collapsed. Add nice placeholder names for readability.
+        let wildcardCount = 0;
+        const parts = commonTokens.map((token, idx) => {
+            if (isWild[idx]) {
+                wildcardCount++;
+                return `{variable${wildcardCount > 1 ? wildcardCount : ''}}`;
+            }
+            return token;
+        });
+
+        return parts.join(' ').replace(/\s+/g, ' ').trim();
+    },
+
+    /**
+     * Convert a unified pattern with {variable} placeholders into a regex string.
+     * Each placeholder becomes a `.*?` lazy wildcard.  Fixed text is escaped.
+     */
+    patternToRegex(pattern) {
+        const placeholder = /\{[^}]+\}/g;
+        const segments = pattern.split(placeholder);
+        const matches = pattern.match(placeholder) || [];
+        let regex = '';
+        for (let i = 0; i < segments.length; i++) {
+            regex += segments[i].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (i < matches.length) {
+                regex += '.*?';
+            }
+        }
+        return regex;
+    },
+
+    /**
+     * Test a regex pattern against an array of original texts.
+     * Returns { allMatch, results: [{ text, matched }] }.
+     */
+    validatePatternAgainstTexts(pattern, texts, matchMode) {
+        const normalize = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+        const normalizedPattern = normalize(pattern);
+
+        if (matchMode === 'regex') {
+            const regexStr = this.patternToRegex(normalizedPattern);
+            let re;
+            try {
+                re = new RegExp(regexStr, 'i');
+            } catch {
+                return {
+                    allMatch: false,
+                    results: texts.map((text) => ({ text, matched: false, error: 'Invalid regex' }))
+                };
+            }
+            const results = texts.map((text) => ({
+                text,
+                matched: re.test(normalize(text))
+            }));
+            return { allMatch: results.every((r) => r.matched), results };
+        }
+
+        // Contains mode: either the event text contains the pattern, or vice versa
+        const results = texts.map((text) => {
+            const normText = normalize(text);
+            // For contains mode with placeholders, convert to regex under the hood
+            if (normalizedPattern.includes('{')) {
+                const regexStr = this.patternToRegex(normalizedPattern);
+                try {
+                    const re = new RegExp(regexStr, 'i');
+                    return { text, matched: re.test(normText) };
+                } catch {
+                    return { text, matched: false };
+                }
+            }
+            return {
+                text,
+                matched: normText.includes(normalizedPattern) || normalizedPattern.includes(normText)
+            };
+        });
+        return { allMatch: results.every((r) => r.matched), results };
+    },
+
+    /**
+     * Open the Unify Handlers modal with the selected repository handlers.
+     */
+    openUnifyHandlersModal(selectedHandlers) {
+        if (!selectedHandlers || selectedHandlers.length < 2) {
+            this.showNotification('Select at least 2 handlers to unify', 'warning');
+            return;
+        }
+
+        // Collect trigger texts
+        const triggerTexts = selectedHandlers.map((h) =>
+            this.normalizeInterruptionTextTemplate(h?.trigger?.textTemplate || '')
+        ).filter(Boolean);
+
+        if (triggerTexts.length < 2) {
+            this.showNotification('Selected handlers must have trigger texts to unify', 'warning');
+            return;
+        }
+
+        // Compute unified pattern
+        const pattern = this.computeUnifiedPattern(triggerTexts);
+
+        // Show modal
+        const modal = document.getElementById('unifyHandlersModal');
+        if (!modal) return;
+
+        // Populate source texts
+        document.getElementById('unifyHandlerCount').textContent = String(selectedHandlers.length);
+        const sourceTextsEl = document.getElementById('unifySourceTexts');
+        sourceTextsEl.innerHTML = triggerTexts.map((t, i) =>
+            `<div style="margin-bottom: 4px;"><strong>${i + 1}.</strong> ${escapeHtml(t)}</div>`
+        ).join('');
+
+        // Populate pattern
+        const patternEl = document.getElementById('unifyPatternPreview');
+        patternEl.value = pattern;
+
+        // Action summary from first handler
+        const firstSummary = this.summarizeInterruptionHandler(selectedHandlers[0]);
+        document.getElementById('unifyActionSummary').textContent =
+            `${firstSummary.actionSummary || 'none'} → ${firstSummary.outcome || 'next-step'}`;
+
+        // Set outcome
+        const outcomeEl = document.getElementById('unifyOutcomeSelect');
+        outcomeEl.value = selectedHandlers[0]?.outcome || 'next-step';
+
+        // Match mode
+        const matchModeEl = document.getElementById('unifyMatchMode');
+        matchModeEl.value = 'contains';
+
+        // Store context for save
+        this._unifyContext = {
+            selectedHandlers: selectedHandlers.map((h) => this.cloneInterruptionHandler(h)),
+            originalTexts: triggerTexts
+        };
+
+        // Update validation and regex preview
+        this._updateUnifyPreview();
+
+        // Show modal
+        modal.classList.remove('is-hidden');
+    },
+
+    /**
+     * Update the validation and regex preview in the unify modal.
+     */
+    _updateUnifyPreview() {
+        const pattern = (document.getElementById('unifyPatternPreview')?.value || '').trim();
+        const matchMode = document.getElementById('unifyMatchMode')?.value || 'contains';
+        const regexGroup = document.getElementById('unifyRegexGroup');
+        const regexPreview = document.getElementById('unifyRegexPreview');
+        const validationEl = document.getElementById('unifyValidationResult');
+
+        // Show/hide regex preview
+        if (regexGroup) {
+            regexGroup.style.display = matchMode === 'regex' ? '' : 'none';
+        }
+
+        // Generate regex preview
+        if (regexPreview && pattern) {
+            try {
+                regexPreview.value = this.patternToRegex(
+                    pattern.toLowerCase().replace(/\s+/g, ' ').trim()
+                );
+            } catch {
+                regexPreview.value = '(invalid)';
+            }
+        }
+
+        // Validate
+        if (!validationEl || !this._unifyContext) return;
+        const texts = this._unifyContext.originalTexts || [];
+        if (!pattern) {
+            validationEl.textContent = 'Enter a pattern to validate.';
+            validationEl.style.background = '#fefce8';
+            validationEl.style.borderColor = '#fde68a';
+            return;
+        }
+
+        const validation = this.validatePatternAgainstTexts(pattern, texts, matchMode);
+        if (validation.allMatch) {
+            validationEl.innerHTML = `<strong>All ${texts.length} texts match the pattern.</strong>`;
+            validationEl.style.background = '#f0fdf4';
+            validationEl.style.borderColor = '#bbf7d0';
+        } else {
+            const failCount = validation.results.filter((r) => !r.matched).length;
+            const details = validation.results.map((r, i) =>
+                `<div style="margin: 2px 0; color: ${r.matched ? '#16a34a' : '#dc2626'};">${r.matched ? 'OK' : 'NO'} ${i + 1}. ${escapeHtml(r.text.slice(0, 100))}${r.text.length > 100 ? '...' : ''}</div>`
+            ).join('');
+            validationEl.innerHTML = `<strong style="color: #dc2626;">${failCount} of ${texts.length} texts do not match.</strong>${details}`;
+            validationEl.style.background = '#fef2f2';
+            validationEl.style.borderColor = '#fecaca';
+        }
+    },
+
+    /**
+     * Save the unified handler - creates a single handler with the computed pattern
+     * and optionally removes the originals.
+     */
+    async saveUnifiedHandler() {
+        if (!this._unifyContext || !this.currentWorkflow) return;
+
+        const pattern = (document.getElementById('unifyPatternPreview')?.value || '').trim();
+        const matchMode = document.getElementById('unifyMatchMode')?.value || 'contains';
+        const outcome = document.getElementById('unifyOutcomeSelect')?.value || 'next-step';
+        const removeOriginals = document.getElementById('unifyRemoveOriginals')?.checked ?? true;
+
+        if (!pattern) {
+            this.showNotification('Pattern cannot be empty', 'warning');
+            return;
+        }
+
+        // Build the unified handler from the first selected handler as a base
+        const baseHandler = this._unifyContext.selectedHandlers[0];
+        const unifiedHandler = this.cloneInterruptionHandler(baseHandler);
+        unifiedHandler.id = generateId('rule');
+        unifiedHandler.createdAt = Date.now();
+        unifiedHandler.trigger = {
+            ...(unifiedHandler.trigger || {}),
+            textTemplate: pattern,
+            matchMode: matchMode === 'regex' ? 'regex' : 'contains'
+        };
+        if (matchMode === 'regex') {
+            unifiedHandler.trigger.regex = this.patternToRegex(
+                pattern.toLowerCase().replace(/\s+/g, ' ').trim()
+            );
+        }
+        unifiedHandler.outcome = outcome;
+        unifiedHandler.enabled = true;
+        unifiedHandler.mode = 'auto';
+        unifiedHandler.priority = 200; // higher priority than standard rules
+
+        // Optionally remove original handlers from all workflows
+        if (removeOriginals) {
+            const originalSignatures = new Set(
+                this._unifyContext.selectedHandlers.map((h) => this.getInterruptionHandlerSignature(h))
+            );
+
+            // Remove from current workflow
+            if (Array.isArray(this.currentWorkflow.unexpectedEventHandlers)) {
+                this.currentWorkflow.unexpectedEventHandlers = this.currentWorkflow.unexpectedEventHandlers.filter((h) => {
+                    const sig = this.getInterruptionHandlerSignature(h);
+                    return !originalSignatures.has(sig);
+                });
+            }
+
+            // Remove from all workflows
+            (this.workflows || []).forEach((wf) => {
+                if (!Array.isArray(wf.unexpectedEventHandlers)) return;
+                wf.unexpectedEventHandlers = wf.unexpectedEventHandlers.filter((h) => {
+                    const sig = this.getInterruptionHandlerSignature(h);
+                    return !originalSignatures.has(sig);
+                });
+            });
+        }
+
+        // Add unified handler to current workflow
+        if (!Array.isArray(this.currentWorkflow.unexpectedEventHandlers)) {
+            this.currentWorkflow.unexpectedEventHandlers = [];
+        }
+        this.currentWorkflow.unexpectedEventHandlers.push(unifiedHandler);
+
+        const replacedCount = this._unifyContext?.selectedHandlers?.length || 0;
+
+        // Persist
+        await this.persistCurrentWorkflowHandlers();
+        this.renderInterruptionHandlersPanel();
+
+        // Close modal
+        document.getElementById('unifyHandlersModal')?.classList.add('is-hidden');
+        this._unifyContext = null;
+
+        this.showNotification(
+            `Created unified rule${removeOriginals ? ` (replaced ${replacedCount} originals)` : ''}`,
+            'success'
+        );
+    },
+
+    /**
+     * Initialize the unify modal event listeners.
+     */
+    initUnifyHandlersModal() {
+        const closeBtn = document.getElementById('closeUnifyModal');
+        const cancelBtn = document.getElementById('unifyCancelBtn');
+        const saveBtn = document.getElementById('unifySaveBtn');
+        const patternEl = document.getElementById('unifyPatternPreview');
+        const matchModeEl = document.getElementById('unifyMatchMode');
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                document.getElementById('unifyHandlersModal')?.classList.add('is-hidden');
+                this._unifyContext = null;
+            });
+        }
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', () => {
+                document.getElementById('unifyHandlersModal')?.classList.add('is-hidden');
+                this._unifyContext = null;
+            });
+        }
+        if (saveBtn) {
+            saveBtn.addEventListener('click', () => this.saveUnifiedHandler());
+        }
+        if (patternEl) {
+            patternEl.addEventListener('input', () => this._updateUnifyPreview());
+        }
+        if (matchModeEl) {
+            matchModeEl.addEventListener('change', () => this._updateUnifyPreview());
+        }
+    },
 
     resolveWorkflowDataSources(workflow) {
         return JSON.parse(JSON.stringify(workflow || {}));

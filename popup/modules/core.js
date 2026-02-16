@@ -36,6 +36,9 @@ export const coreMethods = {
         if (this.initBuilderPanels) {
             await this.initBuilderPanels();
         }
+        if (this.initUnifyHandlersModal) {
+            this.initUnifyHandlersModal();
+        }
         if (this.initBuilderStepsSplit) {
             await this.initBuilderStepsSplit();
         }

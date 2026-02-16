@@ -590,23 +590,24 @@ export function startInjected({ windowObj = globalThis.window, documentObj = glo
         const triggerTemplate = generalizeInterruptionText(trigger.textTemplate || '');
         const eventTemplate = generalizeInterruptionText(event.templateText || event.text || '');
         const triggerMatchMode = normalizeText(trigger.matchMode || '');
-        const matchMode = triggerMatchMode === 'exact' ? 'exact' : 'contains';
-
-        if (triggerTemplate) {
-            if (matchMode === 'exact') {
-                if (triggerTemplate !== eventTemplate) return false;
-            } else if (!(eventTemplate.includes(triggerTemplate) || triggerTemplate.includes(eventTemplate))) {
-                return false;
-            }
-        }
 
         if (triggerMatchMode === 'regex') {
+            // Regex mode: use trigger.regex or trigger.textTemplate as a regex
             try {
                 const pattern = trigger.regex || trigger.textTemplate || '';
-                if (!pattern || !(new RegExp(pattern, 'i')).test(event.templateText || event.text || '')) {
+                if (!pattern) return false;
+                const eventText = normalizeText(event.templateText || event.text || '');
+                if (!(new RegExp(pattern, 'i')).test(eventText)) {
                     return false;
                 }
             } catch (error) {
+                return false;
+            }
+        } else if (triggerMatchMode === 'exact') {
+            if (triggerTemplate && triggerTemplate !== eventTemplate) return false;
+        } else {
+            // Contains mode (default)
+            if (triggerTemplate && !(eventTemplate.includes(triggerTemplate) || triggerTemplate.includes(eventTemplate))) {
                 return false;
             }
         }

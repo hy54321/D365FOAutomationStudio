@@ -124,6 +124,79 @@ describe('workflow methods', () => {
         expect(modalEntry.sources).toEqual(['Repository', 'Workflow A']);
     });
 
+    it('buildInterruptionRepository can ignore stored repository entries when requested', () => {
+        const repoOnlyHandler = {
+            trigger: { kind: 'modal', textTemplate: 'Repository only', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'OK' }],
+            outcome: 'next-step'
+        };
+        const workflowHandler = {
+            trigger: { kind: 'warning', textTemplate: 'Workflow only', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'Yes' }],
+            outcome: 'next-step'
+        };
+        const ctx = {
+            interruptionHandlerRepository: [repoOnlyHandler],
+            workflows: [{ id: 'w1', name: 'Workflow A', unexpectedEventHandlers: [workflowHandler] }],
+            currentWorkflow: null,
+            getInterruptionHandlerSignature: workflowMethods.getInterruptionHandlerSignature,
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        const entries = workflowMethods.buildInterruptionRepository.call(ctx, { includeStoredRepository: false });
+        expect(entries).toHaveLength(1);
+        expect(entries[0].handler.trigger.textTemplate).toBe('workflow only');
+        expect(entries[0].sources).toEqual(['Workflow A']);
+    });
+
+    it('deleteSelectedRepositoryHandlers removes selected signatures across workflows and persists', async () => {
+        const sharedHandler = {
+            trigger: { kind: 'modal', textTemplate: 'Unsaved changes', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'Yes' }],
+            outcome: 'next-step'
+        };
+        const keepHandler = {
+            trigger: { kind: 'warning', textTemplate: 'Keep me', matchMode: 'contains' },
+            actions: [{ type: 'click', buttonText: 'OK' }],
+            outcome: 'next-step'
+        };
+        const chromeSet = vi.fn().mockResolvedValue(undefined);
+        const ctx = {
+            workflows: [
+                { id: 'w1', name: 'Workflow A', unexpectedEventHandlers: [sharedHandler, keepHandler] },
+                { id: 'w2', name: 'Workflow B', unexpectedEventHandlers: [sharedHandler] }
+            ],
+            currentWorkflow: { id: 'w1', name: 'Workflow A', unexpectedEventHandlers: [sharedHandler, keepHandler] },
+            interruptionHandlerRepository: [sharedHandler],
+            chrome: { storage: { local: { set: chromeSet } } },
+            showNotification: vi.fn(),
+            renderInterruptionHandlersPanel: vi.fn(),
+            getSelectedRepositoryEntries: vi.fn().mockReturnValue([
+                { signature: workflowMethods.getInterruptionHandlerSignature.call({
+                    cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+                    normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+                    normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+                }, sharedHandler), handler: sharedHandler, sources: ['Workflow A'] }
+            ]),
+            buildInterruptionRepository: workflowMethods.buildInterruptionRepository,
+            getInterruptionHandlerSignature: workflowMethods.getInterruptionHandlerSignature,
+            cloneInterruptionHandler: workflowMethods.cloneInterruptionHandler,
+            normalizeInterruptionTextTemplate: workflowMethods.normalizeInterruptionTextTemplate,
+            normalizeInterruptionHandler: workflowMethods.normalizeInterruptionHandler
+        };
+
+        await workflowMethods.deleteSelectedRepositoryHandlers.call(ctx);
+
+        expect(ctx.workflows[0].unexpectedEventHandlers).toHaveLength(1);
+        expect(ctx.workflows[0].unexpectedEventHandlers[0].trigger.textTemplate).toBe('Keep me');
+        expect(ctx.workflows[1].unexpectedEventHandlers).toHaveLength(0);
+        expect(ctx.currentWorkflow.unexpectedEventHandlers).toHaveLength(1);
+        expect(chromeSet).toHaveBeenCalledTimes(1);
+        expect(ctx.showNotification).toHaveBeenCalledWith('Deleted 2 handlers from central repository', 'success');
+    });
+
     it('getInterruptionHandlerSignature normalizes cannot-create-record messages across tables and fields', () => {
         const handlerA = {
             trigger: {
@@ -721,5 +794,132 @@ describe('workflow methods', () => {
             'Please refresh the D365FO page first, then try again',
             'error'
         );
+    });
+
+    describe('computeUnifiedPattern', () => {
+        const ctx = {
+            computeLCS: workflowMethods.computeLCS,
+            tokenizeForAlignment: workflowMethods.tokenizeForAlignment,
+            computeUnifiedPattern: workflowMethods.computeUnifiedPattern
+        };
+
+        it('returns the single text unchanged when only one is given', () => {
+            const result = workflowMethods.computeUnifiedPattern.call(ctx, [
+                'cannot create a record for john'
+            ]);
+            expect(result).toBe('cannot create a record for john');
+        });
+
+        it('generalizes varying person names into a placeholder', () => {
+            const texts = [
+                'standard view match found there might already be a record for john johnson',
+                'standard view match found there might already be a record for joseph anderson',
+                'standard view match found there might already be a record for william davis',
+                'standard view match found there might already be a record for james jones'
+            ];
+            const result = workflowMethods.computeUnifiedPattern.call(ctx, texts);
+            // The common structure should be preserved with a variable for the name
+            expect(result).toContain('standard');
+            expect(result).toContain('view');
+            expect(result).toContain('record');
+            expect(result).toContain('for');
+            expect(result).toContain('{variable');
+            // Should NOT contain any specific person name
+            expect(result).not.toContain('john');
+            expect(result).not.toContain('joseph');
+            expect(result).not.toContain('william');
+            expect(result).not.toContain('james');
+        });
+
+        it('generalizes completely different texts into wildcards', () => {
+            const texts = [
+                'error processing order 12345',
+                'error processing invoice 67890'
+            ];
+            const result = workflowMethods.computeUnifiedPattern.call(ctx, texts);
+            expect(result).toContain('error');
+            expect(result).toContain('processing');
+            expect(result).toContain('{variable');
+        });
+
+        it('handles texts with different address details', () => {
+            const texts = [
+                'name search name addresses name or descriptionaddresspurposeprimary21094 e hampden pl aurora, co # usa',
+                'name search name addresses name or descriptionaddresspurposeprimary1413 jefferson avenue sheboygan, wi # usa',
+                'name search name addresses name or descriptionaddresspurposeprimary707 1st ave san mateo, ca # usa',
+                'name search name addresses name or descriptionaddresspurposeprimary3947 state route # midland, oh # usa'
+            ];
+            const result = workflowMethods.computeUnifiedPattern.call(ctx, texts);
+            expect(result).toContain('name');
+            expect(result).toContain('search');
+            expect(result).toContain('addresses');
+            expect(result).toContain('{variable');
+            expect(result).toContain('usa');
+        });
+
+        it('returns empty string for empty input', () => {
+            expect(workflowMethods.computeUnifiedPattern.call(ctx, [])).toBe('');
+            expect(workflowMethods.computeUnifiedPattern.call(ctx, null)).toBe('');
+        });
+    });
+
+    describe('patternToRegex', () => {
+        const ctx = {};
+
+        it('converts placeholders to lazy wildcards', () => {
+            const regex = workflowMethods.patternToRegex.call(ctx, 'record for {variable}');
+            expect(regex).toContain('.*?');
+            expect(regex).toContain('record for ');
+        });
+
+        it('escapes regex special characters in the fixed text', () => {
+            const regex = workflowMethods.patternToRegex.call(ctx, 'field (name) has {variable}');
+            // Parentheses should be escaped
+            expect(regex).toContain('\\(name\\)');
+        });
+    });
+
+    describe('validatePatternAgainstTexts', () => {
+        const ctx = {
+            patternToRegex: workflowMethods.patternToRegex
+        };
+
+        it('validates all texts match with regex mode', () => {
+            const pattern = 'record for {variable}';
+            const texts = [
+                'record for john johnson',
+                'record for william davis'
+            ];
+            const result = workflowMethods.validatePatternAgainstTexts.call(ctx, pattern, texts, 'regex');
+            expect(result.allMatch).toBe(true);
+        });
+
+        it('detects when a text does not match', () => {
+            const pattern = 'record for {variable}';
+            const texts = [
+                'record for john',
+                'completely different message'
+            ];
+            const result = workflowMethods.validatePatternAgainstTexts.call(ctx, pattern, texts, 'regex');
+            expect(result.allMatch).toBe(false);
+            expect(result.results[0].matched).toBe(true);
+            expect(result.results[1].matched).toBe(false);
+        });
+    });
+
+    describe('computeLCS', () => {
+        const ctx = {};
+
+        it('finds common subsequence of two token arrays', () => {
+            const a = ['a', 'b', 'c', 'd'];
+            const b = ['a', 'x', 'c', 'd'];
+            const result = workflowMethods.computeLCS.call(ctx, a, b);
+            expect(result.map(r => r.token)).toEqual(['a', 'c', 'd']);
+        });
+
+        it('returns empty for completely different arrays', () => {
+            const result = workflowMethods.computeLCS.call(ctx, ['a', 'b'], ['x', 'y']);
+            expect(result).toEqual([]);
+        });
     });
 });

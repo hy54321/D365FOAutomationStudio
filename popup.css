@@ -3150,3 +3150,72 @@ header h1 {
     font-size: 11px;
     color: #6b7280;
 }
+
+/* Unify Handlers Modal */
+#unifyHandlersModal .modal-body .form-group {
+    margin-bottom: 12px;
+}
+
+#unifyHandlersModal .modal-body label {
+    font-weight: 600;
+    font-size: 12px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+#unifyHandlersModal .modal-body small {
+    display: block;
+    margin-top: 4px;
+    color: #6b7280;
+    font-size: 11px;
+}
+
+#unifyHandlersModal .modal-body small code {
+    background: #f1f5f9;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+}
+
+#unifyPatternPreview {
+    resize: vertical;
+}
+
+.interruption-repository-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+#unifySelectedRepositoryHandlersButton:not(:disabled) {
+    background: #7c3aed;
+    color: #fff;
+    border-color: #6d28d9;
+}
+
+#unifySelectedRepositoryHandlersButton:not(:disabled):hover {
+    background: #6d28d9;
+}
+
+.handler-badge {
+    display: inline-block;
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 9999px;
+    font-weight: 600;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.handler-badge-regex {
+    background: #ede9fe;
+    color: #6d28d9;
+    border: 1px solid #c4b5fd;
+}
+
+.interruption-repository-item.unified-handler {
+    border-color: #c4b5fd;
+    background: #faf5ff;
+}

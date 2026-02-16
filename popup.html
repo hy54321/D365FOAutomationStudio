@@ -194,6 +194,8 @@
                         </div>
                         <div class="interruption-repository-header builder-panel-body">
                             <button id="copySelectedRepositoryHandlersButton" class="btn btn-secondary btn-sm" disabled>Add selected to workflow</button>
+                            <button id="unifySelectedRepositoryHandlersButton" class="btn btn-secondary btn-sm" disabled title="Analyze selected handlers and create a single generalized pattern rule">Unify Selected</button>
+                            <button id="deleteSelectedRepositoryHandlersButton" class="btn btn-danger btn-sm" disabled>Delete Selected</button>
                         </div>
                         <div id="interruptionRepositoryList" class="interruption-repository-list builder-panel-body">
                             <p class="empty-state">Open a workflow to browse repository handlers.</p>
@@ -817,6 +819,66 @@
 
 
         <!-- Resume Modal -->
+
+        <!-- Unify Handlers Modal -->
+        <div class="modal-overlay is-hidden" id="unifyHandlersModal">
+            <div class="modal" style="max-width: 640px;">
+                <div class="modal-header">
+                    <h3>Unify Interruption Handlers</h3>
+                    <button class="btn-close" id="closeUnifyModal">✕</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Selected Trigger Texts (<span id="unifyHandlerCount">0</span>)</label>
+                        <div id="unifySourceTexts" style="font-size: 11px; line-height: 1.5; max-height: 140px; overflow: auto; background: #f8fafc; border: 1px solid #dbeafe; border-radius: 6px; padding: 8px;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Generated Pattern</label>
+                        <textarea id="unifyPatternPreview" class="form-control" rows="3" style="font-family: monospace; font-size: 12px;" placeholder="Pattern will appear here..."></textarea>
+                        <small>The pattern uses <code>{...}</code> placeholders for variable parts. You can edit it before saving.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Match Mode</label>
+                        <select id="unifyMatchMode" class="form-control">
+                            <option value="contains" selected>Dynamic text match (contains)</option>
+                            <option value="regex">Regex match</option>
+                        </select>
+                        <small>Contains uses the pattern as a template. Regex uses it as a regular expression.</small>
+                    </div>
+                    <div class="form-group" id="unifyRegexGroup" style="display:none;">
+                        <label>Regex Preview</label>
+                        <input id="unifyRegexPreview" class="form-control" readonly style="font-family: monospace; font-size: 12px;">
+                        <small>Auto-generated regex from the pattern. Variable sections become <code>.*?</code> wildcards.</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Validation</label>
+                        <div id="unifyValidationResult" style="font-size: 11px; padding: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;">Select handlers to see validation.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Action (from first selected handler)</label>
+                        <div id="unifyActionSummary" style="font-size: 12px; color: #374151;"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Outcome</label>
+                        <select id="unifyOutcomeSelect" class="form-control">
+                            <option value="next-step">Continue with next step</option>
+                            <option value="continue-loop">Continue loop (next iteration)</option>
+                            <option value="repeat-loop">Repeat current loop iteration</option>
+                            <option value="break-loop">Break current loop</option>
+                            <option value="stop">Stop workflow</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="unifyRemoveOriginals" checked> Remove original handlers after unify</label>
+                        <small>When checked, the selected handlers will be replaced by the unified rule. Otherwise both will exist.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="unifyCancelBtn" class="btn btn-secondary">Cancel</button>
+                    <button id="unifySaveBtn" class="btn btn-success">Save Unified Rule</button>
+                </div>
+            </div>
+        </div>
         <div class="modal-overlay resume-modal is-hidden" id="resumeModal">
             <div class="modal">
                 <div class="modal-header">
